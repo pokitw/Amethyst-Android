@@ -68,6 +68,7 @@ import net.kdt.pojavlaunch.customcontrols.mouse.Touchpad;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
+import net.kdt.pojavlaunch.recorder.GameRecorder;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
@@ -83,6 +84,8 @@ import org.lwjgl.glfw.CallbackBridge;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -120,6 +123,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private GameService.LocalBinder mServiceBinder;
 
     private QuickSettingSideDialog mQuickSettingSideDialog;
+
+    /** Index of the recording entry inside the menu_ingame array. */
+    private static final int MENU_INGAME_RECORD = 5;
+    private GameRecorder mGameRecorder;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -254,9 +261,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             windowHeight = Tools.getDisplayFriendlyRes(currentDisplayMetrics.heightPixels, 1f);
 
 
-            // Menu
+            // Menu. Backed by a mutable list so that the recording entry can flip its label.
             gameActionArrayAdapter = new ArrayAdapter<>(this,
-                    android.R.layout.simple_list_item_1, getResources().getStringArray(R.array.menu_ingame));
+                    android.R.layout.simple_list_item_1,
+                    new ArrayList<>(Arrays.asList(getResources().getStringArray(R.array.menu_ingame))));
             gameActionClickListener = (parent, view, position, id) -> {
                 switch(position) {
                     case 0: dialogForceClose(MainActivity.this); break;
@@ -264,6 +272,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     case 2: dialogSendCustomKey(); break;
                     case 3: openQuickSettings(); break;
                     case 4: openCustomControls(); break;
+                    case MENU_INGAME_RECORD: toggleRecording(); break;
                 }
                 drawerLayout.closeDrawers();
             };
@@ -370,6 +379,9 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     @Override
     protected void onStop() {
+        // The game surface is torn down when we stop being visible, and there is nothing left
+        // worth capturing, so wrap up the recording instead of filling it with dead frames.
+        if(mGameRecorder != null) mGameRecorder.stopIfRecording();
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_VISIBLE, 0);
         super.onStop();
     }
@@ -525,6 +537,42 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     private void openLogOutput() {
         loggerView.setVisibility(View.VISIBLE);
+    }
+
+    /** Starts or stops recording the gameplay straight out of the renderer. */
+    private void toggleRecording() {
+        if(mGameRecorder == null) {
+            File recordingsDir = new File(Tools.getGameDirPath(minecraftProfile), "recordings");
+            mGameRecorder = new GameRecorder(recordingsDir, new GameRecorder.Listener() {
+                @Override
+                public void onRecordingStarted() {
+                    refreshRecordingMenuEntry();
+                    Toast.makeText(MainActivity.this, R.string.control_recording_started, Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onRecordingStopped(@NonNull File output) {
+                    refreshRecordingMenuEntry();
+                    Toast.makeText(MainActivity.this, getString(R.string.control_recording_saved, output.getAbsolutePath()), Toast.LENGTH_LONG).show();
+                }
+
+                @Override
+                public void onRecordingFailed(@NonNull String reason) {
+                    refreshRecordingMenuEntry();
+                    Toast.makeText(MainActivity.this, getString(R.string.control_recording_failed, reason), Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+        mGameRecorder.toggle();
+    }
+
+    private void refreshRecordingMenuEntry() {
+        if(gameActionArrayAdapter == null || mGameRecorder == null) return;
+        if(gameActionArrayAdapter.getCount() <= MENU_INGAME_RECORD) return;
+        gameActionArrayAdapter.remove(gameActionArrayAdapter.getItem(MENU_INGAME_RECORD));
+        gameActionArrayAdapter.insert(getString(mGameRecorder.isRecording()
+                ? R.string.control_stop_recording
+                : R.string.control_start_recording), MENU_INGAME_RECORD);
     }
 
     private void openQuickSettings() {

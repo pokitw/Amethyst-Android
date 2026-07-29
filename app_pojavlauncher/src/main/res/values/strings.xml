@@ -122,6 +122,11 @@
     <string name="control_viewout">Log output</string>
     <string name="control_adebug">Input Debug</string>
     <string name="control_customkey">Send custom keycode</string>
+    <string name="control_start_recording">Start recording</string>
+    <string name="control_stop_recording">Stop recording</string>
+    <string name="control_recording_started">Recording started</string>
+    <string name="control_recording_saved">Recording saved to %s</string>
+    <string name="control_recording_failed">Recording failed: %s</string>
 
     <!-- ImportControlActivity Strings -->
     <string name="import_control_label">Import controls</string>
