@@ -78,16 +78,9 @@ jobs:
           ./scripts/languagelist_updater.sh
           mkdir out
 
-      - name: Build Release .apk
-        run: |
-          # Build the launcher
-          gradle :app_pojavlauncher:assembleRelease
-          mv app_pojavlauncher/build/outputs/apk/release/app_pojavlauncher-release.apk out/app-release.apk
-
-      - name: Gen md5sums
-        run: |
-          md5sum out/app-release.apk > out/app-release.md5
-
+      # Debug goes first so that a usable APK is produced even when the release build cannot
+      # run: release signing needs the GPLAY_KEYSTORE_PASSWORD secret, which forks do not
+      # inherit, and a failure there used to take the debug APK down with it.
       - name: Build Debug .apk
         run: |
           # Build the launcher
@@ -104,7 +97,21 @@ jobs:
           name: app-debug (recommended)
           path: out/app-debug.*
 
+      - name: Build Release .apk
+        # Skipped on forks without the signing secret, rather than failing the whole run.
+        if: env.GPLAY_KEYSTORE_PASSWORD != ''
+        run: |
+          # Build the launcher
+          gradle :app_pojavlauncher:assembleRelease
+          mv app_pojavlauncher/build/outputs/apk/release/app_pojavlauncher-release.apk out/app-release.apk
+
+      - name: Gen md5sums
+        if: env.GPLAY_KEYSTORE_PASSWORD != ''
+        run: |
+          md5sum out/app-release.apk > out/app-release.md5
+
       - name: Upload release APK
+        if: env.GPLAY_KEYSTORE_PASSWORD != ''
         uses: actions/upload-artifact@v4
         with:
           name: app-release
