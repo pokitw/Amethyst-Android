@@ -12,6 +12,7 @@ import static org.lwjgl.glfw.CallbackBridge.sendKeyPress;
 import static org.lwjgl.glfw.CallbackBridge.windowHeight;
 import static org.lwjgl.glfw.CallbackBridge.windowWidth;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -20,8 +21,10 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.media.projection.MediaProjectionManager;
 import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
@@ -44,6 +47,7 @@ import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -68,6 +72,9 @@ import net.kdt.pojavlaunch.customcontrols.mouse.Touchpad;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
+import net.kdt.pojavlaunch.recorder.GameRecorder;
+import net.kdt.pojavlaunch.recorder.RecorderPreferences;
+import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
@@ -83,6 +90,8 @@ import org.lwjgl.glfw.CallbackBridge;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -120,6 +129,12 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private GameService.LocalBinder mServiceBinder;
 
     private QuickSettingSideDialog mQuickSettingSideDialog;
+
+    /** Index of the recording entry inside the menu_ingame array. */
+    private static final int MENU_INGAME_RECORD = 5;
+    private static final int REQUEST_MEDIA_PROJECTION = 1001;
+    private static final int REQUEST_RECORD_AUDIO = 1002;
+    private GameRecorder mGameRecorder;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -254,9 +269,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             windowHeight = Tools.getDisplayFriendlyRes(currentDisplayMetrics.heightPixels, 1f);
 
 
-            // Menu
+            // Menu. Backed by a mutable list so that the recording entry can flip its label.
             gameActionArrayAdapter = new ArrayAdapter<>(this,
-                    android.R.layout.simple_list_item_1, getResources().getStringArray(R.array.menu_ingame));
+                    android.R.layout.simple_list_item_1,
+                    new ArrayList<>(Arrays.asList(getResources().getStringArray(R.array.menu_ingame))));
             gameActionClickListener = (parent, view, position, id) -> {
                 switch(position) {
                     case 0: dialogForceClose(MainActivity.this); break;
@@ -264,6 +280,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     case 2: dialogSendCustomKey(); break;
                     case 3: openQuickSettings(); break;
                     case 4: openCustomControls(); break;
+                    case MENU_INGAME_RECORD: toggleRecording(); break;
                 }
                 drawerLayout.closeDrawers();
             };
@@ -370,6 +387,9 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     @Override
     protected void onStop() {
+        // The game surface is torn down when we stop being visible, and there is nothing left
+        // worth capturing, so wrap up the recording instead of filling it with dead frames.
+        if(mGameRecorder != null) mGameRecorder.stopIfRecording();
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_VISIBLE, 0);
         super.onStop();
     }
@@ -410,6 +430,20 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_MEDIA_PROJECTION) {
+            if (resultCode != Activity.RESULT_OK || data == null) {
+                getRecorder().toggle(null); // consent refused, record the picture only
+                return;
+            }
+            // The projection has to be fetched by a foreground service declaring the
+            // mediaProjection type, otherwise Android 14 and up refuse to hand it over.
+            RecorderService.requestProjection(this, resultCode, data, projection -> {
+                if (projection == null) Log.w(TAG, "No media projection, recording without audio");
+                getRecorder().toggle(projection);
+            });
+            return;
+        }
 
         if (requestCode == 1 && resultCode == Activity.RESULT_OK) {
             // Reload PREF_DEFAULTCTRL_PATH
@@ -525,6 +559,96 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     private void openLogOutput() {
         loggerView.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * Starts or stops recording the gameplay straight out of the renderer.
+     * <p>
+     * Starting takes a detour through the microphone permission and the screen capture consent,
+     * both of which are needed to capture the game's own audio. Either one being refused only
+     * costs the sound, the video is recorded regardless.
+     */
+    private void toggleRecording() {
+        if(getRecorder().isRecording()) {
+            // The service is released from the listener, once the tail of the audio has been
+            // flushed and the file is closed.
+            getRecorder().stopIfRecording();
+            return;
+        }
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !getRecorder().wantsAudio()) {
+            // Playback capture needs Android 10, and there is no reason to prompt for it when
+            // audio recording is switched off in the settings.
+            getRecorder().toggle(null);
+            return;
+        }
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO);
+            return; // resumed from onRequestPermissionsResult
+        }
+        requestProjectionAndRecord();
+    }
+
+    private void requestProjectionAndRecord() {
+        MediaProjectionManager manager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        if(manager == null) {
+            getRecorder().toggle(null);
+            return;
+        }
+        try {
+            startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not ask for screen capture consent, recording without audio", t);
+            getRecorder().toggle(null);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if(requestCode != REQUEST_RECORD_AUDIO) return;
+        if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            requestProjectionAndRecord();
+        } else {
+            // No microphone permission means no playback capture, so record the picture only.
+            getRecorder().toggle(null);
+        }
+    }
+
+    private GameRecorder getRecorder() {
+        if(mGameRecorder == null) {
+            File recordingsDir = RecorderPreferences.recordingsDirectory(Tools.getGameDirPath(minecraftProfile));
+            mGameRecorder = new GameRecorder(this, recordingsDir, new GameRecorder.Listener() {
+                @Override
+                public void onRecordingStarted() {
+                    refreshRecordingMenuEntry();
+                    Toast.makeText(MainActivity.this, R.string.control_recording_started, Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onRecordingStopped(@NonNull File output) {
+                    refreshRecordingMenuEntry();
+                    RecorderService.release(MainActivity.this);
+                    Toast.makeText(MainActivity.this, getString(R.string.control_recording_saved, output.getAbsolutePath()), Toast.LENGTH_LONG).show();
+                }
+
+                @Override
+                public void onRecordingFailed(@NonNull String reason) {
+                    refreshRecordingMenuEntry();
+                    RecorderService.release(MainActivity.this);
+                    Toast.makeText(MainActivity.this, getString(R.string.control_recording_failed, reason), Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+        return mGameRecorder;
+    }
+
+    private void refreshRecordingMenuEntry() {
+        if(gameActionArrayAdapter == null || mGameRecorder == null) return;
+        if(gameActionArrayAdapter.getCount() <= MENU_INGAME_RECORD) return;
+        gameActionArrayAdapter.remove(gameActionArrayAdapter.getItem(MENU_INGAME_RECORD));
+        gameActionArrayAdapter.insert(getString(mGameRecorder.isRecording()
+                ? R.string.control_stop_recording
+                : R.string.control_start_recording), MENU_INGAME_RECORD);
     }
 
     private void openQuickSettings() {

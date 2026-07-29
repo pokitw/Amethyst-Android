@@ -23,6 +23,7 @@ LOCAL_SRC_FILES := \
     egl_bridge.c \
     ctxbridges/loader_dlopen.c \
     ctxbridges/gl_bridge.c \
+    ctxbridges/gl_recorder.c \
     ctxbridges/osm_bridge.c \
     ctxbridges/egl_loader.c \
     ctxbridges/osmesa_loader.c \

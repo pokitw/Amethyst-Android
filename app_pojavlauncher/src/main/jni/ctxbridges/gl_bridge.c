@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <environ/environ.h>
 #include "gl_bridge.h"
+#include "gl_recorder.h"
 #include "egl_loader.h"
 
 #define TAG __FILE_NAME__
@@ -184,6 +185,11 @@ void gl_swap_buffers() {
         eglMakeCurrent_p(g_EglDisplay, currentBundle->surface, currentBundle->surface, currentBundle->context);
         currentBundle->state = STATE_RENDERER_ALIVE;
     }
+    // Capture before presenting: the back buffer is undefined once eglSwapBuffers() returns.
+    // Only the main window is recorded, LWJGL may hold other contexts of its own.
+    if((basic_render_window_t*)currentBundle == pojav_environ->mainWindowBundle)
+        gl_recorder_frame(g_EglDisplay, currentBundle);
+
     if(currentBundle->surface != NULL)
         if(!eglSwapBuffers_p(g_EglDisplay, currentBundle->surface) && eglGetError_p() == EGL_BAD_SURFACE) {
             eglMakeCurrent_p(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
