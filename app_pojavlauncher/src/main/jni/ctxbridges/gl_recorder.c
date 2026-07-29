@@ -53,10 +53,16 @@ static int recorder_width;
 static int recorder_height;
 static int64_t recorder_frame_interval_ns;
 
+/**
+ * Timestamp the video track is relative to. Handed over by the Java side rather than taken
+ * here, because the audio track has to be laid out against the very same origin and the first
+ * frame may only get presented a while after the recording was asked for.
+ */
+static int64_t recorder_start_ns;
+
 /* Render thread only, published while holding recorder_mutex during setup/teardown. */
 static EGLSurface recorder_surface = EGL_NO_SURFACE;
 static EGLContext recorder_context = EGL_NO_CONTEXT;
-static int64_t recorder_start_ns;
 static int64_t recorder_next_frame_ns;
 
 typedef int64_t EGLnsecs;
@@ -165,8 +171,7 @@ static bool recorder_setup_locked(EGLDisplay display, gl_render_window_t* bundle
         return false;
     }
 
-    recorder_start_ns = recorder_now_ns();
-    recorder_next_frame_ns = recorder_start_ns;
+    recorder_next_frame_ns = recorder_now_ns();
     LOGI("Recording started, encoding at %dx%d", recorder_width, recorder_height);
     return true;
 }
@@ -274,7 +279,8 @@ void gl_recorder_frame(EGLDisplay display, gl_render_window_t* bundle) {
 JNIEXPORT jboolean JNICALL
 Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeStartRecording(JNIEnv* env, jclass clazz,
                                                                    jobject surface, jint width,
-                                                                   jint height, jint frameRate) {
+                                                                   jint height, jint frameRate,
+                                                                   jlong startTimeNanos) {
     (void) clazz;
     if (surface == NULL || width <= 0 || height <= 0 || frameRate <= 0) return JNI_FALSE;
 
@@ -293,6 +299,8 @@ Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeStartRecording(JNIEnv* env,
     recorder_width = width;
     recorder_height = height;
     recorder_frame_interval_ns = 1000000000LL / frameRate;
+    // System.nanoTime() is CLOCK_MONOTONIC on Android, the same clock recorder_now_ns() reads.
+    recorder_start_ns = startTimeNanos;
     // The render thread picks this up on its next presented frame.
     atomic_store_explicit(&recorder_state, RECORDER_PENDING, memory_order_release);
     pthread_mutex_unlock(&recorder_mutex);

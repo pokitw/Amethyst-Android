@@ -12,6 +12,7 @@ import static org.lwjgl.glfw.CallbackBridge.sendKeyPress;
 import static org.lwjgl.glfw.CallbackBridge.windowHeight;
 import static org.lwjgl.glfw.CallbackBridge.windowWidth;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -20,8 +21,10 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.media.projection.MediaProjectionManager;
 import android.graphics.RectF;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
@@ -44,6 +47,7 @@ import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -69,6 +73,7 @@ import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
 import net.kdt.pojavlaunch.recorder.GameRecorder;
+import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
@@ -126,6 +131,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     /** Index of the recording entry inside the menu_ingame array. */
     private static final int MENU_INGAME_RECORD = 5;
+    private static final int REQUEST_MEDIA_PROJECTION = 1001;
+    private static final int REQUEST_RECORD_AUDIO = 1002;
     private GameRecorder mGameRecorder;
 
     @Override
@@ -423,6 +430,20 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == REQUEST_MEDIA_PROJECTION) {
+            if (resultCode != Activity.RESULT_OK || data == null) {
+                getRecorder().toggle(null); // consent refused, record the picture only
+                return;
+            }
+            // The projection has to be fetched by a foreground service declaring the
+            // mediaProjection type, otherwise Android 14 and up refuse to hand it over.
+            RecorderService.requestProjection(this, resultCode, data, projection -> {
+                if (projection == null) Log.w(TAG, "No media projection, recording without audio");
+                getRecorder().toggle(projection);
+            });
+            return;
+        }
+
         if (requestCode == 1 && resultCode == Activity.RESULT_OK) {
             // Reload PREF_DEFAULTCTRL_PATH
             // If the storage root got unmounted/unreadable we won't be able to load the file anyway,
@@ -539,8 +560,58 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         loggerView.setVisibility(View.VISIBLE);
     }
 
-    /** Starts or stops recording the gameplay straight out of the renderer. */
+    /**
+     * Starts or stops recording the gameplay straight out of the renderer.
+     * <p>
+     * Starting takes a detour through the microphone permission and the screen capture consent,
+     * both of which are needed to capture the game's own audio. Either one being refused only
+     * costs the sound, the video is recorded regardless.
+     */
     private void toggleRecording() {
+        if(getRecorder().isRecording()) {
+            // The service is released from the listener, once the tail of the audio has been
+            // flushed and the file is closed.
+            getRecorder().stopIfRecording();
+            return;
+        }
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            getRecorder().toggle(null); // playback capture needs Android 10
+            return;
+        }
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO);
+            return; // resumed from onRequestPermissionsResult
+        }
+        requestProjectionAndRecord();
+    }
+
+    private void requestProjectionAndRecord() {
+        MediaProjectionManager manager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        if(manager == null) {
+            getRecorder().toggle(null);
+            return;
+        }
+        try {
+            startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not ask for screen capture consent, recording without audio", t);
+            getRecorder().toggle(null);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if(requestCode != REQUEST_RECORD_AUDIO) return;
+        if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            requestProjectionAndRecord();
+        } else {
+            // No microphone permission means no playback capture, so record the picture only.
+            getRecorder().toggle(null);
+        }
+    }
+
+    private GameRecorder getRecorder() {
         if(mGameRecorder == null) {
             File recordingsDir = new File(Tools.getGameDirPath(minecraftProfile), "recordings");
             mGameRecorder = new GameRecorder(recordingsDir, new GameRecorder.Listener() {
@@ -553,17 +624,19 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                 @Override
                 public void onRecordingStopped(@NonNull File output) {
                     refreshRecordingMenuEntry();
+                    RecorderService.release(MainActivity.this);
                     Toast.makeText(MainActivity.this, getString(R.string.control_recording_saved, output.getAbsolutePath()), Toast.LENGTH_LONG).show();
                 }
 
                 @Override
                 public void onRecordingFailed(@NonNull String reason) {
                     refreshRecordingMenuEntry();
+                    RecorderService.release(MainActivity.this);
                     Toast.makeText(MainActivity.this, getString(R.string.control_recording_failed, reason), Toast.LENGTH_LONG).show();
                 }
             });
         }
-        mGameRecorder.toggle();
+        return mGameRecorder;
     }
 
     private void refreshRecordingMenuEntry() {
