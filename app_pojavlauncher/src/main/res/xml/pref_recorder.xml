@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app2="http://schemas.android.com/apk/res-auto">
+
+    <net.kdt.pojavlaunch.prefs.BackButtonPreference/>
+
+    <Preference
+        android:key="viewRecordings"
+        android:title="@string/preference_recorder_view_title"
+        android:summary="@string/preference_recorder_view_description"
+        android:icon="@drawable/ic_setting_video"
+        />
+
+    <PreferenceCategory android:title="@string/preference_category_recorder_video">
+
+        <ListPreference
+            android:key="recorderResolution"
+            android:title="@string/preference_recorder_resolution_title"
+            android:summary="%s"
+            android:defaultValue="1280"
+            android:entries="@array/recorder_resolution_names"
+            android:entryValues="@array/recorder_resolution_values"
+            android:icon="@drawable/ic_setting_screen_resolution"
+            />
+
+        <ListPreference
+            android:key="recorderFrameRate"
+            android:title="@string/preference_recorder_framerate_title"
+            android:summary="%s"
+            android:defaultValue="30"
+            android:entries="@array/recorder_framerate_names"
+            android:entryValues="@array/recorder_framerate_values"
+            />
+
+        <net.kdt.pojavlaunch.prefs.CustomSeekBarPreference
+            android:key="recorderVideoBitrate"
+            android:title="@string/preference_recorder_video_bitrate_title"
+            android:summary="@string/preference_recorder_video_bitrate_description"
+            android:defaultValue="12"
+            app2:showSeekBarValue="true"
+            app2:selectable="false"
+            app2:min="2"
+            android:max="50"
+            app2:seekBarIncrement="1"
+            />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/preference_category_recorder_audio">
+
+        <SwitchPreference
+            android:key="recorderCaptureAudio"
+            android:title="@string/preference_recorder_audio_title"
+            android:summary="@string/preference_recorder_audio_description"
+            android:defaultValue="true"
+            />
+
+        <ListPreference
+            android:key="recorderAudioBitrate"
+            android:title="@string/preference_recorder_audio_bitrate_title"
+            android:summary="%s"
+            android:defaultValue="192"
+            android:entries="@array/recorder_audio_bitrate_names"
+            android:entryValues="@array/recorder_audio_bitrate_values"
+            />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

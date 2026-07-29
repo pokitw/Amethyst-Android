@@ -37,6 +37,43 @@
         <item>@string/control_start_recording</item>
     </string-array>
     
+    <string-array name="recorder_resolution_names">
+        <item>@string/preference_recorder_resolution_native</item>
+        <item>480p</item>
+        <item>720p</item>
+        <item>1080p</item>
+    </string-array>
+    <string-array name="recorder_resolution_values">
+        <item>0</item>
+        <item>854</item>
+        <item>1280</item>
+        <item>1920</item>
+    </string-array>
+
+    <string-array name="recorder_framerate_names">
+        <item>24 FPS</item>
+        <item>30 FPS</item>
+        <item>60 FPS</item>
+    </string-array>
+    <string-array name="recorder_framerate_values">
+        <item>24</item>
+        <item>30</item>
+        <item>60</item>
+    </string-array>
+
+    <string-array name="recorder_audio_bitrate_names">
+        <item>96 kbps</item>
+        <item>128 kbps</item>
+        <item>192 kbps</item>
+        <item>256 kbps</item>
+    </string-array>
+    <string-array name="recorder_audio_bitrate_values">
+        <item>96</item>
+        <item>128</item>
+        <item>192</item>
+        <item>256</item>
+    </string-array>
+
     <string-array name="renderer_values">
         <item>opengles2</item> <!-- BZLZHH/NG-GL4ES (Krypton Wrapper) -->
         <item>opengles3_desktopgl_zink_kopper</item> <!-- Swung's Kopper Zink backport to 23.0.4 -->

@@ -134,6 +134,12 @@
         </service>
         <!-- Only runs while the in-game recorder is capturing audio. Kept separate from
              GameService so that the platform does not demand a media projection on every launch. -->
+        <activity
+            android:name=".recorder.RecordingsActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:label="@string/preference_recorder_title"
+            android:process=":launcher"/>
+
         <service android:name=".recorder.RecorderService" android:process=":game"
             android:foregroundServiceType="mediaProjection"/>
     </application>

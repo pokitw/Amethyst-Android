@@ -128,6 +128,29 @@
     <string name="control_recording_saved">Recording saved to %s</string>
     <string name="control_recording_failed">Recording failed: %s</string>
 
+    <!-- Recorder settings and the recordings browser -->
+    <string name="preference_recorder_title">Recordings</string>
+    <string name="preference_recorder_description">Capture quality and your saved clips</string>
+    <string name="preference_recorder_view_title">View recordings</string>
+    <string name="preference_recorder_view_description">Play, share or delete your clips</string>
+    <string name="preference_category_recorder_video">Video</string>
+    <string name="preference_category_recorder_audio">Audio</string>
+    <string name="preference_recorder_resolution_title">Resolution</string>
+    <string name="preference_recorder_resolution_native">Same as the game</string>
+    <string name="preference_recorder_framerate_title">Frame rate</string>
+    <string name="preference_recorder_video_bitrate_title">Video bitrate</string>
+    <string name="preference_recorder_video_bitrate_description">Higher values look better and take more space</string>
+    <string name="preference_recorder_audio_title">Record game audio</string>
+    <string name="preference_recorder_audio_description">Needs Android 10 and a one-off capture permission</string>
+    <string name="preference_recorder_audio_bitrate_title">Audio bitrate</string>
+    <string name="recordings_empty">No recordings yet.\nStart one from the in-game settings menu.</string>
+    <string name="recordings_action_play">Play</string>
+    <string name="recordings_action_share">Share</string>
+    <string name="recordings_action_delete">Delete</string>
+    <string name="recordings_delete_confirm">Delete %s?</string>
+    <string name="recordings_delete_failed">Could not delete the recording</string>
+    <string name="recordings_open_failed">No app available to open this recording</string>
+
     <!-- ImportControlActivity Strings -->
     <string name="import_control_label">Import controls</string>
     <string name="import_control_invalid_file">Invalid or corrupted file</string>

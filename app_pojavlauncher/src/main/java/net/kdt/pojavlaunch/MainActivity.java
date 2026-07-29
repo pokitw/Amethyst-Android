@@ -73,6 +73,7 @@ import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
 import net.kdt.pojavlaunch.recorder.GameRecorder;
+import net.kdt.pojavlaunch.recorder.RecorderPreferences;
 import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.utils.JREUtils;
@@ -574,8 +575,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             getRecorder().stopIfRecording();
             return;
         }
-        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            getRecorder().toggle(null); // playback capture needs Android 10
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !getRecorder().wantsAudio()) {
+            // Playback capture needs Android 10, and there is no reason to prompt for it when
+            // audio recording is switched off in the settings.
+            getRecorder().toggle(null);
             return;
         }
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -613,8 +616,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     private GameRecorder getRecorder() {
         if(mGameRecorder == null) {
-            File recordingsDir = new File(Tools.getGameDirPath(minecraftProfile), "recordings");
-            mGameRecorder = new GameRecorder(recordingsDir, new GameRecorder.Listener() {
+            File recordingsDir = RecorderPreferences.recordingsDirectory(Tools.getGameDirPath(minecraftProfile));
+            mGameRecorder = new GameRecorder(this, recordingsDir, new GameRecorder.Listener() {
                 @Override
                 public void onRecordingStarted() {
                     refreshRecordingMenuEntry();

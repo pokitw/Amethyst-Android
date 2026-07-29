@@ -1,6 +1,7 @@
 package net.kdt.pojavlaunch.recorder;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.AudioRecord;
@@ -46,21 +47,13 @@ import java.util.concurrent.Executors;
 public class GameRecorder {
     private static final String TAG = "GameRecorder";
 
-    /* ---- Hardcoded recording parameters ---- */
     private static final String MIME_TYPE = "video/avc";
-    /** The captured frame is scaled down so that its longest side is this many pixels. */
-    private static final int TARGET_LONG_EDGE = 1280;
-    private static final int FRAME_RATE = 30;
-    private static final int BIT_RATE = 8_000_000;
     private static final int I_FRAME_INTERVAL_SECONDS = 2;
     /** Most hardware H.264 encoders want their dimensions aligned this way. */
     private static final int SIZE_ALIGNMENT = 16;
 
-    /* ---- Hardcoded audio parameters ---- */
     private static final String AUDIO_MIME_TYPE = "audio/mp4a-latm";
-    private static final int AUDIO_SAMPLE_RATE = 44100;
     private static final int AUDIO_CHANNEL_COUNT = 2;
-    private static final int AUDIO_BIT_RATE = 128_000;
     private static final int AUDIO_BYTES_PER_FRAME = AUDIO_CHANNEL_COUNT * 2; // 16 bit PCM
 
     private static final long DEQUEUE_TIMEOUT_US = 10_000;
@@ -76,9 +69,13 @@ public class GameRecorder {
         void onRecordingFailed(@NonNull String reason);
     }
 
+    private final Context mContext;
     private final File mOutputDirectory;
     private final Listener mListener;
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+
+    /** Settings for the running session, re-read every time a recording starts. */
+    @Nullable private RecorderPreferences mPreferences;
 
     /**
      * Serialises start and stop, both of which block and must stay off the UI thread. Being a
@@ -114,6 +111,8 @@ public class GameRecorder {
     private long mAudioFramesWritten;
     /** Offset of the first captured sample from the recording's origin, in nanoseconds. */
     private long mAudioBaseNs = -1;
+    /** The rate the capture actually runs at, which need not be the one requested. */
+    private int mAudioSampleRate = 48000;
 
     /**
      * Muxer bookkeeping. MediaMuxer may only start once every track has been added and refuses
@@ -126,9 +125,16 @@ public class GameRecorder {
     private int mAudioTrackIndex = -1;
     private volatile boolean mMuxerStarted;
 
-    public GameRecorder(@NonNull File outputDirectory, @NonNull Listener listener) {
+    public GameRecorder(@NonNull Context context, @NonNull File outputDirectory,
+                        @NonNull Listener listener) {
+        mContext = context.getApplicationContext();
         mOutputDirectory = outputDirectory;
         mListener = listener;
+    }
+
+    /** @return whether the user asked for the game's audio to be recorded. */
+    public boolean wantsAudio() {
+        return RecorderPreferences.load(mContext).captureAudio;
     }
 
     /** @return whether a recording session is currently running. */
@@ -172,7 +178,10 @@ public class GameRecorder {
             if (!isRendererSupported())
                 throw new IOException("The " + Tools.LOCAL_RENDERER + " renderer cannot be recorded");
 
-            int[] size = computeRecordingSize();
+            RecorderPreferences preferences = RecorderPreferences.load(mContext);
+            mPreferences = preferences;
+
+            int[] size = computeRecordingSize(preferences.longEdge);
             if (!mOutputDirectory.exists() && !mOutputDirectory.mkdirs())
                 throw new IOException("Could not create " + mOutputDirectory);
 
@@ -182,8 +191,8 @@ public class GameRecorder {
             MediaFormat format = MediaFormat.createVideoFormat(MIME_TYPE, size[0], size[1]);
             format.setInteger(MediaFormat.KEY_COLOR_FORMAT,
                     MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-            format.setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE);
-            format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
+            format.setInteger(MediaFormat.KEY_BIT_RATE, preferences.videoBitRate);
+            format.setInteger(MediaFormat.KEY_FRAME_RATE, preferences.frameRate);
             format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL_SECONDS);
 
             mEncoder = MediaCodec.createEncoderByType(MIME_TYPE);
@@ -192,7 +201,8 @@ public class GameRecorder {
             mEncoder.start();
 
             // Audio is a bonus: if it cannot be set up we still record the picture.
-            boolean withAudio = projection != null && setupAudio(projection);
+            boolean withAudio = projection != null && preferences.captureAudio
+                    && setupAudio(projection, preferences);
 
             mMuxer = new MediaMuxer(mOutputFile.getAbsolutePath(),
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
@@ -210,7 +220,7 @@ public class GameRecorder {
 
             // Both tracks are timestamped against this instant, so they line up in the file.
             long startNanos = System.nanoTime();
-            if (!nativeStartRecording(mInputSurface, size[0], size[1], FRAME_RATE, startNanos))
+            if (!nativeStartRecording(mInputSurface, size[0], size[1], preferences.frameRate, startNanos))
                 throw new IOException("The renderer refused to start recording");
 
             mDrainThread = new Thread(this::drainLoop, "GameRecorder-drain");
@@ -222,6 +232,7 @@ public class GameRecorder {
 
             mSessionActive = true;
             Log.i(TAG, "Recording to " + mOutputFile + " at " + size[0] + "x" + size[1]
+                    + "@" + preferences.frameRate + " " + preferences.videoBitRate / 1000 + "kbps"
                     + (withAudio ? " with audio" : " without audio"));
             mMainHandler.post(mListener::onRecordingStarted);
         } catch (Throwable t) {
@@ -289,13 +300,14 @@ public class GameRecorder {
      * @return whether audio capture is running; false means carry on with video only.
      */
     @SuppressLint("MissingPermission") // RECORD_AUDIO is checked by the caller before we get here
-    private boolean setupAudio(@NonNull MediaProjection projection) {
+    private boolean setupAudio(@NonNull MediaProjection projection,
+                               @NonNull RecorderPreferences preferences) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             Log.i(TAG, "Playback capture needs Android 10, recording without audio");
             return false;
         }
         try {
-            return setupAudioQ(projection);
+            return setupAudioQ(projection, preferences);
         } catch (Throwable t) {
             Log.e(TAG, "Could not set up audio capture, recording without audio", t);
             releaseAudio();
@@ -304,20 +316,24 @@ public class GameRecorder {
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private boolean setupAudioQ(@NonNull MediaProjection projection) throws IOException {
+    private boolean setupAudioQ(@NonNull MediaProjection projection,
+                                @NonNull RecorderPreferences preferences) throws IOException {
         AudioPlaybackCaptureConfiguration captureConfig =
                 new AudioPlaybackCaptureConfiguration.Builder(projection)
                         // Our own playback only: the game shares the launcher's UID.
                         .addMatchingUid(Process.myUid())
                         .build();
+        // Capture at the rate the device already outputs at. Asking for anything else makes the
+        // framework resample the game's audio on the way in and it audibly costs quality.
+        int sampleRate = preferences.audioSampleRate;
         AudioFormat captureFormat = new AudioFormat.Builder()
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setSampleRate(AUDIO_SAMPLE_RATE)
+                .setSampleRate(sampleRate)
                 .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
                 .build();
-        int minBuffer = AudioRecord.getMinBufferSize(AUDIO_SAMPLE_RATE,
+        int minBuffer = AudioRecord.getMinBufferSize(sampleRate,
                 AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT);
-        if (minBuffer <= 0) minBuffer = AUDIO_SAMPLE_RATE * AUDIO_BYTES_PER_FRAME / 4;
+        if (minBuffer <= 0) minBuffer = sampleRate * AUDIO_BYTES_PER_FRAME / 4;
 
         mAudioRecord = new AudioRecord.Builder()
                 .setAudioFormat(captureFormat)
@@ -327,11 +343,19 @@ public class GameRecorder {
         if (mAudioRecord.getState() != AudioRecord.STATE_INITIALIZED)
             throw new IOException("The audio capture could not be initialised");
 
-        MediaFormat format = MediaFormat.createAudioFormat(AUDIO_MIME_TYPE, AUDIO_SAMPLE_RATE,
+        // Whatever the device actually gave us, which need not be what was asked for.
+        mAudioSampleRate = mAudioRecord.getSampleRate();
+        // Worth having in the log: if the source is a microphone one, the ROM ignored the
+        // playback capture config and we would be recording the room instead of the game.
+        Log.i(TAG, "Audio capture source=" + mAudioRecord.getAudioSource()
+                + " rate=" + mAudioSampleRate
+                + " channels=" + mAudioRecord.getChannelCount());
+
+        MediaFormat format = MediaFormat.createAudioFormat(AUDIO_MIME_TYPE, mAudioSampleRate,
                 AUDIO_CHANNEL_COUNT);
         format.setInteger(MediaFormat.KEY_AAC_PROFILE,
                 MediaCodecInfo.CodecProfileLevel.AACObjectLC);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, AUDIO_BIT_RATE);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, preferences.audioBitRate);
         format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, minBuffer * 2);
 
         mAudioEncoder = MediaCodec.createEncoderByType(AUDIO_MIME_TYPE);
@@ -369,12 +393,13 @@ public class GameRecorder {
                     if (mAudioBaseNs < 0 && read > 0) {
                         // Anchor the track at the start of the first buffer we actually got.
                         mAudioBaseNs = Math.max(0, System.nanoTime() - startNanos
-                                - framesRead * 1_000_000_000L / AUDIO_SAMPLE_RATE);
+                                - framesRead * 1_000_000_000L / mAudioSampleRate);
                     }
                     encoder.queueInputBuffer(inputIndex, 0, read, currentAudioTimestampUs(), 0);
                     mAudioFramesWritten += framesRead;
                 }
-                drainAudio(encoder, bufferInfo);
+                // Non-blocking here: getting back to reading the capture matters more.
+                drainAudio(encoder, bufferInfo, 0);
             }
 
             // Flush the tail: signal end of stream and drain what is left.
@@ -384,7 +409,9 @@ public class GameRecorder {
                         MediaCodec.BUFFER_FLAG_END_OF_STREAM);
             }
             long deadline = System.currentTimeMillis() + DRAIN_TIMEOUT_MS;
-            while (!drainAudio(encoder, bufferInfo) && System.currentTimeMillis() < deadline) {
+            // Blocking dequeue now, so waiting for the tail does not spin a core.
+            while (!drainAudio(encoder, bufferInfo, DEQUEUE_TIMEOUT_US)
+                    && System.currentTimeMillis() < deadline) {
                 // keep draining until end of stream shows up
             }
         } catch (Throwable t) {
@@ -394,13 +421,13 @@ public class GameRecorder {
 
     private long currentAudioTimestampUs() {
         long base = Math.max(0, mAudioBaseNs);
-        return (base + mAudioFramesWritten * 1_000_000_000L / AUDIO_SAMPLE_RATE) / 1000L;
+        return (base + mAudioFramesWritten * 1_000_000_000L / mAudioSampleRate) / 1000L;
     }
 
     /** @return whether end of stream was reached. */
-    private boolean drainAudio(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo) {
+    private boolean drainAudio(MediaCodec encoder, MediaCodec.BufferInfo bufferInfo, long timeoutUs) {
         while (true) {
-            int status = encoder.dequeueOutputBuffer(bufferInfo, 0);
+            int status = encoder.dequeueOutputBuffer(bufferInfo, timeoutUs);
             if (status == MediaCodec.INFO_TRY_AGAIN_LATER) return false;
             if (status == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                 addTrack(false, encoder.getOutputFormat());
@@ -592,7 +619,7 @@ public class GameRecorder {
      * ratio and never upscaling. The native side letterboxes into whatever we return here, so a
      * mismatch (a rotation mid-recording, say) stays correct, just with bars.
      */
-    private static int[] computeRecordingSize() {
+    private static int[] computeRecordingSize(int targetLongEdge) {
         int width = CallbackBridge.windowWidth;
         int height = CallbackBridge.windowHeight;
         if (width <= 0 || height <= 0) {
@@ -605,8 +632,9 @@ public class GameRecorder {
         }
 
         int longEdge = Math.max(width, height);
-        if (longEdge > TARGET_LONG_EDGE) {
-            double scale = (double) TARGET_LONG_EDGE / longEdge;
+        // A target of zero means "whatever the game renders at", so only ever scale down.
+        if (targetLongEdge > 0 && longEdge > targetLongEdge) {
+            double scale = (double) targetLongEdge / longEdge;
             width = (int) Math.round(width * scale);
             height = (int) Math.round(height * scale);
         }

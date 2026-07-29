@@ -66,8 +66,21 @@ static EGLContext recorder_context = EGL_NO_CONTEXT;
 static int64_t recorder_next_frame_ns;
 
 typedef int64_t EGLnsecs;
+typedef void* EGLSyncHandle;
+
+/* EGL_KHR_fence_sync / EGL_KHR_wait_sync */
+#define RECORDER_SYNC_FENCE 0x30F9              /* EGL_SYNC_FENCE_KHR */
+#define RECORDER_SYNC_FLUSH_COMMANDS_BIT 0x0001 /* EGL_SYNC_FLUSH_COMMANDS_BIT_KHR */
+#define RECORDER_SYNC_FOREVER 0xFFFFFFFFFFFFFFFFULL
 
 static void (*glBindFramebuffer_p)(GLenum target, GLuint framebuffer);
+static void (*glColorMask_p)(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
+static void (*glFinish_p)(void);
+static EGLSyncHandle (*eglCreateSyncKHR_p)(EGLDisplay dpy, EGLenum type, const EGLint* attrib_list);
+static EGLBoolean (*eglDestroySyncKHR_p)(EGLDisplay dpy, EGLSyncHandle sync);
+static EGLint (*eglWaitSyncKHR_p)(EGLDisplay dpy, EGLSyncHandle sync, EGLint flags);
+static EGLint (*eglClientWaitSyncKHR_p)(EGLDisplay dpy, EGLSyncHandle sync, EGLint flags,
+                                        uint64_t timeout);
 static void (*glBlitFramebuffer_p)(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
                                    GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
                                    GLbitfield mask, GLenum filter);
@@ -97,19 +110,41 @@ static bool recorder_resolve_gl(void) {
     glBindFramebuffer_p = recorder_gl_sym("glBindFramebuffer");
     glClear_p = recorder_gl_sym("glClear");
     glClearColor_p = recorder_gl_sym("glClearColor");
+    glColorMask_p = recorder_gl_sym("glColorMask");
     glDisable_p = recorder_gl_sym("glDisable");
+    glFinish_p = recorder_gl_sym("glFinish");
     // Core in GLES 3.0 and desktop GL 3.0; the vendor extensions cover GLES 2 drivers.
     void* blit = recorder_gl_sym("glBlitFramebuffer");
     if (blit == NULL) blit = recorder_gl_sym("glBlitFramebufferNV");
     if (blit == NULL) blit = recorder_gl_sym("glBlitFramebufferANGLE");
 
     if (blit == NULL || glBindFramebuffer_p == NULL || glClear_p == NULL ||
-        glClearColor_p == NULL || glDisable_p == NULL) {
+        glClearColor_p == NULL || glColorMask_p == NULL || glDisable_p == NULL) {
         LOGE("This renderer does not expose framebuffer blitting, cannot record");
         glBindFramebuffer_p = NULL;
         return false;
     }
     glBlitFramebuffer_p = blit;
+
+    // We read the game's back buffer from a context of our own, and switching contexts only
+    // flushes the game's commands, it does not wait for them. Without a fence the blit can race
+    // ahead into the next frame and capture it half drawn or freshly cleared, which shows up as
+    // bright flashes in the video. A fence makes the GPU wait for us, at no cost to the CPU.
+    eglCreateSyncKHR_p = recorder_gl_sym("eglCreateSyncKHR");
+    eglDestroySyncKHR_p = recorder_gl_sym("eglDestroySyncKHR");
+    eglWaitSyncKHR_p = recorder_gl_sym("eglWaitSyncKHR");
+    eglClientWaitSyncKHR_p = recorder_gl_sym("eglClientWaitSyncKHR");
+    if (eglCreateSyncKHR_p == NULL || eglDestroySyncKHR_p == NULL ||
+        (eglWaitSyncKHR_p == NULL && eglClientWaitSyncKHR_p == NULL)) {
+        eglCreateSyncKHR_p = NULL;
+        LOGW("EGL fence syncs are missing, falling back to glFinish() before each capture");
+        if (glFinish_p == NULL) {
+            LOGE("Neither fence syncs nor glFinish() are available, cannot record safely");
+            glBindFramebuffer_p = NULL;
+            glBlitFramebuffer_p = NULL;
+            return false;
+        }
+    }
 
     // Optional: without it MediaCodec timestamps frames as they arrive, which is good enough.
     eglPresentationTimeANDROID_p = recorder_gl_sym("eglPresentationTimeANDROID");
@@ -190,11 +225,32 @@ static bool recorder_capture(EGLDisplay display, gl_render_window_t* bundle, int
     // would just write blocks of garbage, so skip until a real surface is back.
     if (game_width < RECORDER_MIN_SURFACE_SIZE || game_height < RECORDER_MIN_SURFACE_SIZE) return true;
 
+    // Fence the game's work for this frame while its context is still current, so that our blit
+    // can be made to wait for it. Without this the capture races the game and picks up frames
+    // that are half drawn or already cleared for the next one.
+    EGLSyncHandle fence = NULL;
+    if (eglCreateSyncKHR_p != NULL) {
+        fence = eglCreateSyncKHR_p(display, RECORDER_SYNC_FENCE, NULL);
+        if (fence == NULL) LOGW("Could not fence the frame: %04x", eglGetError_p());
+    }
+    if (fence == NULL && glFinish_p != NULL) {
+        glFinish_p(); // no fences available, wait it out on the CPU instead
+    }
+
     // Read from the game surface, draw into the encoder surface, using our own context so that
     // the bindings we change below are invisible to the game.
     if (!eglMakeCurrent_p(display, recorder_surface, bundle->surface, recorder_context)) {
         LOGE("Could not bind the recording context: %04x", eglGetError_p());
+        if (fence != NULL) eglDestroySyncKHR_p(display, fence);
         return false;
+    }
+
+    if (fence != NULL) {
+        // Make the GPU, not the CPU, wait for the frame to actually be there.
+        if (eglWaitSyncKHR_p != NULL) eglWaitSyncKHR_p(display, fence, 0);
+        else eglClientWaitSyncKHR_p(display, fence, RECORDER_SYNC_FLUSH_COMMANDS_BIT,
+                                    RECORDER_SYNC_FOREVER);
+        eglDestroySyncKHR_p(display, fence);
     }
 
     // Fit the frame into the fixed encoder surface without stretching it. The game surface can
@@ -211,13 +267,18 @@ static bool recorder_capture(EGLDisplay display, gl_render_window_t* bundle, int
     glBindFramebuffer_p(GL_READ_FRAMEBUFFER, 0);
     glBindFramebuffer_p(GL_DRAW_FRAMEBUFFER, 0);
     glDisable_p(GL_SCISSOR_TEST); // a scissor box would clip the blit
-    if (fit_width != recorder_width || fit_height != recorder_height) {
-        glClearColor_p(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear_p(GL_COLOR_BUFFER_BIT); // letterbox bars
-    }
+    // Start from opaque black every frame. The encoder recycles its buffers and hands them back
+    // with undefined contents, and it lays down the letterbox bars in one go.
+    glColorMask_p(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glClearColor_p(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear_p(GL_COLOR_BUFFER_BIT);
+    // The game does not care what it leaves in the alpha channel, but the encoder does, so keep
+    // the opaque alpha from the clear rather than copying the game's.
+    glColorMask_p(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
     glBlitFramebuffer_p(0, 0, game_width, game_height,
                         offset_x, offset_y, offset_x + fit_width, offset_y + fit_height,
                         GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glColorMask_p(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
     if (eglPresentationTimeANDROID_p != NULL)
         eglPresentationTimeANDROID_p(display, recorder_surface, now - recorder_start_ns);
