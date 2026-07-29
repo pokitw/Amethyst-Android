@@ -46,9 +46,9 @@ public class RecordingsActivity extends BaseActivity {
         mListView = findViewById(R.id.recordings_list);
         mEmptyView = findViewById(R.id.recordings_empty);
 
-        mAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_2,
-                android.R.id.text1, new ArrayList<>()) {
-            @NonNull
+        mAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_2,
+        android.R.id.text1, new ArrayList<String>()) {
+        @NonNull
             @Override
             public View getView(int position, View convertView, @NonNull android.view.ViewGroup parent) {
                 View view = super.getView(position, convertView, parent);
