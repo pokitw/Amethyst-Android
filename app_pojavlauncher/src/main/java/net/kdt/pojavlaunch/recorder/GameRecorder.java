@@ -221,7 +221,8 @@ public class GameRecorder {
             // Both tracks are timestamped against this instant, so they line up in the file.
             long startNanos = System.nanoTime();
             if (!nativeStartRecording(mInputSurface, size[0], size[1], preferences.frameRate, startNanos))
-                throw new IOException("The renderer refused to start recording");
+                throw new IOException("The " + Tools.LOCAL_RENDERER
+                        + " renderer cannot be recorded, see the log for details");
 
             mDrainThread = new Thread(this::drainLoop, "GameRecorder-drain");
             mDrainThread.start();

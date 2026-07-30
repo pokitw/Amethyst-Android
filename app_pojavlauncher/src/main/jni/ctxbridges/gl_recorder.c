@@ -20,10 +20,12 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include "gl_recorder.h"
 #include "egl_loader.h"
+#include "loader_dlopen.h"
 
 #define TAG "GLRecorder"
 #include <log.h>
@@ -34,6 +36,8 @@
 /* Anything smaller than this is not a real game surface (the bridge falls back to a 1x1
  * pbuffer while the window is gone), so those frames are dropped instead of recorded. */
 #define RECORDER_MIN_SURFACE_SIZE 16
+/** Beyond this gap between the requested start and the first frame, the clocks clearly disagree. */
+#define RECORDER_MAX_START_LAG_NS 60000000000LL
 
 enum {
     RECORDER_IDLE = 0,     /* not recording, nothing allocated */
@@ -64,6 +68,8 @@ static int64_t recorder_start_ns;
 static EGLSurface recorder_surface = EGL_NO_SURFACE;
 static EGLContext recorder_context = EGL_NO_CONTEXT;
 static int64_t recorder_next_frame_ns;
+/** Whether the first captured frame has had its timestamp origin sanity checked. */
+static bool recorder_base_validated;
 
 typedef int64_t EGLnsecs;
 typedef void* EGLSyncHandle;
@@ -104,6 +110,24 @@ static void* recorder_gl_sym(const char* name) {
     return symbol;
 }
 
+/**
+ * Resolve an EGL entry point.
+ * Not every EGL implementation reports the Android platform extensions through
+ * eglGetProcAddress, so fall back to looking the symbol up in the very library the bridge
+ * loaded. That keeps the entry point belonging to the implementation that owns our display and
+ * surface, which a lookup against the system libEGL would not.
+ */
+static void* recorder_egl_sym(const char* name) {
+    static void* egl_handle = NULL;
+    void* symbol = NULL;
+    if (eglGetProcAddress_p != NULL) symbol = (void*) eglGetProcAddress_p(name);
+    if (symbol != NULL) return symbol;
+    if (egl_handle == NULL)
+        egl_handle = loader_dlopen(getenv("POJAVEXEC_EGL"), "libEGL.so", RTLD_LOCAL | RTLD_LAZY);
+    if (egl_handle != NULL) symbol = dlsym(egl_handle, name);
+    return symbol;
+}
+
 static bool recorder_resolve_gl(void) {
     if (glBlitFramebuffer_p != NULL) return true; // already resolved
 
@@ -130,10 +154,10 @@ static bool recorder_resolve_gl(void) {
     // flushes the game's commands, it does not wait for them. Without a fence the blit can race
     // ahead into the next frame and capture it half drawn or freshly cleared, which shows up as
     // bright flashes in the video. A fence makes the GPU wait for us, at no cost to the CPU.
-    eglCreateSyncKHR_p = recorder_gl_sym("eglCreateSyncKHR");
-    eglDestroySyncKHR_p = recorder_gl_sym("eglDestroySyncKHR");
-    eglWaitSyncKHR_p = recorder_gl_sym("eglWaitSyncKHR");
-    eglClientWaitSyncKHR_p = recorder_gl_sym("eglClientWaitSyncKHR");
+    eglCreateSyncKHR_p = recorder_egl_sym("eglCreateSyncKHR");
+    eglDestroySyncKHR_p = recorder_egl_sym("eglDestroySyncKHR");
+    eglWaitSyncKHR_p = recorder_egl_sym("eglWaitSyncKHR");
+    eglClientWaitSyncKHR_p = recorder_egl_sym("eglClientWaitSyncKHR");
     if (eglCreateSyncKHR_p == NULL || eglDestroySyncKHR_p == NULL ||
         (eglWaitSyncKHR_p == NULL && eglClientWaitSyncKHR_p == NULL)) {
         eglCreateSyncKHR_p = NULL;
@@ -146,10 +170,23 @@ static bool recorder_resolve_gl(void) {
         }
     }
 
-    // Optional: without it MediaCodec timestamps frames as they arrive, which is good enough.
-    eglPresentationTimeANDROID_p = recorder_gl_sym("eglPresentationTimeANDROID");
-    if (eglPresentationTimeANDROID_p == NULL)
-        LOGW("EGL_ANDROID_presentation_time is missing, video timing may be uneven");
+    /*
+     * Required, not a nicety. Without it the buffer queue stamps every frame with the raw
+     * CLOCK_MONOTONIC reading at the moment it is queued, so the video track starts at the
+     * device's uptime while the audio track starts at zero. The result is a file whose duration
+     * spans from zero to the uptime, with every frame bunched up at the far end: players show the
+     * first frame and sit there while the audio plays on. Refusing to record is far kinder than
+     * handing back a file like that.
+     */
+    eglPresentationTimeANDROID_p = recorder_egl_sym("eglPresentationTimeANDROID");
+    if (eglPresentationTimeANDROID_p == NULL) {
+        LOGE("EGL_ANDROID_presentation_time is unavailable on this renderer's EGL, so frames "
+             "cannot be timestamped and the recording would be unplayable");
+        glBindFramebuffer_p = NULL;
+        glBlitFramebuffer_p = NULL;
+        return false;
+    }
+    LOGI("Frame timestamping is available");
     return true;
 }
 
@@ -207,6 +244,7 @@ static bool recorder_setup_locked(EGLDisplay display, gl_render_window_t* bundle
     }
 
     recorder_next_frame_ns = recorder_now_ns();
+    recorder_base_validated = false;
     LOGI("Recording started, encoding at %dx%d", recorder_width, recorder_height);
     return true;
 }
@@ -280,8 +318,27 @@ static bool recorder_capture(EGLDisplay display, gl_render_window_t* bundle, int
                         GL_COLOR_BUFFER_BIT, GL_LINEAR);
     glColorMask_p(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-    if (eglPresentationTimeANDROID_p != NULL)
-        eglPresentationTimeANDROID_p(display, recorder_surface, now - recorder_start_ns);
+    int64_t presentation_ns = now - recorder_start_ns;
+    if (!recorder_base_validated) {
+        recorder_base_validated = true;
+        /*
+         * The origin comes from System.nanoTime() on the Java side. That is CLOCK_MONOTONIC on
+         * Android today, but the language only promises a monotonic source with an arbitrary
+         * origin, so the two clocks are not guaranteed to agree. Check the first frame and
+         * re-anchor rather than stamp the whole video somewhere absurd.
+         */
+        if (presentation_ns < 0 || presentation_ns > RECORDER_MAX_START_LAG_NS) {
+            LOGW("Recording origin is %lld ms away from the render clock, re-anchoring",
+                 (long long) (presentation_ns / 1000000));
+            recorder_start_ns = now;
+            presentation_ns = 0;
+        }
+    }
+    if (!eglPresentationTimeANDROID_p(display, recorder_surface, presentation_ns)) {
+        // Untimestamped frames would land at the device uptime and ruin the file, so stop.
+        LOGE("Could not timestamp the frame: %04x", eglGetError_p());
+        return false;
+    }
     eglSwapBuffers_p(display, recorder_surface); // hands the frame to the encoder
 
     if (!eglMakeCurrent_p(display, bundle->surface, bundle->surface, bundle->context)) {
@@ -349,6 +406,13 @@ Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeStartRecording(JNIEnv* env,
     if (atomic_load_explicit(&recorder_state, memory_order_acquire) != RECORDER_IDLE) {
         pthread_mutex_unlock(&recorder_mutex);
         LOGW("A recording is already in progress");
+        return JNI_FALSE;
+    }
+    // Resolving entry points needs no current context, so find out now whether this renderer can
+    // be recorded at all. Failing here reports the problem before the caller has set an encoder
+    // and an audio capture running, instead of leaving it to discover an empty file at the end.
+    if (!recorder_resolve_gl()) {
+        pthread_mutex_unlock(&recorder_mutex);
         return JNI_FALSE;
     }
     recorder_window = ANativeWindow_fromSurface(env, surface);
