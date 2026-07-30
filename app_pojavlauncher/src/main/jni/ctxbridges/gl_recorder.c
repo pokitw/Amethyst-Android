@@ -36,8 +36,6 @@
 /* Anything smaller than this is not a real game surface (the bridge falls back to a 1x1
  * pbuffer while the window is gone), so those frames are dropped instead of recorded. */
 #define RECORDER_MIN_SURFACE_SIZE 16
-/** Beyond this gap between the requested start and the first frame, the clocks clearly disagree. */
-#define RECORDER_MAX_START_LAG_NS 60000000000LL
 
 enum {
     RECORDER_IDLE = 0,     /* not recording, nothing allocated */
@@ -57,19 +55,12 @@ static int recorder_width;
 static int recorder_height;
 static int64_t recorder_frame_interval_ns;
 
-/**
- * Timestamp the video track is relative to. Handed over by the Java side rather than taken
- * here, because the audio track has to be laid out against the very same origin and the first
- * frame may only get presented a while after the recording was asked for.
- */
-static int64_t recorder_start_ns;
-
 /* Render thread only, published while holding recorder_mutex during setup/teardown. */
 static EGLSurface recorder_surface = EGL_NO_SURFACE;
 static EGLContext recorder_context = EGL_NO_CONTEXT;
 static int64_t recorder_next_frame_ns;
-/** Whether the first captured frame has had its timestamp origin sanity checked. */
-static bool recorder_base_validated;
+/** So a timestamping failure is reported once rather than on every frame. */
+static bool recorder_timestamp_warned;
 
 typedef int64_t EGLnsecs;
 typedef void* EGLSyncHandle;
@@ -171,21 +162,24 @@ static bool recorder_resolve_gl(void) {
     }
 
     /*
-     * Required, not a nicety. Without it the buffer queue stamps every frame with the raw
-     * CLOCK_MONOTONIC reading at the moment it is queued, so the video track starts at the
-     * device's uptime while the audio track starts at zero. The result is a file whose duration
-     * spans from zero to the uptime, with every frame bunched up at the far end: players show the
-     * first frame and sit there while the audio plays on. Refusing to record is far kinder than
-     * handing back a file like that.
+     * Nice to have, not required. Frames are stamped in the raw CLOCK_MONOTONIC domain, which is
+     * exactly what the buffer queue falls back to when nobody sets a timestamp, so both paths end
+     * up on the same clock. Setting it ourselves just pins the time to the moment the frame was
+     * captured rather than the moment the encoder happened to pick the buffer up.
+     *
+     * MobileGlues' EGL does not report this through eglGetProcAddress, and the symbol is not in
+     * the library either, so fall back to the platform libEGL: a translation layer like that is
+     * passing our surface straight through to it. If the guess is wrong the call simply reports a
+     * bad surface, which is checked for and costs nothing.
      */
     eglPresentationTimeANDROID_p = recorder_egl_sym("eglPresentationTimeANDROID");
     if (eglPresentationTimeANDROID_p == NULL) {
-        LOGE("EGL_ANDROID_presentation_time is unavailable on this renderer's EGL, so frames "
-             "cannot be timestamped and the recording would be unplayable");
-        glBindFramebuffer_p = NULL;
-        glBlitFramebuffer_p = NULL;
-        return false;
+        void* system_egl = dlopen("libEGL.so", RTLD_LOCAL | RTLD_LAZY);
+        if (system_egl != NULL)
+            eglPresentationTimeANDROID_p = dlsym(system_egl, "eglPresentationTimeANDROID");
     }
+    LOGI("Frame timestamping is %s, timestamps are CLOCK_MONOTONIC and rebased when muxed",
+         eglPresentationTimeANDROID_p != NULL ? "available" : "left to the buffer queue");
     LOGI("Frame timestamping is available");
     return true;
 }
@@ -244,7 +238,7 @@ static bool recorder_setup_locked(EGLDisplay display, gl_render_window_t* bundle
     }
 
     recorder_next_frame_ns = recorder_now_ns();
-    recorder_base_validated = false;
+    recorder_timestamp_warned = false;
     LOGI("Recording started, encoding at %dx%d", recorder_width, recorder_height);
     return true;
 }
@@ -318,26 +312,19 @@ static bool recorder_capture(EGLDisplay display, gl_render_window_t* bundle, int
                         GL_COLOR_BUFFER_BIT, GL_LINEAR);
     glColorMask_p(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-    int64_t presentation_ns = now - recorder_start_ns;
-    if (!recorder_base_validated) {
-        recorder_base_validated = true;
-        /*
-         * The origin comes from System.nanoTime() on the Java side. That is CLOCK_MONOTONIC on
-         * Android today, but the language only promises a monotonic source with an arbitrary
-         * origin, so the two clocks are not guaranteed to agree. Check the first frame and
-         * re-anchor rather than stamp the whole video somewhere absurd.
-         */
-        if (presentation_ns < 0 || presentation_ns > RECORDER_MAX_START_LAG_NS) {
-            LOGW("Recording origin is %lld ms away from the render clock, re-anchoring",
-                 (long long) (presentation_ns / 1000000));
-            recorder_start_ns = now;
-            presentation_ns = 0;
-        }
-    }
-    if (!eglPresentationTimeANDROID_p(display, recorder_surface, presentation_ns)) {
-        // Untimestamped frames would land at the device uptime and ruin the file, so stop.
-        LOGE("Could not timestamp the frame: %04x", eglGetError_p());
-        return false;
+    /*
+     * Stamped with the raw clock, not an offset from the start of the recording. The buffer queue
+     * uses this very clock when no timestamp is set, so leaving the domain alone means the video
+     * track lands in the same place either way. The audio track is built against it too, and the
+     * muxer rebases both to zero, which is what keeps the file's duration honest.
+     */
+    if (eglPresentationTimeANDROID_p != NULL &&
+        !eglPresentationTimeANDROID_p(display, recorder_surface, now) &&
+        !recorder_timestamp_warned) {
+        recorder_timestamp_warned = true;
+        // Not fatal: the buffer queue stamps the frame on the same clock by itself.
+        LOGW("Could not timestamp the frame (%04x), leaving it to the buffer queue",
+             eglGetError_p());
     }
     eglSwapBuffers_p(display, recorder_surface); // hands the frame to the encoder
 
@@ -397,8 +384,7 @@ void gl_recorder_frame(EGLDisplay display, gl_render_window_t* bundle) {
 JNIEXPORT jboolean JNICALL
 Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeStartRecording(JNIEnv* env, jclass clazz,
                                                                    jobject surface, jint width,
-                                                                   jint height, jint frameRate,
-                                                                   jlong startTimeNanos) {
+                                                                   jint height, jint frameRate) {
     (void) clazz;
     if (surface == NULL || width <= 0 || height <= 0 || frameRate <= 0) return JNI_FALSE;
 
@@ -424,8 +410,6 @@ Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeStartRecording(JNIEnv* env,
     recorder_width = width;
     recorder_height = height;
     recorder_frame_interval_ns = 1000000000LL / frameRate;
-    // System.nanoTime() is CLOCK_MONOTONIC on Android, the same clock recorder_now_ns() reads.
-    recorder_start_ns = startTimeNanos;
     // The render thread picks this up on its next presented frame.
     atomic_store_explicit(&recorder_state, RECORDER_PENDING, memory_order_release);
     pthread_mutex_unlock(&recorder_mutex);

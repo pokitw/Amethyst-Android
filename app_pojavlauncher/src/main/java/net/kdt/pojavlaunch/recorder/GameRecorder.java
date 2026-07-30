@@ -124,6 +124,12 @@ public class GameRecorder {
     private int mVideoTrackIndex = -1;
     private int mAudioTrackIndex = -1;
     private volatile boolean mMuxerStarted;
+    /**
+     * The recording's origin on the monotonic clock, subtracted from every sample so the file
+     * starts at zero. Guarded by mMuxerLock along with the rest of the muxer state.
+     */
+    private long mPtsOffsetUs;
+    private boolean mTimestampsClamped;
 
     public GameRecorder(@NonNull Context context, @NonNull File outputDirectory,
                         @NonNull Listener listener) {
@@ -217,17 +223,19 @@ public class GameRecorder {
             mAudioStopRequested = false;
             mAudioFramesWritten = 0;
             mAudioBaseNs = -1;
+            // Everything is stamped on the raw monotonic clock, so this instant becomes the file's
+            // zero. Taken before capture starts, so no sample can ever land before it.
+            mPtsOffsetUs = System.nanoTime() / 1000L;
+            mTimestampsClamped = false;
 
-            // Both tracks are timestamped against this instant, so they line up in the file.
-            long startNanos = System.nanoTime();
-            if (!nativeStartRecording(mInputSurface, size[0], size[1], preferences.frameRate, startNanos))
+            if (!nativeStartRecording(mInputSurface, size[0], size[1], preferences.frameRate))
                 throw new IOException("The " + Tools.LOCAL_RENDERER
                         + " renderer cannot be recorded, see the log for details");
 
             mDrainThread = new Thread(this::drainLoop, "GameRecorder-drain");
             mDrainThread.start();
             if (withAudio) {
-                mAudioThread = new Thread(() -> audioLoop(startNanos), "GameRecorder-audio");
+                mAudioThread = new Thread(this::audioLoop, "GameRecorder-audio");
                 mAudioThread.start();
             }
 
@@ -373,7 +381,7 @@ public class GameRecorder {
      */
     // Only ever started when setupAudio() succeeded, which requires Android 10.
     @SuppressLint("NewApi")
-    private void audioLoop(long startNanos) {
+    private void audioLoop() {
         AudioRecord record = mAudioRecord;
         MediaCodec encoder = mAudioEncoder;
         if (record == null || encoder == null) return;
@@ -392,9 +400,12 @@ public class GameRecorder {
                     if (read < 0) read = 0;
                     long framesRead = read / AUDIO_BYTES_PER_FRAME;
                     if (mAudioBaseNs < 0 && read > 0) {
-                        // Anchor the track at the start of the first buffer we actually got.
-                        mAudioBaseNs = Math.max(0, System.nanoTime() - startNanos
-                                - framesRead * 1_000_000_000L / mAudioSampleRate);
+                        // Anchor at the start of the first buffer we actually got, on the same raw
+                        // CLOCK_MONOTONIC clock the video frames carry. System.nanoTime() reads
+                        // that clock on Android. The muxer rebases both tracks together, so the
+                        // two only have to agree with each other, not with any absolute origin.
+                        mAudioBaseNs = System.nanoTime()
+                                - framesRead * 1_000_000_000L / mAudioSampleRate;
                     }
                     encoder.queueInputBuffer(inputIndex, 0, read, currentAudioTimestampUs(), 0);
                     mAudioFramesWritten += framesRead;
@@ -421,7 +432,7 @@ public class GameRecorder {
     }
 
     private long currentAudioTimestampUs() {
-        long base = Math.max(0, mAudioBaseNs);
+        long base = mAudioBaseNs < 0 ? System.nanoTime() : mAudioBaseNs;
         return (base + mAudioFramesWritten * 1_000_000_000L / mAudioSampleRate) / 1000L;
     }
 
@@ -474,6 +485,27 @@ public class GameRecorder {
                 }
             }
             if (!mMuxerStarted || mMuxer == null || track < 0) return; // nothing to write into yet
+
+            /*
+             * Both tracks arrive stamped on the raw CLOCK_MONOTONIC clock, so their timestamps run
+             * from the device's uptime rather than from zero. Written out as-is, the file would
+             * claim to be as long as the device has been switched on, with all the content bunched
+             * at the very end. Shifting both by the same origin puts the recording at zero while
+             * leaving the two tracks in step with each other.
+             */
+            long rebased = bufferInfo.presentationTimeUs - mPtsOffsetUs;
+            if (rebased < 0) {
+                // Only reachable if the clock behind these timestamps is not the one nanoTime()
+                // reads. The muxer rejects negative timestamps, so clamp and say so once.
+                if (!mTimestampsClamped) {
+                    mTimestampsClamped = true;
+                    Log.w(TAG, "Sample timestamps precede the recording start by "
+                            + (-rebased / 1000) + " ms, clamping; audio and video may be offset");
+                }
+                rebased = 0;
+            }
+            bufferInfo.presentationTimeUs = rebased;
+
             data.position(bufferInfo.offset);
             data.limit(bufferInfo.offset + bufferInfo.size);
             mMuxer.writeSampleData(track, data, bufferInfo);
@@ -656,7 +688,7 @@ public class GameRecorder {
 
     /** Hands the encoder surface to the render thread, which starts capturing on its next frame. */
     private static native boolean nativeStartRecording(Surface surface, int width, int height,
-                                                       int frameRate, long startTimeNanos);
+                                                       int frameRate);
 
     /** Blocks until the render thread has released the encoder surface. */
     private static native void nativeStopRecording();
