@@ -24,8 +24,10 @@
 #include <time.h>
 
 #include "gl_recorder.h"
+#include "gl_overlay.h"
 #include "egl_loader.h"
 #include "loader_dlopen.h"
+#include <environ/environ.h>
 
 #define TAG "GLRecorder"
 #include <log.h>
@@ -186,6 +188,10 @@ static bool recorder_resolve_gl(void) {
 
 /** Drop everything we own. Render thread, with the game context current. */
 static void recorder_release(EGLDisplay display) {
+    // The overlay's GL objects belong to the context destroyed just below, so they go with it.
+    // This only clears the bookkeeping, and deliberately issues no GL calls: the recorder's
+    // context is not current here, the game's is.
+    gl_overlay_release();
     if (recorder_surface != EGL_NO_SURFACE) {
         eglDestroySurface_p(display, recorder_surface);
         recorder_surface = EGL_NO_SURFACE;
@@ -312,6 +318,11 @@ static bool recorder_capture(EGLDisplay display, gl_render_window_t* bundle, int
                         GL_COLOR_BUFFER_BIT, GL_LINEAR);
     glColorMask_p(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
+    // The virtual mouse is an Android view above the game, so it is not in what we just copied.
+    gl_overlay_draw(recorder_gl_sym, recorder_width, recorder_height, game_width, game_height,
+                    offset_x, offset_y, fit_width, fit_height,
+                    pojav_environ->cursorX, pojav_environ->cursorY);
+
     /*
      * Stamped with the raw clock, not an offset from the start of the recording. The buffer queue
      * uses this very clock when no timestamp is set, so leaving the domain alone means the video
@@ -414,6 +425,29 @@ Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeStartRecording(JNIEnv* env,
     atomic_store_explicit(&recorder_state, RECORDER_PENDING, memory_order_release);
     pthread_mutex_unlock(&recorder_mutex);
     return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL
+Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeSetPointerBitmap(JNIEnv* env, jclass clazz,
+                                                                     jbyteArray rgba, jint width,
+                                                                     jint height) {
+    (void) clazz;
+    if (rgba == NULL || width <= 0 || height <= 0) return;
+    jsize length = (*env)->GetArrayLength(env, rgba);
+    if (length < (jsize) (width * height * 4)) return;
+    jbyte* pixels = (*env)->GetByteArrayElements(env, rgba, NULL);
+    if (pixels == NULL) return;
+    gl_overlay_set_bitmap((const uint8_t*) pixels, width, height);
+    (*env)->ReleaseByteArrayElements(env, rgba, pixels, JNI_ABORT);
+}
+
+JNIEXPORT void JNICALL
+Java_net_kdt_pojavlaunch_recorder_GameRecorder_nativeSetPointerState(JNIEnv* env, jclass clazz,
+                                                                    jboolean visible, jfloat width,
+                                                                    jfloat height) {
+    (void) env;
+    (void) clazz;
+    gl_overlay_set_state(visible == JNI_TRUE, width, height);
 }
 
 JNIEXPORT void JNICALL

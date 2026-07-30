@@ -24,6 +24,7 @@ LOCAL_SRC_FILES := \
     ctxbridges/loader_dlopen.c \
     ctxbridges/gl_bridge.c \
     ctxbridges/gl_recorder.c \
+    ctxbridges/gl_overlay.c \
     ctxbridges/osm_bridge.c \
     ctxbridges/egl_loader.c \
     ctxbridges/osmesa_loader.c \

@@ -2,6 +2,7 @@ package net.kdt.pojavlaunch.recorder;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.media.AudioFormat;
 import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.AudioRecord;
@@ -946,4 +947,58 @@ public class GameRecorder {
 
     /** Blocks until the render thread has released the encoder surface. */
     private static native void nativeStopRecording();
+
+    /** Hands over the pointer artwork as straight-alpha RGBA, row major. */
+    private static native void nativeSetPointerBitmap(byte[] rgba, int width, int height);
+
+    /** Whether the pointer is showing, and its size in game framebuffer pixels. */
+    private static native void nativeSetPointerState(boolean visible, float width, float height);
+
+    /**
+     * Tells the recorder where the virtual mouse stands.
+     * <p>
+     * The pointer is an Android view above the game's surface, so it is absent from the frames the
+     * recorder copies and has to be drawn back in. Called whenever the pointer appears or
+     * disappears, which keeps recordings matching what is on screen.
+     *
+     * @param widthPx  pointer width in game framebuffer pixels
+     * @param heightPx pointer height in game framebuffer pixels
+     */
+    public static void setPointerState(boolean visible, float widthPx, float heightPx) {
+        try {
+            nativeSetPointerState(visible, widthPx, heightPx);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not update the pointer state", t);
+        }
+    }
+
+    /**
+     * Uploads the pointer artwork once per session.
+     * <p>
+     * Bitmap.getPixels() packs each pixel as ARGB in a single int, which lands in memory as
+     * B, G, R, A on a little endian machine. GL wants R, G, B, A, so the channels are reordered
+     * here rather than asking the GPU to sample a layout it has no core support for.
+     */
+    public static void setPointerBitmap(@Nullable Bitmap bitmap) {
+        if (bitmap == null) return;
+        try {
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            if (width <= 0 || height <= 0) return;
+
+            int[] packed = new int[width * height];
+            bitmap.getPixels(packed, 0, width, 0, 0, width, height);
+            byte[] rgba = new byte[packed.length * 4];
+            for (int i = 0; i < packed.length; i++) {
+                int pixel = packed[i];
+                rgba[i * 4] = (byte) ((pixel >> 16) & 0xFF);
+                rgba[i * 4 + 1] = (byte) ((pixel >> 8) & 0xFF);
+                rgba[i * 4 + 2] = (byte) (pixel & 0xFF);
+                rgba[i * 4 + 3] = (byte) ((pixel >> 24) & 0xFF);
+            }
+            nativeSetPointerBitmap(rgba, width, height);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not hand over the pointer artwork", t);
+        }
+    }
 }

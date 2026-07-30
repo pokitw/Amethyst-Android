@@ -23,6 +23,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.media.projection.MediaProjectionManager;
 import android.graphics.RectF;
@@ -575,6 +576,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             getRecorder().stopIfRecording();
             return;
         }
+        publishPointerToRecorder();
         if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !getRecorder().wantsAudio()) {
             // Playback capture needs Android 10, and there is no reason to prompt for it when
             // audio recording is switched off in the settings.
@@ -586,6 +588,27 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             return; // resumed from onRequestPermissionsResult
         }
         requestProjectionAndRecord();
+    }
+
+    /**
+     * Hands the recorder the pointer artwork and its current state.
+     * <p>
+     * The virtual mouse is an Android view drawn above the game's surface, so it is absent from
+     * the frames the recorder copies out of the renderer and has to be composited back in.
+     */
+    private void publishPointerToRecorder() {
+        try {
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            // Straight alpha, so the blend in the recorder matches how this is drawn on screen.
+            options.inPremultiplied = false;
+            GameRecorder.setPointerBitmap(BitmapFactory.decodeResource(getResources(),
+                    R.drawable.ic_mouse_pointer, options));
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not read the pointer artwork, recording without it", t);
+        }
+        float scale = LauncherPreferences.PREF_MOUSESCALE * LauncherPreferences.PREF_SCALE_FACTOR;
+        GameRecorder.setPointerState(touchpad != null && touchpad.getDisplayState(),
+                36 * scale, 54 * scale);
     }
 
     private void requestProjectionAndRecord() {

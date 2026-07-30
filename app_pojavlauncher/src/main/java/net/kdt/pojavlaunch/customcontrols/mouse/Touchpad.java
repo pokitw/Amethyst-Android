@@ -16,6 +16,7 @@ import androidx.core.content.res.ResourcesCompat;
 import net.kdt.pojavlaunch.GrabListener;
 import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.recorder.GameRecorder;
 
 import org.lwjgl.glfw.CallbackBridge;
 
@@ -41,11 +42,26 @@ public class Touchpad extends View implements GrabListener, AbstractTouchpad {
     private void _enable(){
         setVisibility(VISIBLE);
         placeMouseAt(currentDisplayMetrics.widthPixels / 2f, currentDisplayMetrics.heightPixels / 2f);
+        publishPointerState(true);
     }
 
     /** Disable the touchpad and hides the mouse */
     private void _disable(){
         setVisibility(GONE);
+        publishPointerState(false);
+    }
+
+    /**
+     * Keeps the in-game recorder's copy of the pointer in step with this one.
+     * <p>
+     * This view sits above the game's surface, so it never reaches the frames the recorder
+     * captures and has to be drawn there separately. The size is converted into game framebuffer
+     * pixels, the space the recorder works in, so the user's pointer scale and the resolution
+     * scaler both carry across.
+     */
+    private void publishPointerState(boolean visible) {
+        float scale = LauncherPreferences.PREF_MOUSESCALE * LauncherPreferences.PREF_SCALE_FACTOR;
+        GameRecorder.setPointerState(visible, 36 * scale, 54 * scale);
     }
 
     /** @return The new state, enabled or disabled */
