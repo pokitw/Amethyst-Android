@@ -143,7 +143,10 @@
     <string name="preference_recorder_audio_title">Record game audio</string>
     <string name="preference_recorder_audio_description">Needs Android 10 and a one-off capture permission</string>
     <string name="preference_recorder_audio_bitrate_title">Audio bitrate</string>
-    <string name="recordings_empty">No recordings yet.\nStart one from the in-game settings menu.</string>
+    <string name="recordings_empty_title">No recordings yet</string>
+    <string name="recordings_empty_subtitle">Start one from the in-game gear icon menu</string>
+    <string name="recordings_back">Back</string>
+    <string name="recordings_action_more">More options</string>
     <string name="recordings_action_play">Play</string>
     <string name="recordings_action_share">Share</string>
     <string name="recordings_action_delete">Delete</string>

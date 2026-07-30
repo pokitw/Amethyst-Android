@@ -8,7 +8,7 @@
         android:key="viewRecordings"
         android:title="@string/preference_recorder_view_title"
         android:summary="@string/preference_recorder_view_description"
-        android:icon="@drawable/ic_setting_video"
+        android:icon="@drawable/ic_recording_play"
         />
 
     <PreferenceCategory android:title="@string/preference_category_recorder_video">
