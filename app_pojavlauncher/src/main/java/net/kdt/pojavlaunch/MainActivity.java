@@ -135,6 +135,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private static final int MENU_INGAME_RECORD = 5;
     private static final int REQUEST_MEDIA_PROJECTION = 1001;
     private static final int REQUEST_RECORD_AUDIO = 1002;
+    /** Set once the capture prompt has been explained, so it is only shown the first time. */
+    private static final String PREF_KEY_CAPTURE_EXPLAINED = "recorderCaptureExplained";
     private GameRecorder mGameRecorder;
 
     @Override
@@ -612,6 +614,28 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     }
 
     private void requestProjectionAndRecord() {
+        // Android 14 added a choice between the whole screen and a single app to the capture
+        // prompt. Picking a single app scopes the projection to that app's task, and the game's
+        // audio does not come through, so explain the choice once before the system asks.
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+                && !LauncherPreferences.DEFAULT_PREF.getBoolean(PREF_KEY_CAPTURE_EXPLAINED, false)) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.control_recording_capture_prompt_title)
+                    .setMessage(R.string.control_recording_capture_prompt_message)
+                    .setCancelable(false)
+                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> getRecorder().toggle(null))
+                    .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                        LauncherPreferences.DEFAULT_PREF.edit()
+                                .putBoolean(PREF_KEY_CAPTURE_EXPLAINED, true).apply();
+                        launchCaptureConsent();
+                    })
+                    .show();
+            return;
+        }
+        launchCaptureConsent();
+    }
+
+    private void launchCaptureConsent() {
         MediaProjectionManager manager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         if(manager == null) {
             getRecorder().toggle(null);

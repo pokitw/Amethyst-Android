@@ -5,6 +5,14 @@
     <net.kdt.pojavlaunch.prefs.BackButtonPreference/>
 
     <Preference
+        android:key="recorderEstimate"
+        android:title="@string/preference_recorder_estimate_title"
+        android:selectable="false"
+        android:persistent="false"
+        android:icon="@drawable/ic_setting_screen_resolution"
+        />
+
+    <Preference
         android:key="viewRecordings"
         android:title="@string/preference_recorder_view_title"
         android:summary="@string/preference_recorder_view_description"

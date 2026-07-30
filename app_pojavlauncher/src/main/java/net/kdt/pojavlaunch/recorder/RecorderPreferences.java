@@ -9,6 +9,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
 
+import net.kdt.pojavlaunch.Tools;
+import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
+
 import java.io.File;
 
 /**
@@ -32,6 +35,15 @@ public class RecorderPreferences {
     public static final String SOURCE_INTERNAL = "internal";
     public static final String SOURCE_MICROPHONE = "microphone";
     public static final String SOURCE_BOTH = "both";
+
+    /**
+     * Where a recording is cut short. MP4 addresses its data with 32 bit offsets, so a file that
+     * reaches 4 GB stops being valid; stopping well before that leaves room for the index the
+     * muxer writes at the end.
+     */
+    public static final long MAX_OUTPUT_BYTES = 3_500L * 1024 * 1024;
+    /** Free space below which a recording will not start, and running ones are wrapped up. */
+    public static final long MIN_FREE_BYTES = 250L * 1024 * 1024;
 
     /** Longest side of the encoded video in pixels, or 0 to keep whatever the game renders at. */
     public final int longEdge;
@@ -133,5 +145,40 @@ public class RecorderPreferences {
     /** Where recordings are written for the given game directory. */
     public static File recordingsDirectory(@NonNull File gameDirectory) {
         return new File(gameDirectory, "recordings");
+    }
+
+    /** Where the current profile's recordings live, or null if that cannot be worked out. */
+    @Nullable
+    public static File currentRecordingsDirectory() {
+        try {
+            LauncherProfiles.load();
+            return recordingsDirectory(Tools.getGameDirPath(LauncherProfiles.getCurrentProfile()));
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Free space on the volume a directory lives on, walking up to the nearest ancestor that
+     * exists, since the recordings folder is only created when the first clip is made.
+     */
+    public static long usableSpaceFor(@Nullable File directory) {
+        for (File candidate = directory; candidate != null; candidate = candidate.getParentFile()) {
+            if (candidate.exists()) return candidate.getUsableSpace();
+        }
+        return 0;
+    }
+
+    /** Bytes a second of recording takes at these settings, video and audio together. */
+    public long bytesPerSecond() {
+        long bits = videoBitRate + (captureAudio ? audioBitRate : 0);
+        return Math.max(1, bits / 8);
+    }
+
+    /** How long can be recorded before the file limit or the free space runs out, in seconds. */
+    public long recordableSeconds(long usableSpace) {
+        long spaceBudget = Math.max(0, usableSpace - MIN_FREE_BYTES);
+        long budget = Math.min(MAX_OUTPUT_BYTES, spaceBudget);
+        return budget / bytesPerSecond();
     }
 }

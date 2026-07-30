@@ -32,6 +32,7 @@ import org.lwjgl.glfw.CallbackBridge;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -60,15 +61,8 @@ public class GameRecorder {
     private static final int AUDIO_CHANNEL_COUNT = 2;
     private static final int AUDIO_BYTES_PER_FRAME = AUDIO_CHANNEL_COUNT * 2; // 16 bit PCM
 
-    /**
-     * Where a recording is cut short. MP4 addresses its data with 32 bit offsets, so a file that
-     * reaches 4 GB stops being valid; stopping well before that leaves room for the index the
-     * muxer writes at the end. Long sessions therefore end with a complete, playable file rather
-     * than a corrupt one.
-     */
-    private static final long MAX_OUTPUT_BYTES = 3_500L * 1024 * 1024;
-    /** Free space below which a recording will not start, and running ones are wrapped up. */
-    private static final long MIN_FREE_BYTES = 250L * 1024 * 1024;
+    private static final long MAX_OUTPUT_BYTES = RecorderPreferences.MAX_OUTPUT_BYTES;
+    private static final long MIN_FREE_BYTES = RecorderPreferences.MIN_FREE_BYTES;
     /** How often the output is measured against those limits. */
     private static final long SIZE_CHECK_INTERVAL_MS = 2_000;
 
@@ -588,16 +582,23 @@ public class GameRecorder {
         if (internal == null && microphone != null) return readMicrophone(input, microphone, capacity);
 
         if (internal == null) return 0;
+        // PCM is little endian, while a ByteBuffer reads and writes shorts big endian unless it
+        // is told otherwise. Reading samples through the wrong order swaps each one's bytes,
+        // which is heard as continuous static rather than as the two sources together.
+        input.order(ByteOrder.LITTLE_ENDIAN);
         int read = Math.max(0, internal.read(input, capacity));
         if (read <= 0) return 0;
 
         // Pull the same span from the microphone into scratch space, then sum the two.
-        if (mMixBuffer == null || mMixBuffer.capacity() < read)
+        if (mMixBuffer == null || mMixBuffer.capacity() < read) {
             mMixBuffer = ByteBuffer.allocateDirect(read);
+            mMixBuffer.order(ByteOrder.LITTLE_ENDIAN);
+        }
         mMixBuffer.clear();
         int micRead = readMicrophone(mMixBuffer, microphone, read);
 
-        for (int offset = 0; offset + 1 < micRead; offset += 2) {
+        int mixableBytes = Math.min(micRead, read);
+        for (int offset = 0; offset + 1 < mixableBytes; offset += 2) {
             int mixed = input.getShort(offset) + mMixBuffer.getShort(offset);
             // Summing two full scale signals overflows, so clip rather than wrap.
             input.putShort(offset, (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, mixed)));
@@ -608,16 +609,19 @@ public class GameRecorder {
     /** Reads microphone PCM as stereo, widening a mono capture so the layouts match. */
     private int readMicrophone(@NonNull ByteBuffer destination, @NonNull AudioRecord microphone,
                                int wantedBytes) {
+        destination.order(ByteOrder.LITTLE_ENDIAN);
         if (mMicChannels >= AUDIO_CHANNEL_COUNT)
             return Math.max(0, microphone.read(destination, wantedBytes));
 
-        int monoBytes = wantedBytes / 2;
-        if (mMonoBuffer == null || mMonoBuffer.length < monoBytes) mMonoBuffer = new short[monoBytes / 2];
-        int read = Math.max(0, microphone.read(mMonoBuffer, 0, monoBytes / 2));
+        // One mono frame becomes one stereo frame, so half as many samples are needed.
+        int monoSamples = wantedBytes / AUDIO_BYTES_PER_FRAME;
+        if (mMonoBuffer == null || mMonoBuffer.length < monoSamples)
+            mMonoBuffer = new short[monoSamples];
+        int read = Math.max(0, microphone.read(mMonoBuffer, 0, monoSamples));
         for (int frame = 0; frame < read; frame++) {
             short sample = mMonoBuffer[frame];
-            destination.putShort(frame * 4, sample);
-            destination.putShort(frame * 4 + 2, sample);
+            destination.putShort(frame * AUDIO_BYTES_PER_FRAME, sample);
+            destination.putShort(frame * AUDIO_BYTES_PER_FRAME + 2, sample);
         }
         return read * AUDIO_BYTES_PER_FRAME;
     }
