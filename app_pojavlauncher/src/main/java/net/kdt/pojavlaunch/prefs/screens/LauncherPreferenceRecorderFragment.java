@@ -28,13 +28,17 @@ public class LauncherPreferenceRecorderFragment extends LauncherPreferenceFragme
                 RecorderPreferences.KEY_VIDEO_BITRATE, CustomSeekBarPreference.class);
         videoBitrate.setSuffix(" Mbps");
 
-        // The audio bitrate only means anything while audio is actually being captured.
+        // The source and bitrate only mean anything while audio is actually being captured.
         SwitchPreference captureAudio = requirePreference(
                 RecorderPreferences.KEY_CAPTURE_AUDIO, SwitchPreference.class);
         Preference audioBitrate = requirePreference(RecorderPreferences.KEY_AUDIO_BITRATE);
+        Preference audioSource = requirePreference(RecorderPreferences.KEY_AUDIO_SOURCE);
         audioBitrate.setVisible(captureAudio.isChecked());
+        audioSource.setVisible(captureAudio.isChecked());
         captureAudio.setOnPreferenceChangeListener((preference, newValue) -> {
-            audioBitrate.setVisible(Boolean.TRUE.equals(newValue));
+            boolean enabled = Boolean.TRUE.equals(newValue);
+            audioBitrate.setVisible(enabled);
+            audioSource.setVisible(enabled);
             return true;
         });
     }

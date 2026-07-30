@@ -12,6 +12,14 @@
             android:fragment="net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment"
             />
 
+        <Preference
+            android:key="recorder_screen_setting"
+            android:title="@string/preference_recorder_title"
+            android:summary="@string/preference_recorder_description"
+            android:fragment="net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRecorderFragment"
+            android:icon="@drawable/ic_setting_recordings"
+            />
+
         <androidx.preference.SwitchPreferenceCompat
             android:defaultValue="false"
             android:key="ignoreNotch"

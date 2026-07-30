@@ -6,6 +6,7 @@ import android.media.AudioManager;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
 
 import java.io.File;
@@ -25,6 +26,12 @@ public class RecorderPreferences {
     public static final String KEY_VIDEO_BITRATE = "recorderVideoBitrate";
     public static final String KEY_CAPTURE_AUDIO = "recorderCaptureAudio";
     public static final String KEY_AUDIO_BITRATE = "recorderAudioBitrate";
+    public static final String KEY_AUDIO_SOURCE = "recorderAudioSource";
+
+    /** Values stored by the audio source list preference. */
+    public static final String SOURCE_INTERNAL = "internal";
+    public static final String SOURCE_MICROPHONE = "microphone";
+    public static final String SOURCE_BOTH = "both";
 
     /** Longest side of the encoded video in pixels, or 0 to keep whatever the game renders at. */
     public final int longEdge;
@@ -32,6 +39,8 @@ public class RecorderPreferences {
     /** Video bitrate in bits per second. */
     public final int videoBitRate;
     public final boolean captureAudio;
+    /** Which sources the audio track is built from, one of the SOURCE_ constants. */
+    @NonNull public final String audioSource;
     /** Audio bitrate in bits per second. */
     public final int audioBitRate;
     /**
@@ -41,24 +50,53 @@ public class RecorderPreferences {
     public final int audioSampleRate;
 
     private RecorderPreferences(int longEdge, int frameRate, int videoBitRate,
-                                boolean captureAudio, int audioBitRate, int audioSampleRate) {
+                                boolean captureAudio, @NonNull String audioSource,
+                                int audioBitRate, int audioSampleRate) {
         this.longEdge = longEdge;
         this.frameRate = frameRate;
         this.videoBitRate = videoBitRate;
         this.captureAudio = captureAudio;
+        this.audioSource = audioSource;
         this.audioBitRate = audioBitRate;
         this.audioSampleRate = audioSampleRate;
     }
 
     public static RecorderPreferences load(@NonNull Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String source = SOURCE_INTERNAL;
+        try {
+            String stored = preferences.getString(KEY_AUDIO_SOURCE, SOURCE_INTERNAL);
+            if (stored != null) source = stored;
+        } catch (Throwable ignored) {
+            // Wrong type stored; the default stands.
+        }
         return new RecorderPreferences(
                 readInt(preferences, KEY_RESOLUTION, 1280),
                 readInt(preferences, KEY_FRAME_RATE, 30),
                 preferences.getInt(KEY_VIDEO_BITRATE, 12) * 1_000_000,
                 preferences.getBoolean(KEY_CAPTURE_AUDIO, true),
+                source,
                 readInt(preferences, KEY_AUDIO_BITRATE, 192) * 1000,
                 outputSampleRate(context));
+    }
+
+    /** @return whether the game's own output is part of the audio track. */
+    public boolean captureInternalAudio() {
+        return captureAudio && !SOURCE_MICROPHONE.equals(audioSource);
+    }
+
+    /** @return whether the microphone is part of the audio track. */
+    public boolean captureMicrophone() {
+        return captureAudio && !SOURCE_INTERNAL.equals(audioSource);
+    }
+
+    /** A short description of the audio track, stored alongside the recording. */
+    @Nullable
+    public String describeAudio() {
+        if (!captureAudio) return null;
+        if (SOURCE_MICROPHONE.equals(audioSource)) return "microphone";
+        if (SOURCE_BOTH.equals(audioSource)) return "game and microphone";
+        return "game";
     }
 
     /** ListPreference stores its values as strings even when they are numbers. */

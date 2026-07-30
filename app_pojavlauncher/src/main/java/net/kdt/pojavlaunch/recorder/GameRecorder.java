@@ -9,6 +9,9 @@ import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
+import android.media.MediaRecorder;
+import android.media.audiofx.AcousticEchoCanceler;
+import android.media.audiofx.NoiseSuppressor;
 import android.media.projection.MediaProjection;
 import android.os.Build;
 import android.os.Handler;
@@ -56,6 +59,18 @@ public class GameRecorder {
     private static final int AUDIO_CHANNEL_COUNT = 2;
     private static final int AUDIO_BYTES_PER_FRAME = AUDIO_CHANNEL_COUNT * 2; // 16 bit PCM
 
+    /**
+     * Where a recording is cut short. MP4 addresses its data with 32 bit offsets, so a file that
+     * reaches 4 GB stops being valid; stopping well before that leaves room for the index the
+     * muxer writes at the end. Long sessions therefore end with a complete, playable file rather
+     * than a corrupt one.
+     */
+    private static final long MAX_OUTPUT_BYTES = 3_500L * 1024 * 1024;
+    /** Free space below which a recording will not start, and running ones are wrapped up. */
+    private static final long MIN_FREE_BYTES = 250L * 1024 * 1024;
+    /** How often the output is measured against those limits. */
+    private static final long SIZE_CHECK_INTERVAL_MS = 2_000;
+
     private static final long DEQUEUE_TIMEOUT_US = 10_000;
     /** How long we keep draining after end of stream was signalled before giving up. */
     private static final long DRAIN_TIMEOUT_MS = 5_000;
@@ -67,10 +82,13 @@ public class GameRecorder {
         void onRecordingStarted();
         void onRecordingStopped(@NonNull File output);
         void onRecordingFailed(@NonNull String reason);
+        /** A running recording is being wrapped up early; what has been captured is kept. */
+        void onRecordingTruncated(@NonNull String reason);
     }
 
     private final Context mContext;
     private final File mOutputDirectory;
+    @Nullable private final String mMinecraftVersion;
     private final Listener mListener;
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
 
@@ -104,6 +122,14 @@ public class GameRecorder {
 
     /* Audio half, all null when recording without sound. */
     @Nullable private AudioRecord mAudioRecord;
+    @Nullable private AudioRecord mMicRecord;
+    @Nullable private AcousticEchoCanceler mEchoCanceler;
+    @Nullable private NoiseSuppressor mNoiseSuppressor;
+    /** Channels the microphone actually gave us; mono captures are widened when read. */
+    private int mMicChannels;
+    /** Scratch space for the microphone's share of a mixed buffer. */
+    @Nullable private ByteBuffer mMixBuffer;
+    @Nullable private short[] mMonoBuffer;
     @Nullable private MediaCodec mAudioEncoder;
     @Nullable private Thread mAudioThread;
     private volatile boolean mAudioStopRequested;
@@ -130,11 +156,16 @@ public class GameRecorder {
      */
     private long mPtsOffsetUs;
     private boolean mTimestampsClamped;
+    /** Rough size of the media written so far, used to stop before the container overflows. */
+    private long mBytesWritten;
+    private long mLastSizeCheckMs;
+    private boolean mLimitReached;
 
     public GameRecorder(@NonNull Context context, @NonNull File outputDirectory,
-                        @NonNull Listener listener) {
+                        @Nullable String minecraftVersion, @NonNull Listener listener) {
         mContext = context.getApplicationContext();
         mOutputDirectory = outputDirectory;
+        mMinecraftVersion = minecraftVersion;
         mListener = listener;
     }
 
@@ -190,6 +221,8 @@ public class GameRecorder {
             int[] size = computeRecordingSize(preferences.longEdge);
             if (!mOutputDirectory.exists() && !mOutputDirectory.mkdirs())
                 throw new IOException("Could not create " + mOutputDirectory);
+            if (mOutputDirectory.getUsableSpace() < MIN_FREE_BYTES)
+                throw new IOException("There is not enough free storage to record");
 
             String name = new SimpleDateFormat("yyyy-MM-dd_HH.mm.ss", Locale.ROOT).format(new Date());
             mOutputFile = new File(mOutputDirectory, name + ".mp4");
@@ -227,6 +260,9 @@ public class GameRecorder {
             // zero. Taken before capture starts, so no sample can ever land before it.
             mPtsOffsetUs = System.nanoTime() / 1000L;
             mTimestampsClamped = false;
+            mBytesWritten = 0;
+            mLastSizeCheckMs = System.currentTimeMillis();
+            mLimitReached = false;
 
             if (!nativeStartRecording(mInputSurface, size[0], size[1], preferences.frameRate))
                 throw new IOException("The " + Tools.LOCAL_RENDERER
@@ -238,6 +274,10 @@ public class GameRecorder {
                 mAudioThread = new Thread(this::audioLoop, "GameRecorder-audio");
                 mAudioThread.start();
             }
+
+            // Details the MP4 itself cannot carry, kept next to it for the gallery to show.
+            new RecordingInfo(mMinecraftVersion, size[0], size[1], preferences.frameRate,
+                    withAudio ? preferences.describeAudio() : null).write(mOutputFile);
 
             mSessionActive = true;
             Log.i(TAG, "Recording to " + mOutputFile + " at " + size[0] + "x" + size[1]
@@ -303,20 +343,23 @@ public class GameRecorder {
     }
 
     /**
-     * Wire up capture of the game's own audio output. Playback capture is the only sanctioned way
-     * for an app to record what it is playing, and it needs a media projection to do it.
+     * Wire up audio capture for whichever sources the user asked for.
+     * <p>
+     * The game's own output can only be captured through playback capture, which needs a media
+     * projection. The microphone is an ordinary capture. When both are wanted they are recorded
+     * separately and mixed, because Android has no single source that carries the two.
      *
      * @return whether audio capture is running; false means carry on with video only.
      */
     @SuppressLint("MissingPermission") // RECORD_AUDIO is checked by the caller before we get here
-    private boolean setupAudio(@NonNull MediaProjection projection,
+    private boolean setupAudio(@Nullable MediaProjection projection,
                                @NonNull RecorderPreferences preferences) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Log.i(TAG, "Playback capture needs Android 10, recording without audio");
-            return false;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && preferences.captureInternalAudio()) {
+            Log.i(TAG, "Playback capture needs Android 10, recording without the game's audio");
+            if (!preferences.captureMicrophone()) return false;
         }
         try {
-            return setupAudioQ(projection, preferences);
+            return setupAudioSources(projection, preferences);
         } catch (Throwable t) {
             Log.e(TAG, "Could not set up audio capture, recording without audio", t);
             releaseAudio();
@@ -324,41 +367,43 @@ public class GameRecorder {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private boolean setupAudioQ(@NonNull MediaProjection projection,
-                                @NonNull RecorderPreferences preferences) throws IOException {
-        AudioPlaybackCaptureConfiguration captureConfig =
-                new AudioPlaybackCaptureConfiguration.Builder(projection)
-                        // Our own playback only: the game shares the launcher's UID.
-                        .addMatchingUid(Process.myUid())
-                        .build();
+    private boolean setupAudioSources(@Nullable MediaProjection projection,
+                                      @NonNull RecorderPreferences preferences) throws IOException {
         // Capture at the rate the device already outputs at. Asking for anything else makes the
         // framework resample the game's audio on the way in and it audibly costs quality.
         int sampleRate = preferences.audioSampleRate;
-        AudioFormat captureFormat = new AudioFormat.Builder()
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setSampleRate(sampleRate)
-                .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
-                .build();
         int minBuffer = AudioRecord.getMinBufferSize(sampleRate,
                 AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT);
         if (minBuffer <= 0) minBuffer = sampleRate * AUDIO_BYTES_PER_FRAME / 4;
 
-        mAudioRecord = new AudioRecord.Builder()
-                .setAudioFormat(captureFormat)
-                .setBufferSizeInBytes(minBuffer * 2)
-                .setAudioPlaybackCaptureConfig(captureConfig)
-                .build();
-        if (mAudioRecord.getState() != AudioRecord.STATE_INITIALIZED)
-            throw new IOException("The audio capture could not be initialised");
+        boolean wantsInternal = preferences.captureInternalAudio()
+                && projection != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q;
+        if (wantsInternal) {
+            mAudioRecord = createPlaybackCapture(projection, sampleRate, minBuffer);
+            if (mAudioRecord == null)
+                Log.w(TAG, "The game's audio could not be captured");
+        }
+        if (preferences.captureMicrophone()) {
+            // Echo cancellation matters when the two are mixed: without it a device playing
+            // through its speaker records the game twice, once cleanly and once through the room.
+            mMicRecord = createMicrophoneCapture(sampleRate, minBuffer, mAudioRecord != null);
+            if (mMicRecord == null)
+                Log.w(TAG, "The microphone could not be captured");
+        }
+        if (mAudioRecord == null && mMicRecord == null)
+            throw new IOException("No audio source could be opened");
 
         // Whatever the device actually gave us, which need not be what was asked for.
-        mAudioSampleRate = mAudioRecord.getSampleRate();
-        // Worth having in the log: if the source is a microphone one, the ROM ignored the
-        // playback capture config and we would be recording the room instead of the game.
-        Log.i(TAG, "Audio capture source=" + mAudioRecord.getAudioSource()
-                + " rate=" + mAudioSampleRate
-                + " channels=" + mAudioRecord.getChannelCount());
+        AudioRecord clock = mAudioRecord != null ? mAudioRecord : mMicRecord;
+        mAudioSampleRate = clock.getSampleRate();
+        mMicChannels = mMicRecord != null ? mMicRecord.getChannelCount() : 0;
+        // Worth having in the log: if the internal source reports a microphone one, the ROM
+        // ignored the playback capture config and we would be recording the room, not the game.
+        Log.i(TAG, "Audio rate=" + mAudioSampleRate
+                + " internal=" + (mAudioRecord != null
+                        ? "yes(source=" + mAudioRecord.getAudioSource()
+                          + ",ch=" + mAudioRecord.getChannelCount() + ")" : "no")
+                + " microphone=" + (mMicRecord != null ? "yes(ch=" + mMicChannels + ")" : "no"));
 
         MediaFormat format = MediaFormat.createAudioFormat(AUDIO_MIME_TYPE, mAudioSampleRate,
                 AUDIO_CHANNEL_COUNT);
@@ -370,8 +415,102 @@ public class GameRecorder {
         mAudioEncoder = MediaCodec.createEncoderByType(AUDIO_MIME_TYPE);
         mAudioEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         mAudioEncoder.start();
-        mAudioRecord.startRecording();
+        if (mAudioRecord != null) mAudioRecord.startRecording();
+        if (mMicRecord != null) mMicRecord.startRecording();
         return true;
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    @SuppressLint("MissingPermission")
+    @Nullable
+    private AudioRecord createPlaybackCapture(@NonNull MediaProjection projection, int sampleRate,
+                                              int minBuffer) {
+        try {
+            AudioPlaybackCaptureConfiguration captureConfig =
+                    new AudioPlaybackCaptureConfiguration.Builder(projection)
+                            // Our own playback only: the game shares the launcher's UID.
+                            .addMatchingUid(Process.myUid())
+                            .build();
+            AudioRecord record = new AudioRecord.Builder()
+                    .setAudioFormat(stereoFormat(sampleRate))
+                    .setBufferSizeInBytes(minBuffer * 2)
+                    .setAudioPlaybackCaptureConfig(captureConfig)
+                    .build();
+            if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+                record.release();
+                return null;
+            }
+            return record;
+        } catch (Throwable t) {
+            Log.w(TAG, "Playback capture could not be opened", t);
+            return null;
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    @Nullable
+    private AudioRecord createMicrophoneCapture(int sampleRate, int minBuffer, boolean cancelEcho) {
+        // Stereo microphones are common but far from universal, so fall back to mono and widen
+        // it when mixing rather than giving up on the microphone entirely.
+        AudioRecord record = openMicrophone(sampleRate, minBuffer, AudioFormat.CHANNEL_IN_STEREO);
+        if (record == null)
+            record = openMicrophone(sampleRate, minBuffer, AudioFormat.CHANNEL_IN_MONO);
+        if (record == null) return null;
+
+        if (cancelEcho) {
+            try {
+                if (AcousticEchoCanceler.isAvailable()) {
+                    AcousticEchoCanceler canceler = AcousticEchoCanceler.create(record.getAudioSessionId());
+                    if (canceler != null) {
+                        canceler.setEnabled(true);
+                        mEchoCanceler = canceler;
+                    }
+                }
+                if (NoiseSuppressor.isAvailable()) {
+                    NoiseSuppressor suppressor = NoiseSuppressor.create(record.getAudioSessionId());
+                    if (suppressor != null) {
+                        suppressor.setEnabled(true);
+                        mNoiseSuppressor = suppressor;
+                    }
+                }
+            } catch (Throwable t) {
+                // Purely an improvement; the microphone still works without it.
+                Log.w(TAG, "Could not attach echo cancellation to the microphone", t);
+            }
+        }
+        return record;
+    }
+
+    @SuppressLint("MissingPermission")
+    @Nullable
+    private AudioRecord openMicrophone(int sampleRate, int minBuffer, int channelMask) {
+        try {
+            AudioFormat format = new AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(channelMask)
+                    .build();
+            AudioRecord record = new AudioRecord.Builder()
+                    .setAudioSource(MediaRecorder.AudioSource.MIC)
+                    .setAudioFormat(format)
+                    .setBufferSizeInBytes(Math.max(minBuffer, 4096) * 2)
+                    .build();
+            if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+                record.release();
+                return null;
+            }
+            return record;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static AudioFormat stereoFormat(int sampleRate) {
+        return new AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(sampleRate)
+                .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
+                .build();
     }
 
     /**
@@ -382,9 +521,10 @@ public class GameRecorder {
     // Only ever started when setupAudio() succeeded, which requires Android 10.
     @SuppressLint("NewApi")
     private void audioLoop() {
-        AudioRecord record = mAudioRecord;
+        AudioRecord internal = mAudioRecord;
+        AudioRecord microphone = mMicRecord;
         MediaCodec encoder = mAudioEncoder;
-        if (record == null || encoder == null) return;
+        if ((internal == null && microphone == null) || encoder == null) return;
 
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
         try {
@@ -395,7 +535,7 @@ public class GameRecorder {
                     int read = 0;
                     if (input != null) {
                         input.clear();
-                        read = record.read(input, input.capacity());
+                        read = readAudio(input, internal, microphone);
                     }
                     if (read < 0) read = 0;
                     long framesRead = read / AUDIO_BYTES_PER_FRAME;
@@ -429,6 +569,56 @@ public class GameRecorder {
         } catch (Throwable t) {
             Log.e(TAG, "Audio capture failed, the recording keeps its video", t);
         }
+    }
+
+    /**
+     * Fills the encoder's buffer with stereo PCM from whichever sources are running.
+     * <p>
+     * With both, the two are summed. They are separate captures rather than one stream, so the
+     * only thing keeping them aligned is that they run at the same rate and are read in step;
+     * a short read on either side is padded with silence so neither can slip against the other.
+     *
+     * @return the number of bytes written into the buffer.
+     */
+    private int readAudio(@NonNull ByteBuffer input, @Nullable AudioRecord internal,
+                          @Nullable AudioRecord microphone) {
+        int capacity = input.capacity();
+        if (internal != null && microphone == null) return Math.max(0, internal.read(input, capacity));
+        if (internal == null && microphone != null) return readMicrophone(input, microphone, capacity);
+
+        if (internal == null) return 0;
+        int read = Math.max(0, internal.read(input, capacity));
+        if (read <= 0) return 0;
+
+        // Pull the same span from the microphone into scratch space, then sum the two.
+        if (mMixBuffer == null || mMixBuffer.capacity() < read)
+            mMixBuffer = ByteBuffer.allocateDirect(read);
+        mMixBuffer.clear();
+        int micRead = readMicrophone(mMixBuffer, microphone, read);
+
+        for (int offset = 0; offset + 1 < micRead; offset += 2) {
+            int mixed = input.getShort(offset) + mMixBuffer.getShort(offset);
+            // Summing two full scale signals overflows, so clip rather than wrap.
+            input.putShort(offset, (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, mixed)));
+        }
+        return read;
+    }
+
+    /** Reads microphone PCM as stereo, widening a mono capture so the layouts match. */
+    private int readMicrophone(@NonNull ByteBuffer destination, @NonNull AudioRecord microphone,
+                               int wantedBytes) {
+        if (mMicChannels >= AUDIO_CHANNEL_COUNT)
+            return Math.max(0, microphone.read(destination, wantedBytes));
+
+        int monoBytes = wantedBytes / 2;
+        if (mMonoBuffer == null || mMonoBuffer.length < monoBytes) mMonoBuffer = new short[monoBytes / 2];
+        int read = Math.max(0, microphone.read(mMonoBuffer, 0, monoBytes / 2));
+        for (int frame = 0; frame < read; frame++) {
+            short sample = mMonoBuffer[frame];
+            destination.putShort(frame * 4, sample);
+            destination.putShort(frame * 4 + 2, sample);
+        }
+        return read * AUDIO_BYTES_PER_FRAME;
     }
 
     private long currentAudioTimestampUs() {
@@ -486,6 +676,10 @@ public class GameRecorder {
             }
             if (!mMuxerStarted || mMuxer == null || track < 0) return; // nothing to write into yet
 
+            // Long sessions are wrapped up before the container or the storage gives out.
+            mBytesWritten += bufferInfo.size;
+            checkOutputLimits();
+
             /*
              * Both tracks arrive stamped on the raw CLOCK_MONOTONIC clock, so their timestamps run
              * from the device's uptime rather than from zero. Written out as-is, the file would
@@ -513,19 +707,27 @@ public class GameRecorder {
     }
 
     private void releaseAudio() {
-        if (mAudioRecord != null) {
+        mAudioRecord = releaseRecord(mAudioRecord, "the game's audio capture");
+        mMicRecord = releaseRecord(mMicRecord, "the microphone capture");
+        if (mEchoCanceler != null) {
             try {
-                if (mAudioRecord.getState() == AudioRecord.STATE_INITIALIZED) mAudioRecord.stop();
+                mEchoCanceler.release();
             } catch (Throwable t) {
-                Log.w(TAG, "Could not stop the audio capture", t);
+                Log.w(TAG, "Could not release the echo canceller", t);
             }
-            try {
-                mAudioRecord.release();
-            } catch (Throwable t) {
-                Log.w(TAG, "Could not release the audio capture", t);
-            }
-            mAudioRecord = null;
+            mEchoCanceler = null;
         }
+        if (mNoiseSuppressor != null) {
+            try {
+                mNoiseSuppressor.release();
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not release the noise suppressor", t);
+            }
+            mNoiseSuppressor = null;
+        }
+        mMixBuffer = null;
+        mMonoBuffer = null;
+        mMicChannels = 0;
         if (mAudioEncoder != null) {
             try {
                 mAudioEncoder.stop();
@@ -539,6 +741,55 @@ public class GameRecorder {
             }
             mAudioEncoder = null;
         }
+    }
+
+    /**
+     * Ends a recording that is about to outgrow its container or the storage it sits on.
+     * Called while holding mMuxerLock, from whichever encoder happens to be writing.
+     */
+    private void checkOutputLimits() {
+        if (mLimitReached) return;
+        long now = System.currentTimeMillis();
+        boolean overSize = mBytesWritten >= MAX_OUTPUT_BYTES;
+        boolean lowSpace = false;
+        if (!overSize) {
+            // Cheap counter first; the filesystem is only consulted every so often.
+            if (now - mLastSizeCheckMs < SIZE_CHECK_INTERVAL_MS) return;
+            mLastSizeCheckMs = now;
+            try {
+                lowSpace = mOutputDirectory.getUsableSpace() < MIN_FREE_BYTES;
+            } catch (Throwable ignored) {
+                // Unreadable free space is not a reason to stop.
+            }
+        }
+        if (!overSize && !lowSpace) return;
+
+        mLimitReached = true;
+        String reason = overSize
+                ? "the recording reached the maximum size a MP4 file can hold"
+                : "the device is running out of storage";
+        Log.i(TAG, "Finishing the recording early: " + reason);
+        // Off the muxer lock: stopping takes the same lock from the control thread.
+        mMainHandler.post(() -> {
+            mListener.onRecordingTruncated(reason);
+            stopIfRecording();
+        });
+    }
+
+    @Nullable
+    private AudioRecord releaseRecord(@Nullable AudioRecord record, String what) {
+        if (record == null) return null;
+        try {
+            if (record.getState() == AudioRecord.STATE_INITIALIZED) record.stop();
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not stop " + what, t);
+        }
+        try {
+            record.release();
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not release " + what, t);
+        }
+        return null;
     }
 
     /** Pulls encoded samples out of the codec and writes them to the muxer until end of stream. */
@@ -642,8 +893,11 @@ public class GameRecorder {
 
     private void deleteOutputFile() {
         File output = mOutputFile;
-        if (output != null && output.exists() && !output.delete())
-            Log.w(TAG, "Could not delete the unusable recording " + output);
+        if (output != null) {
+            if (output.exists() && !output.delete())
+                Log.w(TAG, "Could not delete the unusable recording " + output);
+            RecordingInfo.delete(output);
+        }
         mOutputFile = null;
     }
 

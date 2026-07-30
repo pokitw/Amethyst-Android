@@ -56,6 +56,15 @@
             />
 
         <ListPreference
+            android:key="recorderAudioSource"
+            android:title="@string/preference_recorder_audio_source_title"
+            android:summary="%s"
+            android:defaultValue="internal"
+            android:entries="@array/recorder_audio_source_names"
+            android:entryValues="@array/recorder_audio_source_values"
+            />
+
+        <ListPreference
             android:key="recorderAudioBitrate"
             android:title="@string/preference_recorder_audio_bitrate_title"
             android:summary="%s"

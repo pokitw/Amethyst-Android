@@ -13,25 +13,60 @@
         android:gravity="center_vertical"
         android:background="@color/background_status_bar"
         android:paddingHorizontal="@dimen/padding_moderate"
-        android:paddingVertical="@dimen/padding_heavy">
+        android:paddingVertical="@dimen/padding_moderate">
 
         <ImageButton
             android:id="@+id/recordings_back_button"
             android:layout_width="@dimen/_32sdp"
             android:layout_height="@dimen/_32sdp"
             android:background="?attr/selectableItemBackground"
+            android:padding="@dimen/padding_medium"
             android:scaleType="fitCenter"
             android:src="@drawable/ic_arrow_back_white"
             android:contentDescription="@string/recordings_back" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="@dimen/padding_large"
-            style="@style/TextAppearance.AppCompat.Title"
-            android:textColor="@color/primary_text"
-            android:text="@string/preference_recorder_title" />
+            android:layout_marginStart="@dimen/padding_heavy"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/TextAppearance.AppCompat.Body2"
+                android:textColor="@color/primary_text"
+                android:text="@string/preference_recorder_title" />
+
+            <TextView
+                android:id="@+id/recordings_summary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:textColor="@color/secondary_text"
+                tools:text="12 clips · 1.4 GB" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/recordings_filter_button"
+            android:layout_width="@dimen/_32sdp"
+            android:layout_height="@dimen/_32sdp"
+            android:background="?attr/selectableItemBackground"
+            android:padding="@dimen/padding_medium"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_recordings_filter"
+            android:contentDescription="@string/recordings_filter_title" />
+
+        <ImageButton
+            android:id="@+id/recordings_sort_button"
+            android:layout_width="@dimen/_32sdp"
+            android:layout_height="@dimen/_32sdp"
+            android:background="?attr/selectableItemBackground"
+            android:padding="@dimen/padding_medium"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_recordings_sort"
+            android:contentDescription="@string/recordings_sort_title" />
 
     </LinearLayout>
 
@@ -65,15 +100,15 @@
             <ImageView
                 android:layout_width="@dimen/_48sdp"
                 android:layout_height="@dimen/_48sdp"
-                android:alpha="0.35"
-                android:src="@drawable/ic_recording_play"
+                android:alpha="0.3"
+                android:src="@drawable/ic_setting_recordings"
                 tools:ignore="ContentDescription" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/padding_large"
-                style="@style/TextAppearance.AppCompat.Medium"
+                android:layout_marginTop="@dimen/padding_heavy"
+                style="@style/TextAppearance.AppCompat.Body2"
                 android:textColor="@color/primary_text"
                 android:gravity="center"
                 android:text="@string/recordings_empty_title" />
@@ -82,7 +117,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/padding_medium"
-                style="@style/TextAppearance.AppCompat.Small"
+                style="@style/TextAppearance.AppCompat.Caption"
                 android:textColor="@color/secondary_text"
                 android:gravity="center"
                 android:text="@string/recordings_empty_subtitle" />

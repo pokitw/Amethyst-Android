@@ -61,6 +61,17 @@
         <item>60</item>
     </string-array>
 
+    <string-array name="recorder_audio_source_names">
+        <item>@string/preference_recorder_audio_source_internal</item>
+        <item>@string/preference_recorder_audio_source_microphone</item>
+        <item>@string/preference_recorder_audio_source_both</item>
+    </string-array>
+    <string-array name="recorder_audio_source_values">
+        <item>internal</item>
+        <item>microphone</item>
+        <item>both</item>
+    </string-array>
+
     <string-array name="recorder_audio_bitrate_names">
         <item>96 kbps</item>
         <item>128 kbps</item>

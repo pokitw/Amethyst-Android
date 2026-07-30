@@ -617,7 +617,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private GameRecorder getRecorder() {
         if(mGameRecorder == null) {
             File recordingsDir = RecorderPreferences.recordingsDirectory(Tools.getGameDirPath(minecraftProfile));
-            mGameRecorder = new GameRecorder(this, recordingsDir, new GameRecorder.Listener() {
+            mGameRecorder = new GameRecorder(this, recordingsDir, minecraftProfile.lastVersionId,
+                    new GameRecorder.Listener() {
                 @Override
                 public void onRecordingStarted() {
                     refreshRecordingMenuEntry();
@@ -636,6 +637,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     refreshRecordingMenuEntry();
                     RecorderService.release(MainActivity.this);
                     Toast.makeText(MainActivity.this, getString(R.string.control_recording_failed, reason), Toast.LENGTH_LONG).show();
+                }
+
+                @Override
+                public void onRecordingTruncated(@NonNull String reason) {
+                    Toast.makeText(MainActivity.this, getString(R.string.control_recording_truncated, reason), Toast.LENGTH_LONG).show();
                 }
             });
         }
