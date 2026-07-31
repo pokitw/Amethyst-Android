@@ -15,10 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.CustomControlsActivity
 import net.kdt.pojavlaunch.LauncherActivity
 import net.kdt.pojavlaunch.R
@@ -114,33 +110,32 @@ class MainMenuFragment : Fragment() {
      * Profiles and accounts can be changed by any of the screens this one leads to, and the
      * profile editor reports what it saved through [ExtraConstants.REFRESH_VERSION_SPINNER], so
      * this runs on every return rather than only on creation.
+     *
+     * On the main thread, deliberately. The launcher profiles and the profile icon cache are
+     * shared mutable state that the launch path and the editor also touch, so reading them from a
+     * background thread would be racing them for no real gain: this is the same small amount of
+     * work the profile spinner already did here on every resume.
      */
     private fun refresh() {
         (ExtraCore.consumeValue(ExtraConstants.REFRESH_VERSION_SPINNER) as? String)
             ?.takeIf { it != ProfileEditorFragment.DELETED_PROFILE }
             ?.let { selectProfile(it) }
 
-        val context = requireContext().applicationContext
-        viewLifecycleOwner.lifecycleScope.launch {
-            val loadedProfiles = withContext(Dispatchers.IO) { loadProfiles(context) }
-            val loadedAccounts = withContext(Dispatchers.IO) { loadAccounts() }
-            val clips = withContext(Dispatchers.IO) { recordingCount() }
+        val context = requireContext()
+        val loaded = loadProfiles(context)
+        profiles.clear()
+        profiles.addAll(loaded)
+        accounts.clear()
+        accounts.addAll(loadAccounts())
+        recordings = recordingCount()
+        currentAccount = currentAccountName(context)
 
-            profiles.clear()
-            profiles.addAll(loadedProfiles)
-            accounts.clear()
-            accounts.addAll(loadedAccounts)
-            recordings = clips
-            currentAccount = currentAccountName(context)
-
-            // A profile can be deleted from under the stored selection, and the launch path reads
-            // that stored value rather than what is on screen, so the two are reconciled here.
-            val stored = currentProfileKey()
-            val resolved = loadedProfiles.firstOrNull { it.key == stored }
-                ?: loadedProfiles.firstOrNull()
-            if (resolved != null && resolved.key != stored) selectProfile(resolved.key)
-            selectedKey = resolved?.key
-        }
+        // A profile can be deleted from under the stored selection, and the launch path reads
+        // that stored value rather than what is on screen, so the two are reconciled here.
+        val stored = currentProfileKey()
+        val resolved = loaded.firstOrNull { it.key == stored } ?: loaded.firstOrNull()
+        if (resolved != null && resolved.key != stored) selectProfile(resolved.key)
+        selectedKey = resolved?.key
     }
 
     private fun buildActions() = HomeActions(
