@@ -600,4 +600,17 @@
     <string name="home_tile_files">Game files</string>
     <string name="home_tile_files_sub">Worlds, mods, saves</string>
 
+    <!-- In-game control center -->
+    <string name="control_center_stop">Stop</string>
+    <string name="control_center_size">%1$s of %2$s</string>
+    <string name="control_center_summary">%1$s · %2$d fps · %3$s</string>
+    <string name="control_center_no_audio">no audio</string>
+    <string name="control_center_tile_controls">Controls</string>
+    <string name="control_center_tile_keycode">Keycode</string>
+    <string name="control_center_add_drawer">Add drawer</string>
+    <string name="control_center_set_default">Set default</string>
+    <string name="control_center_editing_title">Editing controls</string>
+    <string name="control_center_editing_hint">Changes apply as you make them</string>
+    <string name="control_center_exit_editor">Exit</string>
+
 </resources>

@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Surface;
 
@@ -151,8 +152,14 @@ public class GameRecorder {
      */
     private long mPtsOffsetUs;
     private boolean mTimestampsClamped;
+    /**
+     * When the running recording started, on the elapsed-realtime clock. Kept apart from
+     * mPtsOffsetUs, which belongs to the muxer and is read under its lock, so that the on-screen
+     * timer can be read from the UI thread without touching any of that.
+     */
+    private volatile long mStartedAtMs;
     /** Rough size of the media written so far, used to stop before the container overflows. */
-    private long mBytesWritten;
+    private volatile long mBytesWritten;
     private long mLastSizeCheckMs;
     private boolean mLimitReached;
 
@@ -172,6 +179,23 @@ public class GameRecorder {
     /** @return whether a recording session is currently running. */
     public boolean isRecording() {
         return mSessionActive;
+    }
+
+    /** @return how long the running recording has lasted, or zero when nothing is recording. */
+    public long getElapsedMs() {
+        long startedAt = mStartedAtMs;
+        if (!mSessionActive || startedAt == 0L) return 0L;
+        return SystemClock.elapsedRealtime() - startedAt;
+    }
+
+    /** @return roughly how much has been written to the current file so far, in bytes. */
+    public long getBytesWritten() {
+        return mBytesWritten;
+    }
+
+    /** @return the size a recording is allowed to reach before it is closed off. */
+    public static long getMaxOutputBytes() {
+        return MAX_OUTPUT_BYTES;
     }
 
     /**
@@ -254,6 +278,7 @@ public class GameRecorder {
             // Everything is stamped on the raw monotonic clock, so this instant becomes the file's
             // zero. Taken before capture starts, so no sample can ever land before it.
             mPtsOffsetUs = System.nanoTime() / 1000L;
+            mStartedAtMs = SystemClock.elapsedRealtime();
             mTimestampsClamped = false;
             mBytesWritten = 0;
             mLastSizeCheckMs = System.currentTimeMillis();

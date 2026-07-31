@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Sliders rather than a gear: this opens the in-game quick settings, which are all values
+         being nudged, and it keeps the gear meaning "the settings screen" everywhere else. -->
+    <path
+        android:pathData="M3.4,6.6H12.4M17.6,6.6H20.6M3.4,12H7.4M12.6,12H20.6M3.4,17.4H12.4M17.6,17.4H20.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M15,4.6A2,2 0,1 1,15 8.6A2,2 0,1 1,15 4.6Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M10,10A2,2 0,1 1,10 14A2,2 0,1 1,10 10Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M15,15.4A2,2 0,1 1,15 19.4A2,2 0,1 1,15 15.4Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000"/>
+</vector>

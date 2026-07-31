@@ -38,10 +38,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.FrameLayout;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import androidx.annotation.Keep;
@@ -77,6 +74,8 @@ import net.kdt.pojavlaunch.recorder.GameRecorder;
 import net.kdt.pojavlaunch.recorder.RecorderPreferences;
 import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
+import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
+import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
 import net.kdt.pojavlaunch.utils.TouchControllerInputView;
@@ -91,12 +90,11 @@ import org.lwjgl.glfw.CallbackBridge;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class MainActivity extends BaseActivity implements ControlButtonMenuListener, EditorExitable, ServiceConnection, TouchControllerInputView.InputAreaRectListener {
+public class MainActivity extends BaseActivity implements ControlButtonMenuListener, EditorExitable, ServiceConnection,
+        TouchControllerInputView.InputAreaRectListener, ControlCenterCallbacks {
     public static volatile ClipboardManager GLOBAL_CLIPBOARD;
     public static final String TAG = "MainActivity";
     public static final String INTENT_MINECRAFT_VERSION = "intent_version";
@@ -109,8 +107,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private static Touchpad touchpad;
     private LoggerView loggerView;
     private DrawerLayout drawerLayout;
-    private ListView navDrawer;
     private View mDrawerPullButton;
+    private ControlCenterHost mControlCenter;
     private GyroControl mGyroControl = null;
     private ControlLayout mControlLayout;
     private HotbarView mHotbarView;
@@ -123,16 +121,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     MinecraftProfile minecraftProfile;
 
-    private ArrayAdapter<String> gameActionArrayAdapter;
-    private AdapterView.OnItemClickListener gameActionClickListener;
-    public ArrayAdapter<String> ingameControlsEditorArrayAdapter;
-    public AdapterView.OnItemClickListener ingameControlsEditorListener;
     private GameService.LocalBinder mServiceBinder;
 
     private QuickSettingSideDialog mQuickSettingSideDialog;
 
-    /** Index of the recording entry inside the menu_ingame array. */
-    private static final int MENU_INGAME_RECORD = 5;
     private static final int REQUEST_MEDIA_PROJECTION = 1001;
     private static final int REQUEST_RECORD_AUDIO = 1002;
     /** Set once the capture prompt has been explained, so it is only shown the first time. */
@@ -169,20 +161,6 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         // Set the sustained performance mode for available APIs
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             getWindow().setSustainedPerformanceMode(PREF_SUSTAINED_PERFORMANCE);
-
-        ingameControlsEditorArrayAdapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_list_item_1, getResources().getStringArray(R.array.menu_customcontrol));
-        ingameControlsEditorListener = (parent, view, position, id) -> {
-            switch(position) {
-                case 0: mControlLayout.addControlButton(new ControlData("New")); break;
-                case 1: mControlLayout.addDrawer(new ControlDrawerData()); break;
-                case 2: mControlLayout.addJoystickButton(new ControlJoystickData()); break;
-                case 3: mControlLayout.openLoadDialog(); break;
-                case 4: mControlLayout.openSaveDialog(this); break;
-                case 5: mControlLayout.openSetDefaultDialog(); break;
-                case 6: mControlLayout.openExitDialog(this);
-            }
-        };
 
         // Recompute the gui scale when options are changed
         MCOptionUtils.MCOptionListener optionListener = MCOptionUtils::getMcScale;
@@ -272,24 +250,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             windowHeight = Tools.getDisplayFriendlyRes(currentDisplayMetrics.heightPixels, 1f);
 
 
-            // Menu. Backed by a mutable list so that the recording entry can flip its label.
-            gameActionArrayAdapter = new ArrayAdapter<>(this,
-                    android.R.layout.simple_list_item_1,
-                    new ArrayList<>(Arrays.asList(getResources().getStringArray(R.array.menu_ingame))));
-            gameActionClickListener = (parent, view, position, id) -> {
-                switch(position) {
-                    case 0: dialogForceClose(MainActivity.this); break;
-                    case 1: openLogOutput(); break;
-                    case 2: dialogSendCustomKey(); break;
-                    case 3: openQuickSettings(); break;
-                    case 4: openCustomControls(); break;
-                    case MENU_INGAME_RECORD: toggleRecording(); break;
-                }
-                drawerLayout.closeDrawers();
-            };
-            navDrawer.setAdapter(gameActionArrayAdapter);
-            navDrawer.setOnItemClickListener(gameActionClickListener);
-            drawerLayout.closeDrawers();
+            mControlCenter.setRecordingSummary(describeRecordingSettings());
 
             final String finalVersion = version;
             minecraftGLView.setSurfaceReadyListener(() -> {
@@ -349,7 +310,6 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         minecraftGLView = findViewById(R.id.main_game_render_view);
         touchpad = findViewById(R.id.main_touchpad);
         drawerLayout = findViewById(R.id.main_drawer_options);
-        navDrawer = findViewById(R.id.main_navigation_view);
         loggerView = findViewById(R.id.mainLoggerView);
         mControlLayout = findViewById(R.id.main_control_layout);
         touchCharInput = findViewById(R.id.mainTouchCharInput);
@@ -357,6 +317,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mDrawerPullButton = findViewById(R.id.drawer_button);
         mHotbarView = findViewById(R.id.hotbar_view);
         contentFrame = findViewById(R.id.content_frame);
+        mControlCenter = new ControlCenterHost(
+                findViewById(R.id.control_center),
+                findViewById(R.id.control_center_pill),
+                this);
     }
 
     @Override
@@ -402,6 +366,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         super.onDestroy();
         CallbackBridge.removeGrabListener(touchpad);
         CallbackBridge.removeGrabListener(minecraftGLView);
+        if(mControlCenter != null) mControlCenter.release();
         ContextExecutor.clearActivity();
     }
 
@@ -551,11 +516,9 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     boolean isInEditor;
     private void openCustomControls() {
-        if(ingameControlsEditorListener == null || ingameControlsEditorArrayAdapter == null) return;
-
         mControlLayout.setModifiable(true);
-        navDrawer.setAdapter(ingameControlsEditorArrayAdapter);
-        navDrawer.setOnItemClickListener(ingameControlsEditorListener);
+        mControlCenter.setEditorMode(true);
+        // The pull tab is the only way back into the menu while editing, so it always shows.
         mDrawerPullButton.setVisibility(View.VISIBLE);
         isInEditor = true;
     }
@@ -668,20 +631,20 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     new GameRecorder.Listener() {
                 @Override
                 public void onRecordingStarted() {
-                    refreshRecordingMenuEntry();
+                    refreshRecordingState();
                     Toast.makeText(MainActivity.this, R.string.control_recording_started, Toast.LENGTH_SHORT).show();
                 }
 
                 @Override
                 public void onRecordingStopped(@NonNull File output) {
-                    refreshRecordingMenuEntry();
+                    refreshRecordingState();
                     RecorderService.release(MainActivity.this);
                     Toast.makeText(MainActivity.this, getString(R.string.control_recording_saved, output.getAbsolutePath()), Toast.LENGTH_LONG).show();
                 }
 
                 @Override
                 public void onRecordingFailed(@NonNull String reason) {
-                    refreshRecordingMenuEntry();
+                    refreshRecordingState();
                     RecorderService.release(MainActivity.this);
                     Toast.makeText(MainActivity.this, getString(R.string.control_recording_failed, reason), Toast.LENGTH_LONG).show();
                 }
@@ -695,13 +658,27 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         return mGameRecorder;
     }
 
-    private void refreshRecordingMenuEntry() {
-        if(gameActionArrayAdapter == null || mGameRecorder == null) return;
-        if(gameActionArrayAdapter.getCount() <= MENU_INGAME_RECORD) return;
-        gameActionArrayAdapter.remove(gameActionArrayAdapter.getItem(MENU_INGAME_RECORD));
-        gameActionArrayAdapter.insert(getString(mGameRecorder.isRecording()
-                ? R.string.control_stop_recording
-                : R.string.control_start_recording), MENU_INGAME_RECORD);
+    /**
+     * Resolution, frame rate and audio as the settings currently have them.
+     * Shown on the idle recording card, so what a recording will be is answerable without leaving
+     * the game to go and look.
+     */
+    /** Hand the control center whichever state the recorder just moved into. */
+    private void refreshRecordingState() {
+        if(mControlCenter == null) return;
+        String summary = describeRecordingSettings();
+        if(mGameRecorder != null && mGameRecorder.isRecording())
+            mControlCenter.onRecordingStarted(summary, GameRecorder.getMaxOutputBytes());
+        else
+            mControlCenter.onRecordingStopped(summary);
+    }
+
+    private String describeRecordingSettings() {
+        RecorderPreferences preferences = RecorderPreferences.load(this);
+        String audio = preferences.describeAudio();
+        if(audio == null) audio = getString(R.string.control_center_no_audio);
+        return getString(R.string.control_center_summary,
+                preferences.describeResolution(this), preferences.frameRate, audio);
     }
 
     private void openQuickSettings() {
@@ -737,6 +714,13 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // The control center is a view rather than a dialog, so nothing closes it on back unless
+        // this does; without it the key would fall through and pause the game behind an open sheet.
+        if(mControlCenter != null && mControlCenter.isOpen()
+                && event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if(event.getAction() == KeyEvent.ACTION_UP) mControlCenter.close();
+            return true;
+        }
         if(isInEditor) {
             if(event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
                 if(event.getAction() == KeyEvent.ACTION_DOWN) mControlLayout.askToExit(this);
@@ -828,8 +812,60 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     @Override
     public void onClickedMenu() {
-        drawerLayout.openDrawer(navDrawer);
-        navDrawer.requestLayout();
+        mControlCenter.setRecordingSummary(describeRecordingSettings());
+        mControlCenter.open();
+    }
+
+    /* Control center actions. Every one of these already existed; only the way in has changed. */
+
+    @Override public void onToggleRecording() { mControlCenter.close(); toggleRecording(); }
+    @Override public void onCustomControls() { mControlCenter.close(); openCustomControls(); }
+    @Override public void onSendKeycode() { mControlCenter.close(); dialogSendCustomKey(); }
+    @Override public void onQuickSettings() { mControlCenter.close(); openQuickSettings(); }
+    @Override public void onLogOutput() { mControlCenter.close(); openLogOutput(); }
+    @Override public void onForceClose() { mControlCenter.close(); dialogForceClose(this); }
+
+    @Override
+    public void onEditorAddButton() {
+        mControlLayout.addControlButton(new ControlData("New"));
+        mControlCenter.close();
+    }
+
+    @Override
+    public void onEditorAddDrawer() {
+        mControlLayout.addDrawer(new ControlDrawerData());
+        mControlCenter.close();
+    }
+
+    @Override
+    public void onEditorAddJoystick() {
+        mControlLayout.addJoystickButton(new ControlJoystickData());
+        mControlCenter.close();
+    }
+
+    @Override public void onEditorLoad() { mControlCenter.close(); mControlLayout.openLoadDialog(); }
+    @Override public void onEditorSave() { mControlCenter.close(); mControlLayout.openSaveDialog(this); }
+
+    @Override
+    public void onEditorSetDefault() {
+        mControlCenter.close();
+        mControlLayout.openSetDefaultDialog();
+    }
+
+    @Override
+    public void onEditorExit() {
+        mControlCenter.close();
+        mControlLayout.openExitDialog(this);
+    }
+
+    @Override
+    public long recordingElapsedMs() {
+        return mGameRecorder == null ? 0L : mGameRecorder.getElapsedMs();
+    }
+
+    @Override
+    public long recordingBytes() {
+        return mGameRecorder == null ? 0L : mGameRecorder.getBytesWritten();
     }
 
     @Override
@@ -847,8 +883,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             Tools.showError(this,e);
         }
 
-        navDrawer.setAdapter(gameActionArrayAdapter);
-        navDrawer.setOnItemClickListener(gameActionClickListener);
+        mControlCenter.setEditorMode(false);
         isInEditor = false;
     }
 

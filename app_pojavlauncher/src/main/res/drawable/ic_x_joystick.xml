@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12,3.4A8.6,8.6 0,1 1,12 20.6A8.6,8.6 0,1 1,12 3.4Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:fillColor="#00000000"/>
+    <!-- The thumb rest, offset up-left as if the stick were being held -->
+    <path
+        android:pathData="M10.7,7.4A3.3,3.3 0,1 1,10.7 14A3.3,3.3 0,1 1,10.7 7.4Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

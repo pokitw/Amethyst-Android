@@ -82,6 +82,30 @@
 
 		</net.kdt.pojavlaunch.customcontrols.ControlLayout>
 
+		<!--
+			The live recording pill. Sized to its content and offset clear of the pull tab, so it
+			covers as little of the game as possible; it is GONE unless a recording is running.
+			Nothing inside it is interactive, so touches fall through to the game below.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/control_center_pill"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="top|center_horizontal"
+			android:layout_marginStart="96dp"
+			android:layout_marginTop="4dp"
+			android:visibility="gone"/>
+
+		<!--
+			The control center itself. Stretched over the game, so it stays GONE while closed:
+			visible it would sit in front of every touch the game is waiting for.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/control_center"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:visibility="gone"/>
+
 		<com.kdt.LoggerView
 			android:id="@+id/mainLoggerView"
 			android:layout_width="match_parent"
@@ -90,14 +114,6 @@
 			/>
 
 	</FrameLayout>
-
-	<ListView
-		android:layout_width="200dp"
-		android:layout_height="match_parent"
-		android:layout_gravity="right"
-		android:background="?attr/colorBackgroundFloating"
-		android:fitsSystemWindows="false"
-		android:id="@+id/main_navigation_view"/>
 
 </androidx.drawerlayout.widget.DrawerLayout>
 

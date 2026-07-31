@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.preference.PreferenceManager;
 
+import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
 
@@ -100,6 +101,25 @@ public class RecorderPreferences {
     /** @return whether the microphone is part of the audio track. */
     public boolean captureMicrophone() {
         return captureAudio && !SOURCE_INTERNAL.equals(audioSource);
+    }
+
+    /**
+     * The resolution under the name the settings screen gives it.
+     * Looked up through the same arrays the setting itself uses, so the two can never describe the
+     * same value differently, and so it stays translated.
+     *
+     * @param context any context, for the resources
+     * @return a label such as "1080p", or the raw long edge if the value is not one of the presets
+     */
+    @NonNull
+    public String describeResolution(@NonNull Context context) {
+        String[] values = context.getResources().getStringArray(R.array.recorder_resolution_values);
+        String[] names = context.getResources().getStringArray(R.array.recorder_resolution_names);
+        String current = Integer.toString(longEdge);
+        for (int i = 0; i < values.length && i < names.length; i++) {
+            if (current.equals(values[i])) return names[i];
+        }
+        return longEdge + "px";
     }
 
     /** A short description of the audio track, stored alongside the recording. */
