@@ -32,6 +32,12 @@ import java.io.File
  * provider, so a clip is never copied just to be opened.
  */
 class RecordingsActivity : BaseActivity() {
+    /**
+     * BaseActivity hides the system bars by default, which is right for the game and wrong for a
+     * gallery: the status bar and the navigation buttons vanished on entering it.
+     */
+    override fun setFullscreen(): Boolean = false
+
     private val recordings = mutableStateListOf<Recording>()
     private var sort by mutableStateOf(RecordingSort.NEWEST)
     private var versionFilter by mutableStateOf<String?>(null)

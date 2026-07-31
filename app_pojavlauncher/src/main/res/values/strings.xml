@@ -613,4 +613,39 @@
     <string name="control_center_editing_hint">Changes apply as you make them</string>
     <string name="control_center_exit_editor">Exit</string>
 
+    <!-- Settings -->
+    <string name="settings_home_subtitle">Grouped by what you came here to change</string>
+    <string name="settings_dest_performance">Performance</string>
+    <string name="settings_dest_about">About Amethyst X</string>
+    <string name="settings_performance_subtitle">How Minecraft runs on this device</string>
+    <string name="settings_controls_subtitle">Touch, mouse, gyroscope and gamepad</string>
+    <string name="settings_recording_subtitle">What the in-game recorder captures</string>
+    <string name="settings_files_subtitle">Where the game is stored and downloaded from</string>
+    <string name="settings_about_subtitle">Version, language and permissions</string>
+    <string name="settings_about_blurb">A Minecraft: Java Edition launcher with a built-in gameplay recorder</string>
+    <string name="settings_section_graphics">GRAPHICS</string>
+    <string name="settings_section_memory">MEMORY AND RUNTIME</string>
+    <string name="settings_section_buttons">BUTTONS</string>
+    <string name="settings_section_mouse">VIRTUAL MOUSE</string>
+    <string name="settings_section_gestures">GESTURES</string>
+    <string name="settings_section_video">VIDEO</string>
+    <string name="settings_section_audio">AUDIO</string>
+    <string name="settings_section_downloads">DOWNLOADS</string>
+    <string name="settings_section_cosmetics">COSMETICS</string>
+    <string name="settings_section_app">APP</string>
+    <string name="settings_section_permissions">PERMISSIONS</string>
+    <string name="settings_section_help">HELP</string>
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_advanced_count">%1$d settings</string>
+    <string name="settings_renderer_title">Renderer</string>
+    <string name="settings_renderer_description">Which graphics translation layer the game runs through</string>
+    <string name="settings_this_profile">THIS PROFILE</string>
+    <string name="settings_gyro_on">gyro on</string>
+    <string name="settings_gyro_off">gyro off</string>
+    <string name="settings_summary_performance">%1$s · %2$s · %3$d%%</string>
+    <string name="settings_summary_controls">Buttons %1$d%% · %2$s</string>
+    <string name="settings_summary_recording">%1$s · %2$s fps · %3$s</string>
+    <string name="settings_summary_files">%1$s free</string>
+    <string name="settings_summary_about">Version %1$s</string>
+
 </resources>

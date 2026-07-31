@@ -22,7 +22,6 @@ import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.extra.ExtraConstants
 import net.kdt.pojavlaunch.extra.ExtraCore
 import net.kdt.pojavlaunch.prefs.LauncherPreferences
-import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceFragment
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
@@ -170,7 +169,7 @@ class MainMenuFragment : Fragment() {
         onAddAccount = { ExtraCore.setValue(ExtraConstants.SELECT_AUTH_METHOD, true) },
         onSettings = {
             Tools.swapFragment(
-                requireActivity(), LauncherPreferenceFragment::class.java,
+                requireActivity(), SettingsFragment::class.java,
                 LauncherActivity.SETTING_FRAGMENT_TAG, null
             )
         },
