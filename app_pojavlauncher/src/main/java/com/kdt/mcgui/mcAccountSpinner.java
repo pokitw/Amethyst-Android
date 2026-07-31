@@ -194,6 +194,28 @@ public class mcAccountSpinner extends AppCompatSpinner implements AdapterView.On
         removeAccount(getSelectedItemPosition());
     }
 
+    /**
+     * Select a saved account by name, the same way a tap on the list would.
+     * The launch path reads the account from this spinner, so screens that show their own account
+     * picker go through here rather than writing the selection themselves.
+     * @param username the account to select
+     */
+    public void selectAccountByName(String username){
+        // Position zero is the "add account" entry rather than an account.
+        int position = mAccountList.indexOf(username);
+        if(position <= 0) return;
+        // Deliberately not setSelection(): onItemSelected only fires once the spinner has been
+        // laid out, which never happens while it is hidden. This does what that callback does.
+        pickAccount(position);
+        if(mSelectecAccount != null) performLogin(mSelectecAccount);
+    }
+
+    /** Remove a saved account by name. */
+    public void removeAccountByName(String username){
+        int position = mAccountList.indexOf(username);
+        if(position > 0) removeAccount(position);
+    }
+
     private void removeAccount(int position) {
         if(position == 0) return;
         File accountFile = new File(Tools.DIR_ACCOUNT_NEW, mAccountList.get(position)+".json");

@@ -138,8 +138,10 @@ public class LauncherActivity extends BaseActivity {
     private final FragmentManager.FragmentLifecycleCallbacks mFragmentCallbackListener = new FragmentManager.FragmentLifecycleCallbacks() {
         @Override
         public void onFragmentResumed(@NonNull FragmentManager fm, @NonNull Fragment f) {
-            mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), f instanceof MainMenuFragment
+            boolean atHome = f instanceof MainMenuFragment;
+            mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), atHome
                     ? R.drawable.ic_menu_settings : R.drawable.ic_menu_home));
+            setChromeHidden(atHome);
         }
     };
 
@@ -482,11 +484,43 @@ public class LauncherActivity extends BaseActivity {
         mRequestMicrophonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
     }
 
+    /**
+     * Switch the launcher to a saved account.
+     * The spinner stays the source of truth for who is logged in, since the launch path reads it,
+     * so the home screen's own account picker routes through here rather than around it.
+     * @param username the account to select
+     */
+    public void selectAccount(String username) {
+        mAccountSpinner.selectAccountByName(username);
+    }
+
+    /** Remove a saved account. */
+    public void removeAccount(String username) {
+        mAccountSpinner.removeAccountByName(username);
+    }
+
+    /**
+     * Hide the launcher's own chrome.
+     * The home screen carries its own header and reports downloads inside its Play button, so
+     * showing the account bar, the settings button and the progress bar over it would only say
+     * the same things twice. Every other screen still gets them.
+     * @param hidden whether the chrome should be hidden
+     */
+    private void setChromeHidden(boolean hidden) {
+        int visibility = hidden ? View.GONE : View.VISIBLE;
+        mAccountSpinner.setVisibility(visibility);
+        mSettingsButton.setVisibility(visibility);
+        mProgressLayout.setSuppressed(hidden);
+    }
+
     /** Stuff all the view boilerplate here */
     private void bindViews(){
         mFragmentView = findViewById(R.id.container_fragment);
         mSettingsButton = findViewById(R.id.setting_button);
         mAccountSpinner = findViewById(R.id.account_spinner);
         mProgressLayout = findViewById(R.id.progress_layout);
+        // The root fragment is the home screen, so start out of the way rather than waiting for
+        // the first onFragmentResumed to catch up.
+        setChromeHidden(true);
     }
 }

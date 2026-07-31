@@ -569,4 +569,35 @@
     <string name="import_modpack_json">Reading modpack info…</string>
     <string name="import_modpack_copy">Copying modpack file to cache… (%s MB/ %s MB)</string>
 
+    <!-- Launcher home -->
+    <string name="home_brand_name">Amethyst</string>
+    <string name="home_brand_mark">X</string>
+    <string name="home_settings">Settings</string>
+    <string name="home_sign_in">Sign in</string>
+    <string name="home_manage">MANAGE</string>
+    <string name="home_working">Working…</string>
+    <string name="home_percent">%1$d%%</string>
+    <string name="home_version_unset">No version</string>
+    <string name="home_not_installed">Downloads on launch</string>
+    <string name="home_no_profile">No profile yet</string>
+    <string name="home_no_profile_hint">Create one to start playing</string>
+    <string name="home_choose_version_title">What are you playing?</string>
+    <string name="home_choose_version_hint">Long press a profile to edit it.</string>
+    <string name="home_choose_account_title">Who\'s playing?</string>
+    <string name="home_choose_account_hint">Tap an account to switch to it.</string>
+    <string name="home_choose_account_empty">Sign in to play online.</string>
+    <string name="home_account_online">Microsoft account</string>
+    <string name="home_account_offline">Offline account</string>
+    <string name="home_account_demo">Demo account</string>
+    <string name="home_tile_controls_sub">Touch layout</string>
+    <string name="home_tile_recordings_empty">No clips yet</string>
+    <plurals name="home_tile_recordings_sub">
+        <item quantity="one">%d clip</item>
+        <item quantity="other">%d clips</item>
+    </plurals>
+    <string name="home_tile_install">Install</string>
+    <string name="home_tile_install_sub">Forge, Fabric jars</string>
+    <string name="home_tile_files">Game files</string>
+    <string name="home_tile_files_sub">Worlds, mods, saves</string>
+
 </resources>

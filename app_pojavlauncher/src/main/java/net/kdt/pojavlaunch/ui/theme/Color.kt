@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 internal val Amethyst20 = Color(0xFF3B1B52)
 internal val Amethyst30 = Color(0xFF542A73)
 internal val Amethyst40 = Color(0xFF6E3D94)
+/** The brand amethyst itself, kept as a token because gradients need the deep end of the ramp. */
+internal val Amethyst50 = Color(0xFF9649B8)
 internal val Amethyst70 = Color(0xFFC08CE8)
 internal val Amethyst80 = Color(0xFFD6B4F2)
 internal val Amethyst90 = Color(0xFFEEDCFA)

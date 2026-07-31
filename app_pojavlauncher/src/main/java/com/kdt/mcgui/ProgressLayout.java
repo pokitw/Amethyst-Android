@@ -60,6 +60,7 @@ public class ProgressLayout extends ConstraintLayout implements View.OnClickList
     private LinearLayout mLinearLayout;
     private TextView mTaskNumberDisplayer;
     private ImageView mFlipArrow;
+    private boolean mSuppressed;
 
 
 
@@ -75,6 +76,15 @@ public class ProgressLayout extends ConstraintLayout implements View.OnClickList
 
     public static boolean hasProcesses(){
         return ProgressKeeper.getTaskCount() > 0;
+    }
+
+    /**
+     * Keep this hidden even while tasks are running.
+     * Used by screens that report the same work themselves, so it is not shown twice.
+     */
+    public void setSuppressed(boolean suppressed){
+        mSuppressed = suppressed;
+        onUpdateTaskCount(ProgressKeeper.getTaskCount());
     }
 
 
@@ -117,7 +127,7 @@ public class ProgressLayout extends ConstraintLayout implements View.OnClickList
     @Override
     public void onUpdateTaskCount(int tc) {
         post(()->{
-            if(tc > 0) {
+            if(tc > 0 && !mSuppressed) {
                 mTaskNumberDisplayer.setText(getContext().getString(R.string.progresslayout_tasks_in_progress, tc));
                 setVisibility(VISIBLE);
             }else

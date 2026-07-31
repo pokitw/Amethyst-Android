@@ -3,13 +3,20 @@
     <color name="control_button_color">#4CC4C4C4</color>
     <color name="control_button_pressed_color">#4D000000</color>
 
-    <color name="minebutton_color">#9649b8</color>
-    <color name="background_app">#181818</color>
+    <!--
+        The launcher's surfaces, aligned with the Amethyst X ramp in ui/theme/Color.kt so the
+        screens that are still built from layouts sit on the same ground as the ones that are not.
+        The neutrals carry a little of the brand violet, which is what stops large dark areas
+        reading as flat grey next to the accent.
+    -->
+    <color name="minebutton_color">#9649B8</color>
+    <color name="background_app">#0E0B12</color>
     <color name="divider">@color/background_overlay</color>
-    <color name="background_overlay">#464646</color>
-    <color name="background_status_bar">#242424</color>
-    <color name="background_bottom_bar">#232323</color>
+    <color name="background_overlay">#3A3245</color>
+    <!-- Matched to the app background so the status bar reads as part of the page. -->
+    <color name="background_status_bar">#0E0B12</color>
+    <color name="background_bottom_bar">#16121C</color>
 
-    <color name="primary_text">#FFFFFF</color>
-    <color name="secondary_text">#B2B2B2</color>
+    <color name="primary_text">#E9E2EF</color>
+    <color name="secondary_text">#A79DB4</color>
 </resources>
