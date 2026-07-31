@@ -224,6 +224,10 @@ inner elements are 16dp. Keep that relationship.
   opens with a heading and a one-line hint that names any non-obvious gesture.
 - **Rows in sheets** — 14dp radius, accent at 11% alpha when selected, trailing check when
   selected. Long press for the secondary action; the heading says so.
+- **Icon wells** — `SlotWell` in `ui/theme/Slot.kt`. A squarish tile with a light inset along the
+  top-left and a dark one along the bottom-right: the bevel of an inventory slot, drawn entirely
+  in Material tonal surfaces. **This is the whole of the Minecraft reference** — reach for it
+  rather than inventing a second one.
 - **Icons** — 24dp grid, 1.8 stroke, round joins, `#FFFFFF` so the caller tints. The set lives in
   `res/drawable/ic_x_*.xml`. Draw new ones to match rather than importing a mismatched Material
   glyph. Core Material icons are acceptable for universal glyphs (play, check, add, chevron).
@@ -353,6 +357,12 @@ cheaper than a screen recorder, which composites the whole display and re-encode
    unsynchronised statics shared with the launch path.
 8. **Compose BOM stays `2024.10.01`** while `compileSdk` is 34 — later BOMs require 35. Same for
    `activity-compose:1.9.3` (1.10+ needs compileSdk 35).
+9. **A `ComposeView` over the game surface stays `GONE` unless it is showing something.** Visible,
+   it sits in front of every touch `MinecraftGLSurface` is waiting for. `ControlCenterHost` toggles
+   visibility and delays the `GONE` by the exit animation's length.
+10. **In-game surfaces are not `ModalBottomSheet`.** That creates a real dialog window, which risks
+    dropping the game out of immersive fullscreen. The control center draws its own scrim and
+    slide inline instead.
 
 ---
 
@@ -365,7 +375,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Version picker | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Account picker | **Compose** | Same file |
 | Settings (8 screens) | XML `PreferenceScreen` | **Next.** See §14 |
-| In-game control center | XML `DrawerLayout` + `ListView` | **Next.** See §14 |
+| In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` |
 | Profile editor | XML | Not yet designed |
 | Auth / login flow | XML | Not yet designed |
 | Control layout editor | XML custom views | Deep custom view work; low priority |
@@ -397,25 +407,25 @@ screen says all three things itself. `ProgressLayout.setSuppressed(boolean)` exi
 The redesign groups by **intent**, gives every destination a live summary of its current state, and
 puts advanced options behind progressive disclosure rather than behind a separate screen.
 
-### In-game control center — the problem
+### In-game control center — done
 
-A 200dp right-edge `DrawerLayout` containing a `ListView` of
-`android.R.layout.simple_list_item_1` — plain text rows, no icons, no hierarchy:
+It was a 200dp right-edge `DrawerLayout` holding a `ListView` of
+`android.R.layout.simple_list_item_1`: plain text rows, no icons, no hierarchy, force close
+**first** and recording **last**, its whole state carried by a label flipping between "Start" and
+"Stop".
 
-1. Force close ← destructive, and **first**
-2. Log output
-3. Send custom keycode
-4. Quick settings
-5. Custom controls
-6. Start/Stop recording ← the flagship feature, last, as text
+It is now `ui/game/ControlCenter.kt`, a sheet from the bottom, because in landscape that is where
+thumbs are and the right edge is not. Recording is a card at the top — idle it names the
+resolution, frame rate and audio a recording would use; live it drops the gradient for a timer,
+the size against the cap, and a stop button in `RecordingRed`. A pill beside the pull tab carries
+the same timer without opening anything, and cannot appear in the footage because the recorder
+captures the GL surface rather than the screen. Force close is last, quiet, in the error colour.
 
-Problems: the trigger is a pull tab at **top-centre** but the menu appears on the **right**, so the
-hand crosses the screen; the right edge is poor for one-handed use; recording state is communicated
-only by a row's label changing; and destructive sits above everything.
-
-The same drawer swaps its adapter to the **control-layout editor** actions (add button, add drawer,
-add joystick, load, save, set default, exit) when the editor is open — any redesign must preserve
-that mode.
+`ControlCenterHost` is the Java-facing seam: `open`, `close`, `isOpen`, `setEditorMode`,
+`setRecordingSummary`, `onRecordingStarted`, `onRecordingStopped`, `release`. `MainActivity`
+implements `ControlCenterCallbacks`; every action it exposes already existed, only the way in
+changed. The control-layout editor keeps its own mode — six tiles under a banner carrying Exit —
+because the drawer used to swap its adapter for exactly that.
 
 ---
 
@@ -471,6 +481,9 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
    start. Compilation proves nothing about attach-time contracts.
 8. **Design first, build once.** Publishing an interactive mockup and getting a reaction before
    writing Kotlin has been worth far more than the time it costs.
+9. **A private Kotlin property still emits its JVM accessors.** `private var editorMode` and a
+   public `fun setEditorMode(Boolean)` on the same class are a "platform declaration clash". When
+   a Kotlin class is called from Java, name its state and its methods apart.
 
 ---
 
@@ -490,13 +503,16 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 ## 18. Roadmap
 
 **Now**
-1. Settings, redesigned around intent with live state summaries.
-2. In-game control center, with recording as a first-class live state.
+1. Settings, redesigned around intent with live state summaries. Five destinations —
+   Performance, Controls, Recording, Game files, About — each carrying a summary of its own
+   current state, the renderer surfaced out of the profile editor, and advanced options behind an
+   expander rather than behind another screen. Search across all 48 settings is designed but is
+   the one piece with real build cost, since it needs them described in one indexable place.
 
 **Next**
-3. Profile editor — currently a long form; should be as considered as the home screen.
-4. Auth/login flow — the first thing a new user sees.
-5. Recording segmentation for multi-hour sessions.
+2. Profile editor — currently a long form; should be as considered as the home screen.
+3. Auth/login flow — the first thing a new user sees.
+4. Recording segmentation for multi-hour sessions.
 
 **Later**
 6. Shared-element transition from the version card into the version sheet.
