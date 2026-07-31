@@ -249,9 +249,12 @@ private fun PlayButton(
     )
 
     val busy = progress.busy
-    val gradient = Brush.linearGradient(listOf(Amethyst70, Amethyst50))
     val idleLabel = stringResource(R.string.main_play)
     val busyLabel = progress.label ?: stringResource(R.string.home_working)
+    // Branched as whole modifiers rather than as one background() argument, since a colour and a
+    // brush have no common type the overloads accept.
+    val surface = if (busy) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest)
+    else Modifier.background(Brush.linearGradient(listOf(Amethyst70, Amethyst50)))
 
     Box(
         Modifier
@@ -259,9 +262,7 @@ private fun PlayButton(
             .height(60.dp)
             .scale(squish)
             .clip(shape)
-            .background(
-                if (busy) MaterialTheme.colorScheme.surfaceContainerHighest else gradient
-            )
+            .then(surface)
             .clickable(
                 enabled = enabled && !busy,
                 interactionSource = interaction,
