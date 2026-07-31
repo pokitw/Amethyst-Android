@@ -22,11 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -155,8 +153,9 @@ private fun ProfileRow(
 /**
  * Switching player.
  *
- * The account list used to live inside a spinner dropdown, which meant the only way to remove one
- * was to open the dropdown and find a small icon inside it. Here it is a row action.
+ * The account list used to live inside a spinner dropdown, so switching meant opening a control
+ * that looked like a title bar. Here the whole list is one decision, and each row carries what
+ * kind of account it is, which decides whether the game can go online at all.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -228,6 +227,13 @@ fun AccountSheet(
     }
 }
 
+/**
+ * Removal is on long press rather than a trailing button.
+ *
+ * A delete icon on every row would give an irreversible action the same weight as the one thing
+ * the sheet is actually for, under the same thumb; the heading says how to reach it instead.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AccountRow(
     account: Account,
@@ -243,8 +249,8 @@ private fun AccountRow(
                 if (selected) Amethyst70.copy(alpha = 0.11f)
                 else MaterialTheme.colorScheme.surfaceContainer
             )
-            .clickable(onClick = onClick)
-            .padding(start = 10.dp, top = 8.dp, end = 4.dp, bottom = 8.dp),
+            .combinedClickable(onClick = onClick, onLongClick = onRemove)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Avatar(account.face, account.username, size = 40.dp)
@@ -275,14 +281,6 @@ private fun AccountRow(
                 Icons.Filled.Check,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(4.dp))
-        }
-        IconButton(onClick = onRemove) {
-            Icon(
-                Icons.Filled.Delete,
-                contentDescription = stringResource(R.string.global_delete),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

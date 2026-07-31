@@ -584,7 +584,7 @@
     <string name="home_choose_version_title">What are you playing?</string>
     <string name="home_choose_version_hint">Long press a profile to edit it.</string>
     <string name="home_choose_account_title">Who\'s playing?</string>
-    <string name="home_choose_account_hint">Tap an account to switch to it.</string>
+    <string name="home_choose_account_hint">Tap to switch. Long press to remove.</string>
     <string name="home_choose_account_empty">Sign in to play online.</string>
     <string name="home_account_online">Microsoft account</string>
     <string name="home_account_offline">Offline account</string>
