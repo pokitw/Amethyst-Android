@@ -28,6 +28,7 @@ import net.kdt.pojavlaunch.extra.ExtraCore
 import net.kdt.pojavlaunch.prefs.LauncherPreferences
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceFragment
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper
+import net.kdt.pojavlaunch.progresskeeper.TaskCountListener
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
 import net.kdt.pojavlaunch.ui.home.Account
 import net.kdt.pojavlaunch.ui.home.GameProfile
@@ -65,6 +66,15 @@ class MainMenuFragment : Fragment() {
     /** Built once: recreating it per recomposition would defeat skipping for no benefit. */
     private val actions by lazy { buildActions() }
 
+    /**
+     * Signing in and installing a modpack both write files this screen reads, and both hand
+     * control back here while they are still running — so the screen is re-read when the last
+     * one finishes rather than only when it is returned to.
+     */
+    private val tasksFinished = TaskCountListener { count ->
+        if (count == 0) Tools.runOnUiThread { if (isResumed) refresh() }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -89,6 +99,13 @@ class MainMenuFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         refresh()
+        // False: the refresh above has already covered the current state.
+        ProgressKeeper.addTaskCountListener(tasksFinished, false)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ProgressKeeper.removeTaskCountListener(tasksFinished)
     }
 
     /**
