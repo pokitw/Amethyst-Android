@@ -224,6 +224,11 @@ inner elements are 16dp. Keep that relationship.
   opens with a heading and a one-line hint that names any non-obvious gesture.
 - **Rows in sheets** — 14dp radius, accent at 11% alpha when selected, trailing check when
   selected. Long press for the secondary action; the heading says so.
+- **Settings rows** — `ui/settings/SettingsComponents.kt`. Grouped into a `SettingsCard` with no
+  dividers: the shared surface groups them and the space between text blocks separates them. Title
+  in `titleSmall`, description in `bodySmall`, and the *current value* in `labelLarge` **accent**
+  underneath — that accent line is what makes a screen of settings scannable. A slider's value
+  goes above the track, never beside it, because a thumb would cover it mid-drag.
 - **Icon wells** — `SlotWell` in `ui/theme/Slot.kt`. A squarish tile with a light inset along the
   top-left and a dark one along the bottom-right: the bevel of an inventory slot, drawn entirely
   in Material tonal surfaces. **This is the whole of the Minecraft reference** — reach for it
@@ -374,9 +379,10 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
 | Version picker | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Account picker | **Compose** | Same file |
-| Settings (8 screens) | XML `PreferenceScreen` | **Next.** See §14 |
+| Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
+| Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
 | In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` |
-| Profile editor | XML | Not yet designed |
+| Profile editor | XML | **Next.** Not yet designed |
 | Auth / login flow | XML | Not yet designed |
 | Control layout editor | XML custom views | Deep custom view work; low priority |
 | Game surface | XML, stays | See §12.4 |
@@ -389,23 +395,29 @@ screen says all three things itself. `ProgressLayout.setSuppressed(boolean)` exi
 
 ## 14. Current focus
 
-### Settings — the problem
+### Settings — done
 
-48 preferences across 8 screens, grouped by where the code lives rather than by what people want:
+It was 48 preferences across 8 screens grouped by where the code lived: "Use system Vulkan driver"
+under **Miscellaneous**, the renderer not in Settings *at all*, memory third in a screen called
+"Java Tweaks", and a category named "Experimental fuckury".
 
-- "Use system Vulkan driver" is filed under **Miscellaneous**.
-- "Extra Renderer Settings" is MobileGlues-only, but nothing says so — it is meaningless on other
-  renderers.
-- **The renderer itself is not in Settings at all.** It is per-profile, in the profile editor. It is
-  the single most consequential graphics decision and it is not where anyone looks.
-- Memory allocation — the setting people actually change — is third in a screen called
-  "Java Tweaks".
-- Recordings, a feature, lives under "Video and renderer", a settings group.
-- One category is literally named "Experimental fuckury".
-- Force English, notification and microphone permissions float loose beneath the categories.
+It is now five destinations grouped by intent — **Performance, Controls, Recording, Game files,
+About** — each carrying a live summary of its own state, so "MobileGlues · 4 GB · 100%" answers the
+common question without opening anything. The renderer moved in, tagged `THIS PROFILE`; it is still
+stored per profile and must stay that way. The nine touch-once graphics settings sit behind an
+`AdvancedSection` expander that names how many are hiding.
 
-The redesign groups by **intent**, gives every destination a live summary of its current state, and
-puts advanced options behind progressive disclosure rather than behind a separate screen.
+`ui/settings/` is three files on purpose:
+
+- **`SettingsStore.kt`** — typed reads and writes. Every write goes back through
+  `LauncherPreferences.loadPreferences`, because most preferences are mirrored into statics the
+  launcher reads rather than being consulted at the point of use. It also carries a `revision`
+  counter that reads touch, since SharedPreferences is not snapshot state and cannot notify
+  Compose on its own.
+- **`SettingsComponents.kt`** — `SectionLabel`, `SettingsCard`, `SwitchRow`, `SliderRow`,
+  `ChoiceRow`, `TextRow`, `NavRow`, `InfoRow`, `AdvancedSection`.
+- **`SettingsScreen.kt`** — the five screens, written out as the lists of settings they are rather
+  than as a data-driven spec, so they can be diffed against the preference XML they replaced.
 
 ### In-game control center — done
 
@@ -484,6 +496,16 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 9. **A private Kotlin property still emits its JVM accessors.** `private var editorMode` and a
    public `fun setEditorMode(Boolean)` on the same class are a "platform declaration clash". When
    a Kotlin class is called from Java, name its state and its methods apart.
+10. **A wrapper composable must pass the scope on.** A helper taking
+    `content: @Composable () -> Unit` and placing it inside a `Row` gives its callers no
+    `RowScope`, so every `Modifier.weight(1f)` inside them fails to resolve. Take
+    `@Composable RowScope.() -> Unit` and hand it to `Row(content = content)`.
+11. **Do not read the device from inside a composition.** Free space, package info and permission
+    checks are not snapshot state; called in a composable they re-run on every recomposition, so a
+    slider drag would stat the filesystem per frame. Read them in `onResume` into state.
+12. **`BaseActivity.setFullscreen()` defaults to true.** That is right for the game and wrong for
+    everything else — the recordings gallery lost its status bar and navigation buttons simply by
+    not overriding it. Any new launcher-side activity must.
 
 ---
 
@@ -494,6 +516,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   minutes. Automatic segmentation into `part1.mp4`, `part2.mp4` … is designed but not built.
 - Echo cancellation on the microphone path is requested but unverified on speakers.
 - Cursor hotspot alignment in recordings is unverified against the on-screen cursor.
+- Three settings leaves are still `PreferenceScreen` and will look plainer than the rest: the
+  **runtime manager** (its own install flow), the **gamepad remapper** (a capture UI), and the
+  **MobileGlues tuning** (10 options that are meaningless unless that renderer is selected). They
+  are reached by a row from the new Settings and sit on the same ground, so they should read as
+  "deeper settings" rather than as broken.
+- **Settings has no search.** It is designed and worth doing at 48 settings, but it needs every
+  setting described in one indexable place rather than spread across the screens.
 - No automated tests. There is no test harness in the project and no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -503,16 +532,14 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 ## 18. Roadmap
 
 **Now**
-1. Settings, redesigned around intent with live state summaries. Five destinations —
-   Performance, Controls, Recording, Game files, About — each carrying a summary of its own
-   current state, the renderer surfaced out of the profile editor, and advanced options behind an
-   expander rather than behind another screen. Search across all 48 settings is designed but is
-   the one piece with real build cost, since it needs them described in one indexable place.
+1. Profile editor — currently a long form, and the last screen on the launch path that has not
+   been designed. It also owns the renderer, which Settings now edits a copy of.
 
 **Next**
-2. Profile editor — currently a long form; should be as considered as the home screen.
-3. Auth/login flow — the first thing a new user sees.
-4. Recording segmentation for multi-hour sessions.
+2. Auth/login flow — the first thing a new user sees.
+3. Settings search across all 48 settings.
+4. Bring the runtime manager and gamepad remapper onto the new components (see §17).
+5. Recording segmentation for multi-hour sessions.
 
 **Later**
 6. Shared-element transition from the version card into the version sheet.
