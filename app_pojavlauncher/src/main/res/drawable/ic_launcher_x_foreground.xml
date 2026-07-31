@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!--
+        Adaptive icon foreground. The safe zone is the middle 66dp of the 108dp canvas, so the
+        gem sits inside roughly 24..84 on both axes to survive any mask the launcher applies.
+    -->
+    <group android:translateX="0" android:translateY="0">
+        <!-- Gem crown -->
+        <path
+            android:pathData="M54,26L38,38h32z"
+            android:fillColor="#E3CAF0"/>
+        <path
+            android:pathData="M38,38h32l12,10H26z"
+            android:fillColor="#C08CE8"/>
+        <!-- Gem body, lit from the upper left -->
+        <path
+            android:pathData="M26,48h56L54,86z"
+            android:fillColor="#9649B8"/>
+        <path
+            android:pathData="M26,48h28L54,86z"
+            android:fillColor="#A855F7"/>
+        <!-- Facet highlight -->
+        <path
+            android:pathData="M38,38L54,26 54,48z"
+            android:fillColor="#F2E4FA"/>
+    </group>
+</vector>
