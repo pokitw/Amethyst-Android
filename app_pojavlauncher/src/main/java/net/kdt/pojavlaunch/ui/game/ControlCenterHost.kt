@@ -26,7 +26,8 @@ class ControlCenterHost(
     private val callbacks: ControlCenterCallbacks
 ) {
     private var visible by mutableStateOf(false)
-    private var editorMode by mutableStateOf(false)
+    // Named apart from setEditorMode(): a property of that name would generate the same JVM setter.
+    private var editing by mutableStateOf(false)
     private var recording by mutableStateOf(RecordingUiState())
 
     private val handler = Handler(Looper.getMainLooper())
@@ -52,7 +53,7 @@ class ControlCenterHost(
         )
         sheetView.setContent {
             AmethystXTheme {
-                ControlCenter(visible, editorMode, recording, callbacks, ::close)
+                ControlCenter(visible, editing, recording, callbacks, ::close)
             }
         }
         pillView.setViewCompositionStrategy(
@@ -79,7 +80,7 @@ class ControlCenterHost(
 
     /** Swap the actions for the ones the control layout editor needs while it is open. */
     fun setEditorMode(editor: Boolean) {
-        editorMode = editor
+        editing = editor
     }
 
     /**
