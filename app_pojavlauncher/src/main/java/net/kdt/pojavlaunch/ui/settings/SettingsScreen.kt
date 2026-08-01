@@ -1,5 +1,13 @@
 package net.kdt.pojavlaunch.ui.settings
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -130,29 +138,50 @@ fun SettingsScreen(
     val highlight = remember { SettingsHighlight() }
     CompositionLocalProvider(LocalSettingsHighlight provides highlight) {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            when (route) {
-                SettingsRoute.HOME -> SettingsHome(onRoute, store, environment, actions)
-                SettingsRoute.SEARCH -> SearchScreen(
-                    onOpen = { entry, title ->
-                        highlight.request(title)
-                        onRoute(entry.route)
-                    },
-                    onBack = { onRoute(SettingsRoute.HOME) }
-                )
-                SettingsRoute.PERFORMANCE -> PerformanceScreen(store, environment, actions) {
-                    onRoute(SettingsRoute.HOME)
-                }
-                SettingsRoute.CONTROLS -> ControlsScreen(store, environment, actions) {
-                    onRoute(SettingsRoute.HOME)
-                }
-                SettingsRoute.RECORDING -> RecordingScreen(store, actions) {
-                    onRoute(SettingsRoute.HOME)
-                }
-                SettingsRoute.FILES -> GameFilesScreen(store, environment, actions) {
-                    onRoute(SettingsRoute.HOME)
-                }
-                SettingsRoute.ABOUT -> AboutScreen(store, environment, actions) {
-                    onRoute(SettingsRoute.HOME)
+            AnimatedContent(
+                targetState = route,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    // Opening a screen slides it in from the right while the one behind eases
+                    // back and fades, the way the launcher's own screens move; returning to
+                    // Settings' own home reverses it. No size transform — every screen already
+                    // fills the surface, so there is nothing to interpolate, and skipping it is
+                    // one less measurement pass a frame while the two are on screen together.
+                    val forward = targetState != SettingsRoute.HOME
+                    val enter = slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) {
+                        if (forward) it / 4 else -it / 4
+                    } + fadeIn(tween(220, easing = FastOutSlowInEasing))
+                    val exit = slideOutHorizontally(tween(300, easing = FastOutSlowInEasing)) {
+                        if (forward) -it / 6 else it / 6
+                    } + fadeOut(tween(180, easing = FastOutSlowInEasing))
+                    enter togetherWith exit
+                },
+                label = "settingsRoute"
+            ) { targetRoute ->
+                when (targetRoute) {
+                    SettingsRoute.HOME -> SettingsHome(onRoute, store, environment, actions)
+                    SettingsRoute.SEARCH -> SearchScreen(
+                        onOpen = { entry, title ->
+                            highlight.request(title)
+                            onRoute(entry.route)
+                        },
+                        onBack = { onRoute(SettingsRoute.HOME) }
+                    )
+                    SettingsRoute.PERFORMANCE -> PerformanceScreen(store, environment, actions) {
+                        onRoute(SettingsRoute.HOME)
+                    }
+                    SettingsRoute.CONTROLS -> ControlsScreen(store, environment, actions) {
+                        onRoute(SettingsRoute.HOME)
+                    }
+                    SettingsRoute.RECORDING -> RecordingScreen(store, actions) {
+                        onRoute(SettingsRoute.HOME)
+                    }
+                    SettingsRoute.FILES -> GameFilesScreen(store, environment, actions) {
+                        onRoute(SettingsRoute.HOME)
+                    }
+                    SettingsRoute.ABOUT -> AboutScreen(store, environment, actions) {
+                        onRoute(SettingsRoute.HOME)
+                    }
                 }
             }
         }

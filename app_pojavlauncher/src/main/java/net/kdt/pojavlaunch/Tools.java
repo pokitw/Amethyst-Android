@@ -52,6 +52,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentTransaction;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -1503,14 +1504,34 @@ public final class Tools {
         return fileName;
     }
 
-    /** Swap the main fragment with another */
+    /** Swap the main fragment with another, with no transition. */
     public static void swapFragment(FragmentActivity fragmentActivity , Class<? extends Fragment> fragmentClass,
                                     @Nullable String fragmentTag, @Nullable Bundle bundle) {
-        // When people tab out, it might happen
-        //TODO handle custom animations
-        fragmentActivity.getSupportFragmentManager().beginTransaction()
-                .setReorderingAllowed(true)
-                .addToBackStack(fragmentClass.getName())
+        swapFragment(fragmentActivity, fragmentClass, fragmentTag, bundle, false);
+    }
+
+    /**
+     * Swap the main fragment with another.
+     * <p>
+     * Animated is opt-in rather than the default for every caller of this: it is reserved for
+     * destinations reached often enough that a hard cut is felt, like Settings. A screen that is
+     * opened once, like the login flow, gains nothing from motion and this stays out of its way.
+     * @param animated whether the incoming fragment should fade in over the outgoing one, and
+     *                  fade back on the way out, rather than replacing it instantly
+     */
+    public static void swapFragment(FragmentActivity fragmentActivity , Class<? extends Fragment> fragmentClass,
+                                    @Nullable String fragmentTag, @Nullable Bundle bundle, boolean animated) {
+        FragmentTransaction transaction = fragmentActivity.getSupportFragmentManager().beginTransaction()
+                .setReorderingAllowed(true);
+        if (animated) {
+            // The platform's own fade, not a hand-rolled one: it is already tuned to a sane
+            // duration and easing, and there is no XML resource of ours to get subtly wrong.
+            transaction.setCustomAnimations(
+                    android.R.anim.fade_in, android.R.anim.fade_out,
+                    android.R.anim.fade_in, android.R.anim.fade_out
+            );
+        }
+        transaction.addToBackStack(fragmentClass.getName())
                 .replace(R.id.container_fragment, fragmentClass, bundle, fragmentTag).commit();
     }
 

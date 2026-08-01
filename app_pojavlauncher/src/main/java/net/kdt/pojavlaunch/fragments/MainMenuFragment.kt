@@ -170,7 +170,7 @@ class MainMenuFragment : Fragment() {
         onSettings = {
             Tools.swapFragment(
                 requireActivity(), SettingsFragment::class.java,
-                LauncherActivity.SETTING_FRAGMENT_TAG, null
+                LauncherActivity.SETTING_FRAGMENT_TAG, null, true
             )
         },
         onControls = { startActivity(Intent(requireContext(), CustomControlsActivity::class.java)) },
