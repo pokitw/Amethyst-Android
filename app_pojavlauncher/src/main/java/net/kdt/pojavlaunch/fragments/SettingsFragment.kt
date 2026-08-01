@@ -24,11 +24,9 @@ import net.kdt.pojavlaunch.contracts.OpenDocumentWithExtension
 import net.kdt.pojavlaunch.multirt.MultiRTConfigDialog
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
-import net.kdt.pojavlaunch.ui.home.currentAccountName
+import net.kdt.pojavlaunch.ui.home.currentAccount
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
-import net.kdt.pojavlaunch.ui.home.currentProfileKey
-import net.kdt.pojavlaunch.ui.home.loadAccounts
-import net.kdt.pojavlaunch.ui.home.loadProfiles
+import net.kdt.pojavlaunch.ui.home.currentProfileLabel
 import net.kdt.pojavlaunch.ui.settings.SettingsActions
 import net.kdt.pojavlaunch.ui.settings.SettingsEnvironment
 import net.kdt.pojavlaunch.ui.settings.SettingsRoute
@@ -123,13 +121,8 @@ class SettingsFragment : Fragment() {
         val launcher = activity as? LauncherActivity
         // The header says who is signed in and what they are about to play, which is what the
         // launcher's old account bar used to occupy the top of this screen to say half of.
-        val accounts = runCatching { loadAccounts() }.getOrDefault(emptyList())
-        val account = currentAccountName(context)?.let { name ->
-            accounts.firstOrNull { it.username == name }
-        }
-        val profiles = runCatching { loadProfiles(context) }.getOrDefault(emptyList())
-        val profile = profiles.firstOrNull { it.key == currentProfileKey() }
-            ?: profiles.firstOrNull()
+        val account = runCatching { currentAccount(context) }.getOrNull()
+        val profile = runCatching { currentProfileLabel(context) }.getOrNull()
         return SettingsEnvironment(
             versionName = version,
             freeSpace = free,
@@ -146,8 +139,8 @@ class SettingsFragment : Fragment() {
                 account.isLocal -> R.string.settings_account_local
                 else -> R.string.settings_account_microsoft
             },
-            profileTitle = profile?.title,
-            profileDetail = profile?.loader?.let { " · $it" }.orEmpty()
+            profileTitle = profile?.first,
+            profileDetail = profile?.second?.let { " · $it" }.orEmpty()
         )
     }
 
