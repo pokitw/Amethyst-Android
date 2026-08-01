@@ -6,8 +6,12 @@ import static net.kdt.pojavlaunch.Tools.currentDisplayMetrics;
 import static org.lwjgl.glfw.CallbackBridge.isGrabbing;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
+import android.provider.DocumentsContract;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -483,6 +487,27 @@ public class ControlLayout extends FrameLayout {
 		String jsonPath = Tools.CTRLMAP_PATH + "/" + name + ".json";
 		saveLayout(jsonPath);
 		return jsonPath;
+	}
+
+	/**
+	 * Hand the layout that is open to another app.
+	 * It is written out first, because a layout edited but never saved has no file to send.
+	 * @param activity the activity to launch the chooser from
+	 */
+	public void shareLayout(Activity activity) {
+		try {
+			String name = mLayoutFileName == null ? "controls" : mLayoutFileName;
+			Uri contentUri = DocumentsContract.buildDocumentUri(
+					activity.getString(R.string.storageProviderAuthorities), saveToDirectory(name));
+
+			Intent shareIntent = new Intent(Intent.ACTION_SEND);
+			shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+			shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+			shareIntent.setType("application/json");
+			activity.startActivity(Intent.createChooser(shareIntent, name));
+		} catch (Throwable th) {
+			Tools.showError(activity, th);
+		}
 	}
 
 	class OnClickExitListener implements View.OnClickListener {

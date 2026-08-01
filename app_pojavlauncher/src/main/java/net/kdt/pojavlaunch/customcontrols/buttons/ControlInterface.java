@@ -20,6 +20,7 @@ import net.kdt.pojavlaunch.GrabListener;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
+import net.kdt.pojavlaunch.customcontrols.ControlSkin;
 import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -108,15 +109,18 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
     }
 
     /**
-     * Apply the background according to properties
+     * Apply the background according to properties, as the current skin sees them.
+     * The skin is consulted here rather than baked into the layout, so switching it back gives
+     * the user's own colours straight back. See {@link net.kdt.pojavlaunch.customcontrols.ControlSkin}.
      */
     default void setBackground() {
+        ControlData properties = getProperties();
         GradientDrawable gd = getControlView().getBackground() instanceof GradientDrawable
                 ? (GradientDrawable) getControlView().getBackground()
                 : new GradientDrawable();
-        gd.setColor(getProperties().bgColor);
-        gd.setStroke((int) Tools.dpToPx(getProperties().strokeWidth * (getControlLayoutParent().getLayoutScale()/100f)), getProperties().strokeColor);
-        gd.setCornerRadius(computeCornerRadius(getProperties().cornerRadius));
+        gd.setColor(ControlSkin.fill(properties));
+        gd.setStroke((int) Tools.dpToPx(ControlSkin.strokeWidthDp(properties) * (getControlLayoutParent().getLayoutScale()/100f)), ControlSkin.strokeColor(properties));
+        gd.setCornerRadius(computeCornerRadius(ControlSkin.cornerPercent(properties)));
 
         getControlView().setBackground(gd);
     }
