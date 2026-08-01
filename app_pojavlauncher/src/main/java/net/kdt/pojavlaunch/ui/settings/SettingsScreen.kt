@@ -10,35 +10,68 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.ui.home.Avatar
+import net.kdt.pojavlaunch.ui.theme.Amethyst50
 import net.kdt.pojavlaunch.ui.theme.SlotWell
+import kotlin.math.roundToInt
 
 /** Which settings screen is showing. Held by the host so the back key can pop it. */
-enum class SettingsRoute { HOME, PERFORMANCE, CONTROLS, RECORDING, FILES, ABOUT }
+enum class SettingsRoute { HOME, SEARCH, PERFORMANCE, CONTROLS, RECORDING, FILES, ABOUT }
 
 /** The settings that are not settings: other screens, permissions, one-shot actions. */
 @Immutable
@@ -67,7 +100,13 @@ class SettingsEnvironment(
     val maxMemoryMb: Int = 3072,
     val gyroAvailable: Boolean = true,
     val notificationPermission: Boolean = true,
-    val microphonePermission: Boolean = true
+    val microphonePermission: Boolean = true,
+    /** Who is signed in, and what they are about to play — the header says both. */
+    val accountName: String? = null,
+    val accountFace: ImageBitmap? = null,
+    val accountKindRes: Int = R.string.settings_account_none,
+    val profileTitle: String? = null,
+    val profileDetail: String = ""
 )
 
 /**
@@ -75,8 +114,8 @@ class SettingsEnvironment(
  *
  * The old tree had 48 preferences across 8 screens grouped by where the code lived: the system
  * Vulkan driver sat under "Miscellaneous", the renderer was not here at all, and memory — the one
- * people actually change — was third in a screen called "Java Tweaks". These five are grouped by
- * what someone came here to do, and each carries a summary of its own current state so the common
+ * people actually change — was third in a screen called "Java Tweaks". These are grouped by what
+ * someone came here to do, and each carries a summary of its own current state so the common
  * questions are answered without opening anything.
  */
 @Composable
@@ -87,29 +126,48 @@ fun SettingsScreen(
     environment: SettingsEnvironment,
     actions: SettingsActions
 ) {
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-        when (route) {
-            SettingsRoute.HOME -> SettingsHome(onRoute, store, environment, actions)
-            SettingsRoute.PERFORMANCE -> PerformanceScreen(store, environment, actions) {
-                onRoute(SettingsRoute.HOME)
-            }
-            SettingsRoute.CONTROLS -> ControlsScreen(store, environment, actions) {
-                onRoute(SettingsRoute.HOME)
-            }
-            SettingsRoute.RECORDING -> RecordingScreen(store, actions) {
-                onRoute(SettingsRoute.HOME)
-            }
-            SettingsRoute.FILES -> GameFilesScreen(store, environment, actions) {
-                onRoute(SettingsRoute.HOME)
-            }
-            SettingsRoute.ABOUT -> AboutScreen(store, environment, actions) {
-                onRoute(SettingsRoute.HOME)
+    // Survives the route changes, because its whole job is to outlive one: search hands you to
+    // another screen and the row it sent you to lights up when you get there.
+    val highlight = remember { SettingsHighlight() }
+    CompositionLocalProvider(LocalSettingsHighlight provides highlight) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            when (route) {
+                SettingsRoute.HOME -> SettingsHome(onRoute, store, environment, actions)
+                SettingsRoute.SEARCH -> SearchScreen(
+                    onOpen = { entry, title ->
+                        highlight.request(title)
+                        onRoute(entry.route)
+                    },
+                    onBack = { onRoute(SettingsRoute.HOME) }
+                )
+                SettingsRoute.PERFORMANCE -> PerformanceScreen(store, environment, actions) {
+                    onRoute(SettingsRoute.HOME)
+                }
+                SettingsRoute.CONTROLS -> ControlsScreen(store, environment, actions) {
+                    onRoute(SettingsRoute.HOME)
+                }
+                SettingsRoute.RECORDING -> RecordingScreen(store, actions) {
+                    onRoute(SettingsRoute.HOME)
+                }
+                SettingsRoute.FILES -> GameFilesScreen(store, environment, actions) {
+                    onRoute(SettingsRoute.HOME)
+                }
+                SettingsRoute.ABOUT -> AboutScreen(store, environment, actions) {
+                    onRoute(SettingsRoute.HOME)
+                }
             }
         }
     }
 }
 
-/** Shared chrome: a back affordance, a large title, and a scrolling body on 20dp gutters. */
+/**
+ * Shared chrome: a bar that keeps the title once the large one has scrolled away, and a scrolling
+ * body on 20dp gutters.
+ *
+ * The bar earns its keep twice over. It gives back the title after you have scrolled past it,
+ * which a screen of twenty near-identical rows badly needs, and it is what search scrolls against
+ * when it sends you to a row further down.
+ */
 @Composable
 private fun SettingsScaffold(
     title: String,
@@ -117,6 +175,24 @@ private fun SettingsScaffold(
     onBack: () -> Unit,
     content: @Composable () -> Unit
 ) {
+    val scroll = rememberScrollState()
+    val highlight = LocalSettingsHighlight.current
+    var viewportTop by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val collapseDistance = with(density) { 84.dp.toPx() }
+    val highlightGap = with(density) { 28.dp.toPx() }
+
+    LaunchedEffect(highlight.target, highlight.anchor) {
+        if (highlight.target == null) return@LaunchedEffect
+        val anchor = highlight.anchor ?: return@LaunchedEffect
+        val target = (scroll.value + (anchor - viewportTop) - highlightGap).roundToInt()
+        scroll.animateScrollTo(target.coerceIn(0, scroll.maxValue))
+        // Long enough to be noticed by someone still looking at the search result they tapped,
+        // short enough that the wash is gone before it becomes part of the furniture.
+        delay(2200)
+        highlight.clear()
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -124,42 +200,78 @@ private fun SettingsScaffold(
             // this asks for whatever inset has not already been applied further up.
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        Row(Modifier.padding(start = 8.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.recordings_back),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-        Column(
+        Row(
             Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp)
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 20.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            BackButton(onBack)
+            Spacer(Modifier.width(4.dp))
+            // Read in the layer rather than in the composition, so a drag repaints the alpha
+            // instead of recomposing the bar on every frame of it.
             Text(
                 title,
-                style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.graphicsLayer {
+                    alpha = (scroll.value / collapseDistance).coerceIn(0f, 1f)
+                }
             )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(6.dp))
-            content()
         }
+        Box(
+            Modifier
+                .weight(1f)
+                // Measured outside the scroll, so it stays put while the rows inside move past it.
+                .onGloballyPositioned { viewportTop = it.positionInRoot().y }
+        ) {
+            Column(
+                Modifier
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp)
+            ) {
+                Column(
+                    Modifier.graphicsLayer {
+                        alpha = 1f - (scroll.value / collapseDistance).coerceIn(0f, 1f)
+                    }
+                ) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackButton(onBack: () -> Unit) {
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onBack),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Filled.ArrowBack,
+            contentDescription = stringResource(R.string.recordings_back),
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -188,7 +300,11 @@ private fun SettingsHome(
         subtitle = stringResource(R.string.settings_home_subtitle),
         onBack = actions.onBack
     ) {
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(14.dp))
+        AccountHeader(environment)
+        Spacer(Modifier.height(12.dp))
+        SearchEntry { onRoute(SettingsRoute.SEARCH) }
+        Spacer(Modifier.height(18.dp))
         Destination(
             R.drawable.ic_x_performance,
             stringResource(R.string.settings_dest_performance),
@@ -198,7 +314,7 @@ private fun SettingsHome(
         ) { onRoute(SettingsRoute.PERFORMANCE) }
         Destination(
             R.drawable.ic_x_controls,
-            stringResource(R.string.preference_control_title),
+            stringResource(R.string.settings_dest_controls),
             stringResource(
                 R.string.settings_summary_controls, buttons,
                 stringResource(if (gyro) R.string.settings_gyro_on else R.string.settings_gyro_off)
@@ -206,7 +322,7 @@ private fun SettingsHome(
         ) { onRoute(SettingsRoute.CONTROLS) }
         Destination(
             R.drawable.ic_x_recordings,
-            stringResource(R.string.preference_recorder_title),
+            stringResource(R.string.settings_dest_recording),
             stringResource(
                 R.string.settings_summary_recording, resolutionLabel, recorderRate,
                 describeAudio(store)
@@ -222,6 +338,68 @@ private fun SettingsHome(
             stringResource(R.string.settings_dest_about),
             stringResource(R.string.settings_summary_about, environment.versionName)
         ) { onRoute(SettingsRoute.ABOUT) }
+    }
+}
+
+/**
+ * Who is signed in, and what they are about to play.
+ *
+ * Until now this was the launcher's own account bar reappearing above the fragment: a full width
+ * spinner from the old chrome, wearing a different background from everything under it, with a
+ * floating icon button overlapping its right-hand end. It said one thing — the username — and it
+ * was the first thing anyone opening Settings saw. This says the same thing in the shape the rest
+ * of the app uses, adds the version the account is going to launch, and carries the only wash on
+ * the screen so the top of Settings has somewhere for the eye to land.
+ */
+@Composable
+private fun AccountHeader(environment: SettingsEnvironment) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .drawBehind {
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(Amethyst50.copy(alpha = 0.26f), Color.Transparent),
+                        center = Offset.Zero,
+                        radius = size.maxDimension * 1.05f
+                    )
+                )
+            }
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Avatar(environment.accountFace, environment.accountName, size = 46.dp)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                environment.accountName ?: stringResource(R.string.home_sign_in),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                stringResource(environment.accountKindRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (environment.profileTitle != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.settings_playing, environment.profileTitle) +
+                            environment.profileDetail,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -275,6 +453,160 @@ private fun Destination(iconRes: Int, title: String, summary: String, onClick: (
     }
 }
 
+// ------------------------------------------------------------------- Search
+
+/**
+ * Search.
+ *
+ * Fifty settings across five screens is exactly the size at which grouping stops being enough:
+ * you know the word, you do not know which of the five decided to own it. Results carry the
+ * screen and section they live on, so the answer is readable before the tap, and tapping one
+ * opens that screen scrolled to the row with the row lit up — otherwise search would only ever
+ * get you to the right neighbourhood.
+ */
+@Composable
+private fun SearchScreen(onOpen: (SettingEntry, String) -> Unit, onBack: () -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val all = rememberIndexedSettings()
+    val results = remember(all, query) { searchSettings(all, query) }
+    val focus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(Unit) {
+        // The field has to be attached before it can take focus, and this effect can outrun the
+        // first layout pass; asking early throws rather than doing nothing.
+        delay(60)
+        runCatching { focus.requestFocus() }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .imePadding()
+    ) {
+        Row(
+            Modifier.padding(start = 8.dp, end = 20.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BackButton(onBack)
+            Spacer(Modifier.width(4.dp))
+            SearchField(query, { query = it }, focus) { focusManager.clearFocus() }
+        }
+        Column(
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp)
+        ) {
+            if (results.isEmpty()) {
+                Spacer(Modifier.height(48.dp))
+                Text(
+                    stringResource(R.string.settings_search_empty, query.trim()),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.settings_search_empty_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                SectionLabel(
+                    if (query.isBlank()) stringResource(R.string.settings_search_suggested)
+                    else pluralStringResource(
+                        R.plurals.settings_search_results, results.size, results.size
+                    )
+                )
+                SettingsCard {
+                    results.forEach { result ->
+                        ResultRow(result) { onOpen(result.entry, result.title) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    focus: FocusRequester,
+    onSubmit: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(start = 16.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Filled.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(19.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) {
+                Text(
+                    stringResource(R.string.settings_search_hint),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 14.dp)
+                    .focusRequester(focus)
+            )
+        }
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(enabled = query.isNotEmpty()) { onQueryChange("") },
+            contentAlignment = Alignment.Center
+        ) {
+            if (query.isNotEmpty()) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.settings_search_clear),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResultRow(result: IndexedSetting, onClick: () -> Unit) {
+    val destination = stringResource(destinationTitle(result.entry.route))
+    val breadcrumb = if (result.section.isEmpty()) destination
+    else stringResource(R.string.settings_search_breadcrumb, destination, result.section)
+    NavRow(
+        title = result.title,
+        description = result.description.ifEmpty { null },
+        value = breadcrumb,
+        onClick = onClick
+    )
+}
+
 // ---------------------------------------------------------------- Performance
 
 @Composable
@@ -288,6 +620,20 @@ private fun PerformanceScreen(
     val rendererIds = renderers?.rendererIds?.toList() ?: emptyList()
     val rendererNames = renderers?.rendererDisplayNames?.toList() ?: emptyList()
     val defaultLabel = stringResource(R.string.global_default)
+    // Named rather than counted, so the expander knows to open itself when search sends someone
+    // to a row hiding inside it — and so the count can never drift from the list again.
+    val advanced = listOf(
+        stringResource(R.string.preference_force_vsync_title),
+        stringResource(R.string.preference_vsync_in_zink_title),
+        stringResource(R.string.preference_sustained_performance_title),
+        stringResource(R.string.mcl_setting_title_use_surface_view),
+        stringResource(R.string.preference_vulkan_driver_system_title),
+        stringResource(R.string.preference_force_big_core_title),
+        stringResource(R.string.preference_shader_dump_title),
+        stringResource(R.string.mcl_setting_title_ignore_notch),
+        stringResource(R.string.mcl_setting_title_javaargs),
+        stringResource(R.string.mcl_setting_title_renderer_settings)
+    )
 
     SettingsScaffold(
         stringResource(R.string.settings_dest_performance),
@@ -336,7 +682,7 @@ private fun PerformanceScreen(
             )
         }
 
-        AdvancedSection(count = 9) {
+        AdvancedSection(count = advanced.size, titles = advanced) {
             SettingsCard {
                 SwitchRow(
                     stringResource(R.string.preference_force_vsync_title),
@@ -404,8 +750,16 @@ private fun ControlsScreen(
     actions: SettingsActions,
     onBack: () -> Unit
 ) {
+    val advanced = listOf(
+        stringResource(R.string.preference_remap_controller_title),
+        stringResource(R.string.preference_wipe_controller_title),
+        stringResource(R.string.preference_deadzone_scale_title),
+        stringResource(R.string.preference_force_enable_touchcontroller_title),
+        stringResource(R.string.preference_touchcontroller_vibrate_length_title)
+    )
+
     SettingsScaffold(
-        stringResource(R.string.preference_control_title),
+        stringResource(R.string.settings_dest_controls),
         stringResource(R.string.settings_controls_subtitle),
         onBack
     ) {
@@ -417,6 +771,20 @@ private fun ControlsScreen(
                 iconRes = R.drawable.ic_x_controls,
                 onClick = actions.onCustomControls
             )
+        }
+
+        SectionLabel(stringResource(R.string.settings_section_style))
+        SettingsCard {
+            SwitchRow(
+                stringResource(R.string.preference_control_pocket_title),
+                stringResource(R.string.preference_control_pocket_description),
+                store.bool("controlPocketSkin", true)
+            ) { store.put("controlPocketSkin", it) }
+            SwitchRow(
+                stringResource(R.string.preference_control_glyphs_title),
+                stringResource(R.string.preference_control_glyphs_description),
+                store.bool("controlGlyphs", true)
+            ) { store.put("controlGlyphs", it) }
         }
 
         SectionLabel(stringResource(R.string.settings_section_buttons))
@@ -537,7 +905,7 @@ private fun ControlsScreen(
             }
         }
 
-        AdvancedSection(count = 5) {
+        AdvancedSection(count = advanced.size, titles = advanced) {
             SettingsCard {
                 NavRow(
                     title = stringResource(R.string.preference_remap_controller_title),
@@ -584,7 +952,7 @@ private fun RecordingScreen(
     onBack: () -> Unit
 ) {
     SettingsScaffold(
-        stringResource(R.string.preference_recorder_title),
+        stringResource(R.string.settings_dest_recording),
         stringResource(R.string.settings_recording_subtitle),
         onBack
     ) {

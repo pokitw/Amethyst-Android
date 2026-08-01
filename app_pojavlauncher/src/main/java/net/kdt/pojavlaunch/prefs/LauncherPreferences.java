@@ -74,6 +74,9 @@ public class LauncherPreferences {
     public static boolean PREF_MOUSE_GRAB_FORCE = false;
     public static boolean PREF_KEYBOARD_PANNING = true;
 
+    public static boolean PREF_CONTROL_POCKET_SKIN = true;
+    public static boolean PREF_CONTROL_GLYPHS = true;
+
 
     public static void loadPreferences(Context ctx) {
         //Required for CTRLDEF_FILE and MultiRT
@@ -116,6 +119,8 @@ public class LauncherPreferences {
         PREF_TOUCHCONTROLLER_VIBRATE_LENGTH = DEFAULT_PREF.getInt("touchControllerVibrateLength", 100);
         PREF_MOUSE_GRAB_FORCE = DEFAULT_PREF.getBoolean("always_grab_mouse", false);
         PREF_KEYBOARD_PANNING = DEFAULT_PREF.getBoolean("keyboardPanning", true);
+        PREF_CONTROL_POCKET_SKIN = DEFAULT_PREF.getBoolean("controlPocketSkin", true);
+        PREF_CONTROL_GLYPHS = DEFAULT_PREF.getBoolean("controlGlyphs", true);
 
         // User may have deleted their default control
         String userDefCtrl = DEFAULT_PREF.getString("defaultCtrl", Tools.CTRLDEF_FILE);
