@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -482,8 +481,8 @@ private fun SearchScreen(onOpen: (SettingEntry, String) -> Unit, onBack: () -> U
     Column(
         Modifier
             .fillMaxSize()
+            // safeDrawing already accounts for the keyboard, so there is no imePadding here.
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .imePadding()
     ) {
         Row(
             Modifier.padding(start = 8.dp, end = 20.dp, top = 6.dp, bottom = 6.dp),
@@ -491,7 +490,13 @@ private fun SearchScreen(onOpen: (SettingEntry, String) -> Unit, onBack: () -> U
         ) {
             BackButton(onBack)
             Spacer(Modifier.width(4.dp))
-            SearchField(query, { query = it }, focus) { focusManager.clearFocus() }
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                focus = focus,
+                modifier = Modifier.weight(1f),
+                onSubmit = { focusManager.clearFocus() }
+            )
         }
         Column(
             Modifier
@@ -534,11 +539,11 @@ private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     focus: FocusRequester,
+    modifier: Modifier = Modifier,
     onSubmit: () -> Unit
 ) {
     Row(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(start = 16.dp, end = 6.dp),
