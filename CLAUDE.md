@@ -391,16 +391,20 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | --- | --- | --- |
 | Launcher home | **Compose** | `ui/home/`, hosted by `MainMenuFragment.kt` |
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
-| Version picker | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
-| Account picker | **Compose** | Same file |
+| Profile / account pickers on home | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
 | Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
 | In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` **and** `CustomControlsActivity` |
 | Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
-| Profile editor | XML | **Next.** Not yet designed |
-| Auth / login flow | XML | Not yet designed |
+| Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
+| Profile editor · type picker · MC version picker | **Compose** | `ui/profile/`, hosted by `ProfileEditorFragment.kt` and `ProfileTypeSelectFragment.kt` |
+| Skin editor | Not built | Designed, §18.1 |
+| Mod search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
 | Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
 | Game surface | XML, stays | See §12.4 |
+
+Full screens share `AppScaffold` (`ui/common/`) for the back bar, the title that collapses into it
+and the 20dp gutters. Settings hoists its scroll state through it, because search scrolls to a row.
 
 The launcher's chrome (`activity_pojav_launcher.xml`: account bar, settings button, progress bar)
 is **hidden while the home screen or Settings is showing**, because both draw their own header.
@@ -410,118 +414,39 @@ while it is open — so `setChromeHidden` takes the two decisions separately.
 
 ---
 
-## 14. Current focus
+## 14. What has been redesigned, and the decision that survived it
 
-### Settings — done
+This section is a ledger, not a diary: each entry keeps only the decision that would otherwise be
+re-litigated. The reasoning lives in the commit that made the change.
 
-It was 48 preferences across 8 screens grouped by where the code lived: "Use system Vulkan driver"
-under **Miscellaneous**, the renderer not in Settings *at all*, memory third in a screen called
-"Java Tweaks", and a category named "Experimental fuckury".
-
-It is now five destinations grouped by intent — **Performance, Controls, Recording, Game files,
-About** — each carrying a live summary of its own state, so "MobileGlues · 4 GB · 100%" answers the
-common question without opening anything. The renderer moved in, tagged `THIS PROFILE`; it is still
-stored per profile and must stay that way. The nine touch-once graphics settings sit behind an
-`AdvancedSection` expander that names how many are hiding.
-
-`ui/settings/` is four files on purpose:
-
-- **`SettingsStore.kt`** — typed reads and writes. Every write goes back through
-  `LauncherPreferences.loadPreferences`, because most preferences are mirrored into statics the
-  launcher reads rather than being consulted at the point of use. It also carries a `revision`
-  counter that reads touch, since SharedPreferences is not snapshot state and cannot notify
-  Compose on its own.
-- **`SettingsComponents.kt`** — `SectionLabel`, `SettingsCard`, `SwitchRow`, `SliderRow`,
-  `ChoiceRow`, `TextRow`, `NavRow`, `InfoRow`, `SearchEntry`, `AdvancedSection`, and
-  `SettingsHighlight`.
-- **`SettingsIndex.kt`** — the flat table of contents search reads. One `SettingEntry` per
-  setting: title, description, which of the five screens it lives on, its section, and the words
-  someone would type who does not know what it is called ("fps", "lag", "ram"). **Adding a setting
-  to a screen means adding a line here**; the two are checked against each other by eye, which is
-  the same contract the screens already had with the preference XML they replaced.
-- **`SettingsScreen.kt`** — the five screens plus search, written out as the lists of settings they
-  are rather than as a data-driven spec, so they can be diffed against the preference XML they
-  replaced.
-
-### Settings — search, and the top of the screen
-
-Two things were left. Search was on the roadmap and is the thing fifty settings across five
-screens most needs: you know the word, you do not know which of the five owns it. And the top of
-Settings was still the launcher's *old* chrome — the `mcAccountSpinner` bar from
-`activity_pojav_launcher.xml`, wearing a different background from everything under it, with the
-settings button floating over its right-hand end. It said one thing, the username, and it was the
-first thing anyone opening Settings saw.
-
-- **The header is now Settings' own.** Skin face, username, account type, and the version that
-  account is about to launch — the one wash on the screen, so the top has somewhere for the eye to
-  land. The launcher chrome is hidden here the way it already was on home.
-- **Search results carry their address.** Each result names its screen and section
-  ("Performance · MEMORY AND RUNTIME"), so the answer is readable before the tap.
-- **Tapping a result finishes the job.** It opens that screen, scrolls to the row and washes it in
-  accent for two seconds. Rows are matched by their **title text**, not by an added key — every row
-  already has a title, and threading an identifier through fifty call sites would have bought
-  nothing. `AdvancedSection` opens itself when the row it hides is the target, and **latches**: the
-  wash fades, and a section that closed itself again would take the answer with it.
-- **Detail screens keep their title.** The large title fades into a compact one in the bar as you
-  scroll, because twenty near-identical rows give you nothing to tell you where you are.
-- `AdvancedSection` now takes the list of titles it hides rather than a hand-written count, so the
-  count cannot drift from the list again — it had already drifted, saying 9 for 10 settings.
-
-### In-game control center — done
-
-It was a 200dp right-edge `DrawerLayout` holding a `ListView` of
-`android.R.layout.simple_list_item_1`: plain text rows, no icons, no hierarchy, force close
-**first** and recording **last**, its whole state carried by a label flipping between "Start" and
-"Stop".
-
-It is now `ui/game/ControlCenter.kt`, a sheet from the bottom, because in landscape that is where
-thumbs are and the right edge is not. Recording is a card at the top — idle it names the
-resolution, frame rate and audio a recording would use; live it drops the gradient for a timer,
-the size against the cap, and a stop button in `RecordingRed`. A pill beside the pull tab carries
-the same timer without opening anything, and cannot appear in the footage because the recorder
-captures the GL surface rather than the screen. Force close is last, quiet, in the error colour.
-
-`ControlCenterHost` is the Java-facing seam: `open`, `close`, `isOpen`, `setEditorMode`,
-`setRecordingSummary`, `onRecordingStarted`, `onRecordingStopped`, `release`. `MainActivity`
-implements `ControlCenterCallbacks`; every action it exposes already existed, only the way in
-changed. The control-layout editor keeps its own mode — six tiles under a banner carrying Share
-and Exit — because the drawer used to swap its adapter for exactly that.
-
-### On-screen controls — the Pocket Edition pass
-
-The controls are the part of this launcher that is played rather than looked at, and they were the
-part that had never been designed: grey-black rounded rectangles carrying wrapped text labels
-("Third\nPerson"), laid out by a default file whose position expressions had been generated by a
-tool and ran to four hundred characters each.
-
-Three changes, in order of how much they matter:
-
-1. **`ControlSkin`** — one place that decides how a control is drawn, consulted at draw time and
-   never written into the layout. Pocket style is a light translucent fill, a dark keyline so the
-   button still reads against snow, and a corner radius between a square and a circle. It is a
-   preference (`controlPocketSkin`, on by default), so a decade of shared layouts get the look
-   without being touched and turning it off gives the author's colours straight back.
-2. **`ControlGlyphs`** — the icon a button shows instead of its name, matched on **the key it
-   sends**, not on what it is called. That is what lets an old layout pick up icons with no
-   migration and no new field in the format. A button bound to two keys keeps its name: no icon
-   honestly means "sneak and jump", and a wrong icon is worse than a word. Also a preference
-   (`controlGlyphs`).
-3. **A new `assets/default.json`** — a Pocket Edition shape. D-pad bottom left, swipeable so a
-   thumb can slide from forward into a turn without lifting; jump owning the bottom-right corner
-   at 68dp because it is pressed more than everything else there put together; sneak, sprint, use,
-   attack and inventory around it; the rest along the top. Its positions are written in the simple
-   vocabulary (`${screen_width}`, `${width}`, `px(n) / 100.0 * ${preferred_scale}`) rather than
-   generated, so they can be read — and checked. See §19.
-
-`CustomControlsActivity` hosts the same control center in editor mode, so the editor opened from
-Settings and the editor opened mid-game are one screen with two ways in rather than two screens
-doing the same seven things.
-
-**Existing users keep their layout.** `AsyncAssetManager` writes a changed default asset to
-`controlmap/new_default.json` and leaves `default.json` alone, which is exactly right: the skin and
-the icons reach them anyway, and nobody's arrangement is thrown away. New installs get the new one.
-
----
+- **Settings** — five destinations grouped by intent, each carrying a live summary of its own
+  state. The renderer moved in, tagged `THIS PROFILE`, and **stays stored per profile**. Screens
+  are written out as the lists of settings they are, not generated from a spec, so they can be
+  diffed against what they replaced.
+- **Settings search** — `SettingsIndex.kt` is the flat table of contents. **Adding a setting to a
+  screen means adding a line there.** Results carry their screen and section; tapping one scrolls
+  to the row and washes it. Rows are matched by **title text**, not an added key.
+- **Settings header** — Settings draws its own account header, so the launcher chrome is hidden
+  here as it already was on home. It keeps the progress bar; home does not.
+- **In-game control center** — a sheet from the bottom, because in landscape that is where thumbs
+  are. Recording is the card at the top. Force close is last, quiet, in the error colour.
+  `ControlCenterHost` is the Java-facing seam.
+- **On-screen controls** — `ControlSkin` decides how a control is drawn **at draw time and never
+  writes to the layout**, so turning it off gives the author's colours back. `ControlGlyphs` picks
+  an icon from **the key a button sends**, not its name, so old layouts gain icons with no
+  migration; a button bound to two keys keeps its text. `assets/default.json` is a Pocket Edition
+  shape written in the simple expression vocabulary so it can be read and checked (§19).
+- **Control layout editor** — hosts the same control center in editor mode, so the editor from
+  Settings and the one from inside a game are one screen with two ways in.
+- **Sign-in** — one screen, not two. Microsoft carries the gradient and offline is quieter beneath
+  it, because they are not equal choices: offline cannot join a server. The username is asked for
+  in place, validated as it is typed. Microsoft still hands off to `MicrosoftLoginFragment`, and an
+  offline account is still created by raising `MOJANG_LOGIN_TODO` for the account spinner.
+- **Version picker** — searchable and filterable, each row saying whether it is on disk. It is a
+  **route inside the profile editor**, not its own fragment, so Back always lands on the editor.
+- **Profile editor / creator** — version and icon are the header, since together they are how a
+  profile is recognised everywhere else. Delete stops sitting beside Save. Profile type tiles say
+  what each loader *is* rather than repeating "Create X profile".
 
 ## 15. Coding conventions
 
@@ -622,6 +547,11 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   runs out of screen on a small display — inherent to nineteen buttons, and the layout is editable.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- **`VersionSelectorDialog` still exists** for the mod-search flow, which is the only caller left.
+  The profile editor uses the Compose picker; the two should converge when mod search is redesigned.
+- A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server
+  reads a skin from, and an offline account has no profile to attach one to. Any skin editor has
+  to say so rather than appearing to work and silently doing nothing.
 - No automated tests. There is no test harness in the project and no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -631,27 +561,36 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 ## 18. Roadmap
 
 **Now**
-1. Profile editor — currently a long form, and the last screen on the launch path that has not
-   been designed. It also owns the renderer, which Settings now edits a copy of.
+1. **Skin editor.** Designed, not built. The shape it should take:
+   - `ui/skin/SkinModel.kt` — the 64×64 texture plus the **UV table** saying which rect is which
+     face of which body part. Everything else reads that one table, so the atlas layout (including
+     the 1.8+ second layer and the 3px slim-arm variant) is stated once.
+   - `SkinCanvasScreen.kt` — paint one *face* at a time zoomed with a grid, not the raw atlas;
+     pencil / eraser / fill / eyedropper, and an undo stack of whole-pixel diffs.
+   - `SkinPreview.kt` — a software-projected cube model, drawn on a Compose `Canvas`. No GL: the
+     game owns the only GL surface (§12.4) and a launcher-side preview must not need one.
+   - `SkinStore.kt` — skins as PNGs under the game directory, listed as a gallery.
+   - Applying goes through `PUT api.minecraftservices.com/minecraft/profile/skins` with the
+     account's existing `accessToken`, the same `Bearer` pattern `MicrosoftBackgroundLogin` uses.
+     Offline accounts save locally and the screen says why that is all it can do (§17).
 
 **Next**
-2. Auth/login flow — the first thing a new user sees.
-3. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
+2. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
    gets their settings into the search index.
-4. The control editor's *editing* surfaces: `EditControlSideDialog` is still a side panel of raw
+3. The control editor's *editing* surfaces: `EditControlSideDialog` is still a side panel of raw
    fields (stroke width in dp, corner radius in per cent) and `ActionRow` is still a strip of
    bare icons. The menu around them is designed now; what you actually touch to edit a button is
    not.
-5. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
+4. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
    gallery with a preview, since a control layout is a picture, not a filename.
-6. Recording segmentation for multi-hour sessions.
+5. Recording segmentation for multi-hour sessions.
 
 **Later**
-7. Shared-element transition from the version card into the version sheet.
-8. Recordings: in-app playback and trimming rather than handing off to an external player.
-9. Retire `activity_pojav_launcher.xml` chrome entirely once every fragment is Compose.
-10. A joystick variant of the Pocket default, offered as a choice the way Bedrock offers it,
-    rather than something you assemble yourself in the editor.
+6. Shared-element transition from the version card into the version sheet.
+7. Recordings: in-app playback and trimming rather than handing off to an external player.
+8. Retire `activity_pojav_launcher.xml` chrome entirely once every fragment is Compose.
+9. A joystick variant of the Pocket default, offered as a choice the way Bedrock offers it,
+   rather than something you assemble yourself in the editor.
 
 ---
 
