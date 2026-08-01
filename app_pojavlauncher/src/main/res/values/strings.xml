@@ -673,4 +673,64 @@
     <string name="preference_control_glyphs_description">Show an icon on buttons whose key is recognised — jump, sneak, inventory — instead of their name</string>
     <string name="control_center_share">Share layout</string>
 
+    <!-- Signing in -->
+    <string name="auth_title">Sign in</string>
+    <string name="auth_subtitle">Two kinds of account, and they are not the same</string>
+    <string name="auth_microsoft_title">Microsoft account</string>
+    <string name="auth_microsoft_blurb">Play online, join servers, keep your skin. Needs a copy of Minecraft: Java Edition.</string>
+    <string name="auth_offline_title">Offline account</string>
+    <string name="auth_offline_blurb">Singleplayer only. No servers, no skin, no realms.</string>
+    <string name="auth_footnote">Amethyst X never sees your password — Microsoft sign-in happens on Microsoft\'s own page.</string>
+    <string name="auth_name_rule">3–16 characters: letters, numbers and underscores.</string>
+    <string name="auth_name_short">A bit short — names are at least 3 characters.</string>
+    <string name="auth_name_long">Too long — names are at most 16 characters.</string>
+    <string name="auth_name_characters">Only letters, numbers and underscores.</string>
+    <string name="auth_name_taken">You already have an account with that name.</string>
+
+    <!-- Choosing a version -->
+    <string name="version_picker_hint">Search versions</string>
+    <string name="version_picker_all">All</string>
+    <string name="version_picker_downloaded">ON DEVICE</string>
+    <string name="version_picker_custom">Custom</string>
+    <string name="version_picker_empty">No versions yet</string>
+    <string name="version_picker_no_match">Nothing matches “%1$s”</string>
+    <string name="version_picker_empty_hint">The version list is fetched in the background — try again in a moment.</string>
+
+    <!-- Creating and editing a profile -->
+    <string name="profile_editor_title">Edit profile</string>
+    <string name="profile_editor_subtitle">What this profile launches, and how</string>
+    <string name="profile_type_subtitle">Pick what the game should be built on</string>
+    <string name="profile_section_basics">BASICS</string>
+    <string name="profile_section_advanced">ADVANCED</string>
+    <string name="profile_version_label">MINECRAFT VERSION</string>
+    <string name="profile_icon">Profile icon</string>
+    <string name="profile_name_description">What this profile is called in the version list</string>
+    <string name="profile_name_placeholder">Same as the version</string>
+    <string name="profile_runtime_description">Which Java version this profile runs on</string>
+    <string name="profile_control_description">The on-screen control layout this profile opens with</string>
+    <string name="profile_game_dir">Game folder</string>
+    <string name="profile_game_dir_description">Where this profile keeps its worlds, mods and packs</string>
+    <string name="profile_java_args_description">Extra JVM arguments, for this profile only</string>
+    <string name="profile_delete">Delete this profile</string>
+    <string name="profile_delete_title">Delete profile?</string>
+    <string name="profile_delete_message">“%1$s” will be removed from the launcher. Its worlds and files stay on disk.</string>
+    <string name="profile_type_vanilla">Vanilla</string>
+    <string name="profile_type_vanilla_blurb">Minecraft as Mojang ships it</string>
+    <string name="profile_type_optifine">OptiFine</string>
+    <string name="profile_type_optifine_blurb">Shaders, zoom and video options</string>
+    <string name="profile_type_bta">Better than Adventure</string>
+    <string name="profile_type_bta_blurb">A continuation of beta 1.7.3</string>
+    <string name="profile_type_fabric">Fabric</string>
+    <string name="profile_type_fabric_blurb">Light mod loader, quick to update</string>
+    <string name="profile_type_quilt">Quilt</string>
+    <string name="profile_type_quilt_blurb">A fork of Fabric, mostly compatible</string>
+    <string name="profile_type_forge">Forge</string>
+    <string name="profile_type_forge_blurb">The oldest loader, the biggest mods</string>
+    <string name="profile_type_neoforge">NeoForge</string>
+    <string name="profile_type_neoforge_blurb">A fork of Forge for modern versions</string>
+    <string name="profile_type_lwjgl3ify">LWJGL3ify</string>
+    <string name="profile_type_lwjgl3ify_blurb">Runs 1.7.10 Forge packs on modern Java</string>
+    <string name="profile_type_modpack">Modpack</string>
+    <string name="profile_type_modpack_blurb">Import one from CurseForge or Modrinth</string>
+
 </resources>

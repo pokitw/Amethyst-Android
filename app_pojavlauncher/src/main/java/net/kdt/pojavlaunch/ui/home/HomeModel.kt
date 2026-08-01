@@ -241,7 +241,7 @@ fun recordingCount(): Int = runCatching {
  * Profile icons are either a decoded bitmap or one of the bundled vectors, and the drawable is
  * shared through [ProfileIconCache], so it is copied before its bounds are set.
  */
-private fun Drawable.toImageBitmap(): ImageBitmap {
+fun Drawable.toImageBitmap(): ImageBitmap {
     (this as? BitmapDrawable)?.bitmap?.let { return it.asImageBitmap() }
     val drawable = constantState?.newDrawable()?.mutate() ?: this
     val bitmap = Bitmap.createBitmap(ICON_SIZE_PX, ICON_SIZE_PX, Bitmap.Config.ARGB_8888)
