@@ -88,6 +88,7 @@ interface ControlCenterCallbacks {
     fun onEditorLoad()
     fun onEditorSave()
     fun onEditorSetDefault()
+    fun onEditorShare()
     fun onEditorExit()
 
     /** How long the running recording has lasted, or zero when nothing is recording. */
@@ -169,7 +170,7 @@ private fun Sheet(
             // the tiles square-ish instead of stretching them across the whole display.
             Column(Modifier.widthIn(max = 620.dp)) {
                 if (editorMode) {
-                    EditorBanner(callbacks::onEditorExit)
+                    EditorBanner(callbacks::onEditorShare, callbacks::onEditorExit)
                     Spacer(Modifier.height(12.dp))
                     EditorActions(callbacks)
                 } else {
@@ -404,7 +405,7 @@ private fun RowScope.ActionTile(iconRes: Int, labelRes: Int, onClick: () -> Unit
 }
 
 @Composable
-private fun EditorBanner(onExit: () -> Unit) {
+private fun EditorBanner(onShare: () -> Unit, onExit: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -436,7 +437,25 @@ private fun EditorBanner(onExit: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(10.dp))
+        // Sharing a layout is a real action but a rare one, so it is an icon beside the way out
+        // rather than a seventh tile competing with the six you use while actually editing.
+        Box(
+            Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .clickable(onClick = onShare),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_x_share),
+                contentDescription = stringResource(R.string.control_center_share),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+        Spacer(Modifier.width(10.dp))
         Row(
             Modifier
                 .clip(CircleShape)

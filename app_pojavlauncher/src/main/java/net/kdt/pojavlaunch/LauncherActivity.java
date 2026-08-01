@@ -141,7 +141,10 @@ public class LauncherActivity extends BaseActivity {
             boolean atHome = f instanceof MainMenuFragment;
             mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), atHome
                     ? R.drawable.ic_menu_settings : R.drawable.ic_menu_home));
-            setChromeHidden(atHome);
+            // Settings draws its own header, including who is signed in, so it gets the chrome
+            // out of the way as well. It keeps the progress bar, because a download started
+            // elsewhere has nowhere else to report from while it is open.
+            setChromeHidden(atHome || f instanceof SettingsFragment, atHome);
         }
     };
 
@@ -165,7 +168,7 @@ public class LauncherActivity extends BaseActivity {
     private final View.OnClickListener mSettingButtonListener = v -> {
         Fragment fragment = getSupportFragmentManager().findFragmentById(mFragmentView.getId());
         if(fragment instanceof MainMenuFragment){
-            Tools.swapFragment(this, SettingsFragment.class, SETTING_FRAGMENT_TAG, null);
+            Tools.swapFragment(this, SettingsFragment.class, SETTING_FRAGMENT_TAG, null, true);
         } else{
             // The setting button doubles as a home button now
             Tools.backToMainMenu(this);
@@ -501,16 +504,18 @@ public class LauncherActivity extends BaseActivity {
 
     /**
      * Hide the launcher's own chrome.
-     * The home screen carries its own header and reports downloads inside its Play button, so
-     * showing the account bar, the settings button and the progress bar over it would only say
-     * the same things twice. Every other screen still gets them.
-     * @param hidden whether the chrome should be hidden
+     * The home screen and settings both carry their own header, so showing the account bar and the
+     * settings button over them would only say the same things twice. Every other screen still
+     * gets them.
+     * @param ownsHeader whether the fragment on screen draws its own header
+     * @param ownsProgress whether the fragment reports background work itself, as the home screen
+     *                     does inside its Play button
      */
-    private void setChromeHidden(boolean hidden) {
-        int visibility = hidden ? View.GONE : View.VISIBLE;
+    private void setChromeHidden(boolean ownsHeader, boolean ownsProgress) {
+        int visibility = ownsHeader ? View.GONE : View.VISIBLE;
         mAccountSpinner.setVisibility(visibility);
         mSettingsButton.setVisibility(visibility);
-        mProgressLayout.setSuppressed(hidden);
+        mProgressLayout.setSuppressed(ownsProgress);
     }
 
     /** Stuff all the view boilerplate here */
@@ -521,6 +526,6 @@ public class LauncherActivity extends BaseActivity {
         mProgressLayout = findViewById(R.id.progress_layout);
         // The root fragment is the home screen, so start out of the way rather than waiting for
         // the first onFragmentResumed to catch up.
-        setChromeHidden(true);
+        setChromeHidden(true, true);
     }
 }

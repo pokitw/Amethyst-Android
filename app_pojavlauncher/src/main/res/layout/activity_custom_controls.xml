@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.drawerlayout.widget.DrawerLayout
+<!--
+	The control layout editor.
+
+	It used to be a DrawerLayout holding a 200dp ListView of plain text rows — the same shape the
+	in-game menu had before it became the control center. Both are the control center now, so the
+	editor reached from Settings and the editor reached from inside the game are one screen with
+	two ways in, rather than two screens that happened to do the same seven things.
+-->
+<FrameLayout
 	xmlns:android="http://schemas.android.com/apk/res/android"
-	xmlns:app="http://schemas.android.com/apk/res-auto"
-	android:layout_height="match_parent"
 	android:layout_width="match_parent"
-	android:layout_alignParentRight="true"
-	android:id="@+id/customctrl_drawerlayout">
+	android:layout_height="match_parent">
 
-
-	<androidx.constraintlayout.widget.ConstraintLayout
-		android:layout_height="wrap_content"
-		android:layout_width="wrap_content">
-
+	<net.kdt.pojavlaunch.customcontrols.ControlLayout
+		android:id="@+id/customctrl_controllayout"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent">
 
 		<net.kdt.pojavlaunch.customcontrols.handleview.DrawerPullButton
 			android:id="@+id/drawer_button"
@@ -19,34 +23,29 @@
 			android:layout_height="20dp"
 			android:padding="6dp"
 			android:elevation="10dp"
-			app:layout_constraintEnd_toEndOf="parent"
-			app:layout_constraintStart_toStartOf="parent"
-			app:layout_constraintTop_toTopOf="parent" />
+			android:layout_gravity="center_horizontal" />
 
-		<TextView
-			android:layout_width="wrap_content"
-			android:layout_height="wrap_content"
-			android:layout_alignParentRight="true"
-			android:text="@string/hint_control_mapping"
-			app:layout_constraintEnd_toEndOf="parent"
-			app:layout_constraintTop_toTopOf="parent" />
+	</net.kdt.pojavlaunch.customcontrols.ControlLayout>
 
-		<net.kdt.pojavlaunch.customcontrols.ControlLayout
-			android:id="@+id/customctrl_controllayout"
-			android:layout_width="match_parent"
-			android:layout_height="match_parent">
+	<!--
+		Never shown here — the editor cannot record — but the control center host takes both views,
+		and handing it a real one costs less than making its contract optional.
+	-->
+	<androidx.compose.ui.platform.ComposeView
+		android:id="@+id/control_center_pill"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_gravity="top|center_horizontal"
+		android:visibility="gone" />
 
-		</net.kdt.pojavlaunch.customcontrols.ControlLayout>
-
-	</androidx.constraintlayout.widget.ConstraintLayout>
-
-	<ListView
-		android:id="@+id/customctrl_navigation_view"
-		android:layout_width="200dp"
+	<!--
+		Stretched over the editor, so it stays GONE while closed: visible it would sit in front of
+		every drag the buttons underneath are waiting for.
+	-->
+	<androidx.compose.ui.platform.ComposeView
+		android:id="@+id/control_center"
+		android:layout_width="match_parent"
 		android:layout_height="match_parent"
-		android:layout_gravity="right"
-		android:background="?attr/colorBackgroundFloating"
-		android:fitsSystemWindows="false" />
+		android:visibility="gone" />
 
-</androidx.drawerlayout.widget.DrawerLayout>
-
+</FrameLayout>

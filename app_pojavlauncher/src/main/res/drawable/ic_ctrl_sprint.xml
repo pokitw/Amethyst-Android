@@ -1,0 +1,17 @@
+<!--
+    An on-screen control glyph. Solid shapes rather than the 1.8dp strokes of the ic_x_* set:
+    these are drawn thumb-sized over gameplay, where a hairline vanishes against a bright sky.
+    White so the caller tints, like every other icon here.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3.4,4 L11.4,12 L3.4,20 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12.6,4 L20.6,12 L12.6,20 Z" />
+</vector>

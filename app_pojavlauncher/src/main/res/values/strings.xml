@@ -647,5 +647,30 @@
     <string name="settings_summary_recording">%1$s · %2$s fps · %3$s</string>
     <string name="settings_summary_files">%1$s free</string>
     <string name="settings_summary_about">Version %1$s</string>
+    <string name="settings_dest_controls">Controls</string>
+    <string name="settings_dest_recording">Recording</string>
+    <string name="settings_section_style">BUTTON STYLE</string>
+    <string name="settings_account_microsoft">Microsoft account</string>
+    <string name="settings_account_local">Offline account</string>
+    <string name="settings_account_demo">Demo account</string>
+    <string name="settings_account_none">No account signed in</string>
+    <string name="settings_playing">Playing %1$s</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_suggested">SUGGESTED</string>
+    <string name="settings_search_clear">Clear</string>
+    <string name="settings_search_breadcrumb">%1$s · %2$s</string>
+    <string name="settings_search_empty">Nothing matches “%1$s”</string>
+    <string name="settings_search_empty_hint">Try a shorter word, or the name of the thing it changes.</string>
+    <plurals name="settings_search_results">
+        <item quantity="one">%1$d RESULT</item>
+        <item quantity="other">%1$d RESULTS</item>
+    </plurals>
+
+    <!-- On-screen controls -->
+    <string name="preference_control_pocket_title">Pocket button style</string>
+    <string name="preference_control_pocket_description">Draw the on-screen buttons the way Minecraft does on phones, instead of using the colours saved in the layout</string>
+    <string name="preference_control_glyphs_title">Action icons</string>
+    <string name="preference_control_glyphs_description">Show an icon on buttons whose key is recognised — jump, sneak, inventory — instead of their name</string>
+    <string name="control_center_share">Share layout</string>
 
 </resources>

@@ -93,17 +93,8 @@ private fun readProfile(
     profile: MinecraftProfile,
     renderers: Tools.RenderersList?
 ): GameProfile {
-    val versionId = profile.lastVersionId
-    val versionLabel = when {
-        MinecraftProfile.LATEST_RELEASE.equals(versionId, ignoreCase = true) ->
-            context.getString(R.string.profiles_latest_release)
-        MinecraftProfile.LATEST_SNAPSHOT.equals(versionId, ignoreCase = true) ->
-            context.getString(R.string.profiles_latest_snapshot)
-        Tools.isValidString(versionId) -> versionId!!
-        else -> context.getString(R.string.home_version_unset)
-    }
-    // "New" was historically the default profile name, so it says as little as no name at all.
-    val name = profile.name?.takeIf { Tools.isValidString(it) && !it.equals("New", true) }
+    val versionLabel = versionLabel(context, profile)
+    val name = profileName(profile)
 
     return GameProfile(
         key = key,
@@ -115,7 +106,53 @@ private fun readProfile(
         loader = detectLoader(profile),
         rendererLabel = rendererLabel(profile, renderers),
         memoryLabel = formatMemory(LauncherPreferences.PREF_RAM_ALLOCATION),
-        installed = isInstalled(versionId)
+        installed = isInstalled(profile.lastVersionId)
+    )
+}
+
+/** How a version id should read: the two "latest" placeholders are names, not versions. */
+private fun versionLabel(context: Context, profile: MinecraftProfile): String {
+    val versionId = profile.lastVersionId
+    return when {
+        MinecraftProfile.LATEST_RELEASE.equals(versionId, ignoreCase = true) ->
+            context.getString(R.string.profiles_latest_release)
+        MinecraftProfile.LATEST_SNAPSHOT.equals(versionId, ignoreCase = true) ->
+            context.getString(R.string.profiles_latest_snapshot)
+        Tools.isValidString(versionId) -> versionId!!
+        else -> context.getString(R.string.home_version_unset)
+    }
+}
+
+/** "New" was historically the default profile name, so it says as little as no name at all. */
+private fun profileName(profile: MinecraftProfile): String? =
+    profile.name?.takeIf { Tools.isValidString(it) && !it.equals("New", true) }
+
+/**
+ * Just enough of the selected profile to name it.
+ *
+ * Settings' header shows two words, so it goes through here rather than through [loadProfiles],
+ * which rasterises an icon for every profile and asks the device for its renderer list. A header
+ * should not pay for a gallery.
+ *
+ * @return the profile's title and its mod loader, or null when nothing is selected
+ */
+fun currentProfileLabel(context: Context): Pair<String, String?>? {
+    LauncherProfiles.load()
+    val key = currentProfileKey() ?: return null
+    val profile = LauncherProfiles.mainProfileJson?.profiles?.get(key) ?: return null
+    val title = profileName(profile) ?: versionLabel(context, profile)
+    return title to detectLoader(profile)
+}
+
+/** The account the launcher is signed in as, without decoding every other account's skin. */
+fun currentAccount(context: Context): Account? {
+    val name = currentAccountName(context) ?: return null
+    val account = MinecraftAccount.load(name) ?: return null
+    return Account(
+        username = account.username,
+        face = account.skinFace?.asImageBitmap(),
+        isLocal = account.isLocal,
+        isDemo = account.isDemo
     )
 }
 

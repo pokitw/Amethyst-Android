@@ -8,6 +8,7 @@ import android.annotation.SuppressLint;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -16,13 +17,17 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.content.ContextCompat;
+
 import net.kdt.pojavlaunch.EfficientAndroidLWJGLKeycode;
 import net.kdt.pojavlaunch.LwjglGlfwKeycode;
 import net.kdt.pojavlaunch.MainActivity;
 import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
+import net.kdt.pojavlaunch.customcontrols.ControlGlyphs;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
+import net.kdt.pojavlaunch.customcontrols.ControlSkin;
 import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 
@@ -30,12 +35,18 @@ import org.lwjgl.glfw.CallbackBridge;
 
 @SuppressLint({"ViewConstructor", "AppCompatCustomView"})
 public class ControlButton extends TextView implements ControlInterface {
+    /** How much of the shorter side the action icon takes. Sized like a Pocket Edition button. */
+    private static final float GLYPH_SIZE_RATIO = 0.46f;
+
     private final Paint mRectPaint = new Paint();
     protected ControlData mProperties;
     private final ControlLayout mControlLayout;
 
     /* Cache value from the ControlData radius for drawing purposes */
     private float mComputedRadius;
+
+    /* The action icon this button carries instead of its name, or null when it keeps the name. */
+    private Drawable mGlyph;
 
     protected boolean mIsToggled = false;
     protected boolean mIsPointerOutOfBounds = false;
@@ -68,7 +79,7 @@ public class ControlButton extends TextView implements ControlInterface {
     public void setProperties(ControlData properties, boolean changePos) {
         mProperties = properties;
         ControlInterface.super.setProperties(properties, changePos);
-        mComputedRadius = ControlInterface.super.computeCornerRadius(mProperties.cornerRadius);
+        mComputedRadius = ControlInterface.super.computeCornerRadius(ControlSkin.cornerPercent(mProperties));
 
         if (mProperties.isToggle) {
             //For the toggle layer
@@ -78,15 +89,35 @@ public class ControlButton extends TextView implements ControlInterface {
             mRectPaint.setAlpha(128);
         } else {
             mRectPaint.setColor(Color.WHITE);
-            mRectPaint.setAlpha(60);
+            mRectPaint.setAlpha(ControlSkin.isPocket() ? ControlSkin.PRESS_ALPHA : 60);
         }
 
-        setText(properties.name);
+        mGlyph = resolveGlyph(properties);
+        // A button showing an icon shows nothing else: two things fighting for the same 50dp is
+        // how the old layouts ended up with "Third\nPerson" wrapped over two lines.
+        setText(mGlyph == null ? properties.name : "");
+    }
+
+    private Drawable resolveGlyph(ControlData properties) {
+        if (!ControlSkin.isGlyphs()) return null;
+        int glyphRes = ControlGlyphs.glyphFor(properties);
+        if (glyphRes == 0) return null;
+        Drawable drawable = ContextCompat.getDrawable(getContext(), glyphRes);
+        // Mutated because the alpha below lives in the shared constant state otherwise, and every
+        // button on screen would take the last one set.
+        return drawable == null ? null : drawable.mutate();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        if (mGlyph != null) {
+            int size = (int) (Math.min(getWidth(), getHeight()) * GLYPH_SIZE_RATIO);
+            int left = (getWidth() - size) / 2;
+            int top = (getHeight() - size) / 2;
+            mGlyph.setBounds(left, top, left + size, top + size);
+            mGlyph.draw(canvas);
+        }
         if (mIsToggled || (!mProperties.isToggle && isActivated()))
             canvas.drawRoundRect(0, 0, getWidth(), getHeight(), mComputedRadius, mComputedRadius, mRectPaint);
     }

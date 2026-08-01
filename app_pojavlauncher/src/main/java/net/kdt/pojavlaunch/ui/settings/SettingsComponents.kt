@@ -1,5 +1,6 @@
 package net.kdt.pojavlaunch.ui.settings
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -16,10 +17,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,14 +33,20 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +66,44 @@ import kotlin.math.roundToInt
  * Rows inside a card carry no dividers. The shared surface groups them and the space between the
  * text blocks separates them; hairlines on top of both would only add noise.
  */
+
+/**
+ * Where search left off.
+ *
+ * Search hands you to the screen a setting lives on, which is only half an answer on a screen of
+ * twenty rows — so the row that was searched for lights up and the screen scrolls to it. Rows are
+ * matched by their title rather than by a key, because every row already has one and threading an
+ * identifier through fifty call sites would buy nothing.
+ */
+@Stable
+class SettingsHighlight {
+    var target by mutableStateOf<String?>(null)
+        private set
+
+    /** Where the row ended up, in root coordinates, once it has been laid out. */
+    var anchor by mutableStateOf<Float?>(null)
+        private set
+
+    fun request(title: String) {
+        target = title
+        anchor = null
+    }
+
+    /**
+     * Recorded once and then left alone: the row keeps reporting as the screen scrolls, and
+     * following that would chase the scroll it just asked for.
+     */
+    fun report(y: Float) {
+        if (anchor == null) anchor = y
+    }
+
+    fun clear() {
+        target = null
+        anchor = null
+    }
+}
+
+val LocalSettingsHighlight = staticCompositionLocalOf { SettingsHighlight() }
 
 /** A quiet all-caps heading. Sections group settings; they are not themselves settings. */
 @Composable
@@ -82,16 +129,43 @@ fun SettingsCard(content: @Composable () -> Unit) {
     }
 }
 
+/** The accent wash a row wears after search has sent you to it, and the report of where it is. */
+@Composable
+private fun HighlightBox(title: String?, content: @Composable () -> Unit) {
+    val highlight = LocalSettingsHighlight.current
+    val active = title != null && title == highlight.target
+    val wash by animateColorAsState(
+        targetValue = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
+        else Color.Transparent,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "settingHighlight"
+    )
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { if (active) highlight.report(it.positionInRoot().y) }
+            .background(wash)
+    ) {
+        content()
+    }
+}
+
 /** Content is scoped to the Row so rows can give their text block the leftover width. */
 @Composable
-private fun RowShell(onClick: (() -> Unit)? = null, content: @Composable RowScope.() -> Unit) {
-    val base = Modifier.fillMaxWidth()
-    Box(if (onClick != null) base.clickable(onClick = onClick) else base) {
-        Row(
-            modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
+private fun RowShell(
+    title: String? = null,
+    onClick: (() -> Unit)? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    HighlightBox(title) {
+        val base = Modifier.fillMaxWidth()
+        Box(if (onClick != null) base.clickable(onClick = onClick) else base) {
+            Row(
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                content = content
+            )
+        }
     }
 }
 
@@ -143,7 +217,7 @@ fun SwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    RowShell(onClick = { onCheckedChange(!checked) }) {
+    RowShell(title = title, onClick = { onCheckedChange(!checked) }) {
         Box(Modifier.weight(1f)) { RowText(title, description, null) }
         Spacer(Modifier.width(14.dp))
         Switch(
@@ -176,18 +250,20 @@ fun SliderRow(
 ) {
     var dragging by remember { mutableStateOf<Int?>(null) }
     val shown = dragging ?: value
-    Column(Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
-        RowText(title, description, format(shown))
-        Spacer(Modifier.height(2.dp))
-        Slider(
-            value = shown.toFloat(),
-            onValueChange = { dragging = snap(it, min, max, step) },
-            valueRange = min.toFloat()..max.toFloat(),
-            onValueChangeFinished = {
-                dragging?.let { onValueChange(it) }
-                dragging = null
-            }
-        )
+    HighlightBox(title) {
+        Column(Modifier.padding(horizontal = 15.dp, vertical = 13.dp)) {
+            RowText(title, description, format(shown))
+            Spacer(Modifier.height(2.dp))
+            Slider(
+                value = shown.toFloat(),
+                onValueChange = { dragging = snap(it, min, max, step) },
+                valueRange = min.toFloat()..max.toFloat(),
+                onValueChangeFinished = {
+                    dragging?.let { onValueChange(it) }
+                    dragging = null
+                }
+            )
+        }
     }
 }
 
@@ -211,7 +287,7 @@ fun ChoiceRow(
     var open by remember { mutableStateOf(false) }
     val index = values.indexOf(selected)
     val label = if (index >= 0 && index < names.size) names[index] else selected
-    RowShell(onClick = { open = true }) {
+    RowShell(title = title, onClick = { open = true }) {
         Box(Modifier.weight(1f)) { RowText(title, description, label, badge) }
         Spacer(Modifier.width(10.dp))
         Icon(
@@ -277,7 +353,7 @@ fun TextRow(
     onValueChange: (String) -> Unit
 ) {
     var open by remember { mutableStateOf(false) }
-    RowShell(onClick = { open = true }) {
+    RowShell(title = title, onClick = { open = true }) {
         Box(Modifier.weight(1f)) {
             RowText(title, description, value.ifEmpty { placeholder })
         }
@@ -320,7 +396,7 @@ fun NavRow(
     iconRes: Int? = null,
     onClick: () -> Unit
 ) {
-    RowShell(onClick = onClick) {
+    RowShell(title = title, onClick = onClick) {
         if (iconRes != null) {
             SlotWell(size = 38.dp) {
                 Icon(
@@ -339,7 +415,41 @@ fun NavRow(
 /** A read-only statement of fact. No affordance, because there is nothing to press. */
 @Composable
 fun InfoRow(title: String, description: String? = null, value: String? = null) {
-    RowShell { Box(Modifier.weight(1f)) { RowText(title, description, value) } }
+    RowShell(title = title) { Box(Modifier.weight(1f)) { RowText(title, description, value) } }
+}
+
+/**
+ * The way into search, sitting where a search bar sits everywhere else.
+ *
+ * It is a button rather than a field: the field belongs on the search screen, where the keyboard
+ * has somewhere to push the results to.
+ */
+@Composable
+fun SearchEntry(onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Filled.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(19.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            stringResource(R.string.settings_search_hint),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 /**
@@ -348,10 +458,19 @@ fun InfoRow(title: String, description: String? = null, value: String? = null) {
  * These are settings you touch once, on advice, to fix one device. Behind a separate screen they
  * were undiscoverable; loose in the main list they buried the handful that matter. The count says
  * how much is hiding, so the expander is not a mystery box.
+ *
+ * It opens by itself when search has sent you to something inside it, since a highlighted row
+ * behind a collapsed expander would be an answer you cannot see.
  */
 @Composable
-fun AdvancedSection(count: Int, content: @Composable () -> Unit) {
+fun AdvancedSection(count: Int, titles: List<String> = emptyList(), content: @Composable () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    val target = LocalSettingsHighlight.current.target
+    // Latched rather than derived from the highlight: the wash fades after a couple of seconds,
+    // and a section that closed itself again would take the answer with it.
+    LaunchedEffect(target) {
+        if (target != null && titles.contains(target)) expanded = true
+    }
     val rotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = tween(260, easing = FastOutSlowInEasing),

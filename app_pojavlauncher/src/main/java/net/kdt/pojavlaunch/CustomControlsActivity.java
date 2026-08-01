@@ -1,14 +1,7 @@
 package net.kdt.pojavlaunch;
 
-import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
-import android.provider.DocumentsContract;
 import android.view.View;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
-
-import androidx.drawerlayout.widget.DrawerLayout;
 
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData;
@@ -16,14 +9,27 @@ import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
+import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 
 import java.io.IOException;
 
 
-public class CustomControlsActivity extends BaseActivity implements EditorExitable {
-	private DrawerLayout mDrawerLayout;
-	private ListView mDrawerNavigationView;
+/**
+ * The control layout editor, opened from Settings.
+ *
+ * Its menu was a right-edge drawer of {@code simple_list_item_1} rows — which is exactly what the
+ * in-game menu was before it became the control center. Rather than redesign the same list twice,
+ * this hosts the control center in its editor mode, so the editor reached from Settings and the
+ * editor reached from inside a game are one screen with two ways in.
+ *
+ * Only the editor half of {@link ControlCenterCallbacks} does anything here. The rest belongs to a
+ * running game — there is nothing to record, no log to read and nothing to force close — so they
+ * are deliberately empty rather than faked.
+ */
+public class CustomControlsActivity extends BaseActivity implements EditorExitable, ControlCenterCallbacks {
 	private ControlLayout mControlLayout;
+	private ControlCenterHost mControlCenter;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -32,42 +38,15 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 		setContentView(R.layout.activity_custom_controls);
 
 		mControlLayout = findViewById(R.id.customctrl_controllayout);
-		mDrawerLayout = findViewById(R.id.customctrl_drawerlayout);
-		mDrawerNavigationView = findViewById(R.id.customctrl_navigation_view);
-		View mPullDrawerButton = findViewById(R.id.drawer_button);
+		mControlCenter = new ControlCenterHost(
+				findViewById(R.id.control_center),
+				findViewById(R.id.control_center_pill),
+				this);
+		mControlCenter.setEditorMode(true);
 
-		mPullDrawerButton.setOnClickListener(v -> mDrawerLayout.openDrawer(mDrawerNavigationView));
-		mDrawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
+		View pullButton = findViewById(R.id.drawer_button);
+		pullButton.setOnClickListener(v -> mControlCenter.open());
 
-		mDrawerNavigationView.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1,getResources().getStringArray(R.array.menu_customcontrol_customactivity)));
-		mDrawerNavigationView.setOnItemClickListener((parent, view, position, id) -> {
-			switch(position) {
-				case 0: mControlLayout.addControlButton(new ControlData("New")); break;
-				case 1: mControlLayout.addDrawer(new ControlDrawerData()); break;
-				case 2: mControlLayout.addJoystickButton(new ControlJoystickData()); break;
-				case 3: mControlLayout.openLoadDialog(); break;
-				case 4: mControlLayout.openSaveDialog(this); break;
-				case 5: mControlLayout.openSetDefaultDialog(); break;
-				case 6: // Saving the currently shown control
-					try {
-						Uri contentUri = DocumentsContract.buildDocumentUri(getString(R.string.storageProviderAuthorities), mControlLayout.saveToDirectory(mControlLayout.mLayoutFileName));
-
-						Intent shareIntent = new Intent();
-						shareIntent.setAction(Intent.ACTION_SEND);
-						shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
-						shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-						shareIntent.setType("application/json");
-						startActivity(shareIntent);
-
-						Intent sendIntent = Intent.createChooser(shareIntent, mControlLayout.mLayoutFileName);
-						startActivity(sendIntent);
-					}catch (Exception e) {
-						Tools.showError(this, e);
-					}
-					break;
-			}
-			mDrawerLayout.closeDrawers();
-		});
 		mControlLayout.setModifiable(true);
 		try {
 			mControlLayout.loadLayout(LauncherPreferences.PREF_DEFAULTCTRL_PATH);
@@ -77,7 +56,17 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	}
 
 	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		mControlCenter.release();
+	}
+
+	@Override
 	public void onBackPressed() {
+		if(mControlCenter.isOpen()) {
+			mControlCenter.close();
+			return;
+		}
 		mControlLayout.askToExit(this);
 	}
 
@@ -85,4 +74,56 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	public void exitEditor() {
 		super.onBackPressed();
 	}
+
+	/* Editor actions. The same seven the drawer used to list. */
+
+	@Override
+	public void onEditorAddButton() {
+		mControlLayout.addControlButton(new ControlData("New"));
+		mControlCenter.close();
+	}
+
+	@Override
+	public void onEditorAddDrawer() {
+		mControlLayout.addDrawer(new ControlDrawerData());
+		mControlCenter.close();
+	}
+
+	@Override
+	public void onEditorAddJoystick() {
+		mControlLayout.addJoystickButton(new ControlJoystickData());
+		mControlCenter.close();
+	}
+
+	@Override public void onEditorLoad() { mControlCenter.close(); mControlLayout.openLoadDialog(); }
+	@Override public void onEditorSave() { mControlCenter.close(); mControlLayout.openSaveDialog(this); }
+
+	@Override
+	public void onEditorSetDefault() {
+		mControlCenter.close();
+		mControlLayout.openSetDefaultDialog();
+	}
+
+	@Override
+	public void onEditorShare() {
+		mControlCenter.close();
+		mControlLayout.shareLayout(this);
+	}
+
+	@Override
+	public void onEditorExit() {
+		mControlCenter.close();
+		mControlLayout.askToExit(this);
+	}
+
+	/* Game actions, which this activity has no game to perform them on. */
+
+	@Override public void onToggleRecording() {}
+	@Override public void onCustomControls() {}
+	@Override public void onSendKeycode() {}
+	@Override public void onQuickSettings() {}
+	@Override public void onLogOutput() {}
+	@Override public void onForceClose() {}
+	@Override public long recordingElapsedMs() { return 0L; }
+	@Override public long recordingBytes() { return 0L; }
 }

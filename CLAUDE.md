@@ -23,7 +23,7 @@ The recorder work was offered upstream and declined. That is the origin of the f
 rather than maintain a patch, make it a better tool.
 
 - Repository: `pokitw/Amethyst-Android`
-- Working branch: `claude/gameplay-screen-recorder-opengl-y9kqfs`
+- Working branch: `claude/amethyst-settings-controls-redesign-m29j5h`
 - Application ID: `org.angelauramc.amethyst` (**never change this** — see §12)
 
 ---
@@ -228,7 +228,8 @@ inner elements are 16dp. Keep that relationship.
   dividers: the shared surface groups them and the space between text blocks separates them. Title
   in `titleSmall`, description in `bodySmall`, and the *current value* in `labelLarge` **accent**
   underneath — that accent line is what makes a screen of settings scannable. A slider's value
-  goes above the track, never beside it, because a thumb would cover it mid-drag.
+  goes above the track, never beside it, because a thumb would cover it mid-drag. Every row goes
+  through `RowShell`/`HighlightBox`, which is what lets search light one up (see §14).
 - **Icon wells** — `SlotWell` in `ui/theme/Slot.kt`. A squarish tile with a light inset along the
   top-left and a dark one along the bottom-right: the bevel of an inventory slot, drawn entirely
   in Material tonal surfaces. **This is the whole of the Minecraft reference** — reach for it
@@ -236,6 +237,10 @@ inner elements are 16dp. Keep that relationship.
 - **Icons** — 24dp grid, 1.8 stroke, round joins, `#FFFFFF` so the caller tints. The set lives in
   `res/drawable/ic_x_*.xml`. Draw new ones to match rather than importing a mismatched Material
   glyph. Core Material icons are acceptable for universal glyphs (play, check, add, chevron).
+- **Control glyphs** — `res/drawable/ic_ctrl_*.xml` is a **second** icon family and the only one
+  allowed to break the rule above: solid filled shapes, no strokes. They are drawn thumb-sized
+  over live gameplay, where a 1.8dp hairline disappears against a bright sky and a filled shape
+  does not. Keep them geometric and chunky; they are read at a glance, mid-fight, in a hurry.
 
 ---
 
@@ -368,6 +373,15 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 10. **In-game surfaces are not `ModalBottomSheet`.** That creates a real dialog window, which risks
     dropping the game out of immersive fullscreen. The control center draws its own scrim and
     slide inline instead.
+11. **The control skin is applied at draw time and never written into a layout.** `ControlSkin` is
+    read by `ControlInterface.setBackground()` and `ControlButton.onDraw`; the fill, stroke and
+    radius the user saved stay in the file untouched. Baking the skin into the data would take
+    someone's colours away permanently, which is the one thing a look-and-feel preference must
+    never do.
+12. **`assets/default.json` is replaced, never merged.** Changing it hands existing users a
+    `controlmap/new_default.json` and leaves their own default alone — that is `AsyncAssetManager`
+    working as intended, not a bug to fix. Note `Tools.compareSHA1` "fake matches" on a read
+    error, which is what makes a fresh install take the `else` branch and write `default.json`.
 
 ---
 
@@ -381,15 +395,18 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Account picker | **Compose** | Same file |
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
 | Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
-| In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` |
+| In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` **and** `CustomControlsActivity` |
+| Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
 | Profile editor | XML | **Next.** Not yet designed |
 | Auth / login flow | XML | Not yet designed |
-| Control layout editor | XML custom views | Deep custom view work; low priority |
+| Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
 | Game surface | XML, stays | See §12.4 |
 
 The launcher's chrome (`activity_pojav_launcher.xml`: account bar, settings button, progress bar)
-is **hidden while the home screen is showing** and returns on every other screen, because the home
-screen says all three things itself. `ProgressLayout.setSuppressed(boolean)` exists for this.
+is **hidden while the home screen or Settings is showing**, because both draw their own header.
+Settings keeps the progress bar — a download started elsewhere has nowhere else to report from
+while it is open — so `setChromeHidden` takes the two decisions separately.
+`ProgressLayout.setSuppressed(boolean)` exists for this.
 
 ---
 
@@ -407,7 +424,7 @@ common question without opening anything. The renderer moved in, tagged `THIS PR
 stored per profile and must stay that way. The nine touch-once graphics settings sit behind an
 `AdvancedSection` expander that names how many are hiding.
 
-`ui/settings/` is three files on purpose:
+`ui/settings/` is four files on purpose:
 
 - **`SettingsStore.kt`** — typed reads and writes. Every write goes back through
   `LauncherPreferences.loadPreferences`, because most preferences are mirrored into statics the
@@ -415,9 +432,40 @@ stored per profile and must stay that way. The nine touch-once graphics settings
   counter that reads touch, since SharedPreferences is not snapshot state and cannot notify
   Compose on its own.
 - **`SettingsComponents.kt`** — `SectionLabel`, `SettingsCard`, `SwitchRow`, `SliderRow`,
-  `ChoiceRow`, `TextRow`, `NavRow`, `InfoRow`, `AdvancedSection`.
-- **`SettingsScreen.kt`** — the five screens, written out as the lists of settings they are rather
-  than as a data-driven spec, so they can be diffed against the preference XML they replaced.
+  `ChoiceRow`, `TextRow`, `NavRow`, `InfoRow`, `SearchEntry`, `AdvancedSection`, and
+  `SettingsHighlight`.
+- **`SettingsIndex.kt`** — the flat table of contents search reads. One `SettingEntry` per
+  setting: title, description, which of the five screens it lives on, its section, and the words
+  someone would type who does not know what it is called ("fps", "lag", "ram"). **Adding a setting
+  to a screen means adding a line here**; the two are checked against each other by eye, which is
+  the same contract the screens already had with the preference XML they replaced.
+- **`SettingsScreen.kt`** — the five screens plus search, written out as the lists of settings they
+  are rather than as a data-driven spec, so they can be diffed against the preference XML they
+  replaced.
+
+### Settings — search, and the top of the screen
+
+Two things were left. Search was on the roadmap and is the thing fifty settings across five
+screens most needs: you know the word, you do not know which of the five owns it. And the top of
+Settings was still the launcher's *old* chrome — the `mcAccountSpinner` bar from
+`activity_pojav_launcher.xml`, wearing a different background from everything under it, with the
+settings button floating over its right-hand end. It said one thing, the username, and it was the
+first thing anyone opening Settings saw.
+
+- **The header is now Settings' own.** Skin face, username, account type, and the version that
+  account is about to launch — the one wash on the screen, so the top has somewhere for the eye to
+  land. The launcher chrome is hidden here the way it already was on home.
+- **Search results carry their address.** Each result names its screen and section
+  ("Performance · MEMORY AND RUNTIME"), so the answer is readable before the tap.
+- **Tapping a result finishes the job.** It opens that screen, scrolls to the row and washes it in
+  accent for two seconds. Rows are matched by their **title text**, not by an added key — every row
+  already has a title, and threading an identifier through fifty call sites would have bought
+  nothing. `AdvancedSection` opens itself when the row it hides is the target, and **latches**: the
+  wash fades, and a section that closed itself again would take the answer with it.
+- **Detail screens keep their title.** The large title fades into a compact one in the bar as you
+  scroll, because twenty near-identical rows give you nothing to tell you where you are.
+- `AdvancedSection` now takes the list of titles it hides rather than a hand-written count, so the
+  count cannot drift from the list again — it had already drifted, saying 9 for 10 settings.
 
 ### In-game control center — done
 
@@ -436,8 +484,42 @@ captures the GL surface rather than the screen. Force close is last, quiet, in t
 `ControlCenterHost` is the Java-facing seam: `open`, `close`, `isOpen`, `setEditorMode`,
 `setRecordingSummary`, `onRecordingStarted`, `onRecordingStopped`, `release`. `MainActivity`
 implements `ControlCenterCallbacks`; every action it exposes already existed, only the way in
-changed. The control-layout editor keeps its own mode — six tiles under a banner carrying Exit —
-because the drawer used to swap its adapter for exactly that.
+changed. The control-layout editor keeps its own mode — six tiles under a banner carrying Share
+and Exit — because the drawer used to swap its adapter for exactly that.
+
+### On-screen controls — the Pocket Edition pass
+
+The controls are the part of this launcher that is played rather than looked at, and they were the
+part that had never been designed: grey-black rounded rectangles carrying wrapped text labels
+("Third\nPerson"), laid out by a default file whose position expressions had been generated by a
+tool and ran to four hundred characters each.
+
+Three changes, in order of how much they matter:
+
+1. **`ControlSkin`** — one place that decides how a control is drawn, consulted at draw time and
+   never written into the layout. Pocket style is a light translucent fill, a dark keyline so the
+   button still reads against snow, and a corner radius between a square and a circle. It is a
+   preference (`controlPocketSkin`, on by default), so a decade of shared layouts get the look
+   without being touched and turning it off gives the author's colours straight back.
+2. **`ControlGlyphs`** — the icon a button shows instead of its name, matched on **the key it
+   sends**, not on what it is called. That is what lets an old layout pick up icons with no
+   migration and no new field in the format. A button bound to two keys keeps its name: no icon
+   honestly means "sneak and jump", and a wrong icon is worse than a word. Also a preference
+   (`controlGlyphs`).
+3. **A new `assets/default.json`** — a Pocket Edition shape. D-pad bottom left, swipeable so a
+   thumb can slide from forward into a turn without lifting; jump owning the bottom-right corner
+   at 68dp because it is pressed more than everything else there put together; sneak, sprint, use,
+   attack and inventory around it; the rest along the top. Its positions are written in the simple
+   vocabulary (`${screen_width}`, `${width}`, `px(n) / 100.0 * ${preferred_scale}`) rather than
+   generated, so they can be read — and checked. See §19.
+
+`CustomControlsActivity` hosts the same control center in editor mode, so the editor opened from
+Settings and the editor opened mid-game are one screen with two ways in rather than two screens
+doing the same seven things.
+
+**Existing users keep their layout.** `AsyncAssetManager` writes a changed default asset to
+`controlmap/new_default.json` and leaves `default.json` alone, which is exactly right: the skin and
+the icons reach them anyway, and nobody's arrangement is thrown away. New installs get the new one.
 
 ---
 
@@ -506,6 +588,19 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 12. **`BaseActivity.setFullscreen()` defaults to true.** That is right for the game and wrong for
     everything else — the recordings gallery lost its status bar and navigation buttons simply by
     not overriding it. Any new launcher-side activity must.
+13. **A section that opens itself has to latch.** The advanced expander opens when search sends
+    someone to a row inside it. Deriving "open" from the highlight meant it closed again the
+    moment the highlight faded, taking the answer with it. Anything driven by a transient signal
+    needs to be copied into state, not read from it.
+14. **Vector path data is worth rendering before trusting.** The "drop item" glyph had its arrow
+    pointing up: the apex was the first point in the path, and the first point is where the pen
+    starts, not where the arrow points. It took ten seconds to spot in a contact sheet and would
+    have taken a build cycle and a screenshot from a user otherwise.
+15. **A generated layout file cannot be reviewed.** The old `default.json` had 400-character
+    position expressions with `10^-13` coefficients in them; nobody could tell whether a button
+    was in the right place without running it. The replacement is written in the simple
+    vocabulary and evaluated by a script against a grid of screen sizes and button scales, which
+    is a real check rather than a hope.
 
 ---
 
@@ -521,8 +616,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   **MobileGlues tuning** (10 options that are meaningless unless that renderer is selected). They
   are reached by a row from the new Settings and sit on the same ground, so they should read as
   "deeper settings" rather than as broken.
-- **Settings has no search.** It is designed and worth doing at 48 settings, but it needs every
-  setting described in one indexable place rather than spread across the screens.
+- **Search does not index those three leaves.** Their contents live in `pref_renderer.xml` and in
+  the remapper's own capture UI, so search gets you as far as the row that opens them.
+- The new default control layout is checked from 80% to 175% button scale. Above that the top row
+  runs out of screen on a small display — inherent to nineteen buttons, and the layout is editable.
+- **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
+  to F7, or to two keys at once, keeps its text label on purpose.
 - No automated tests. There is no test harness in the project and no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -537,14 +636,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 
 **Next**
 2. Auth/login flow — the first thing a new user sees.
-3. Settings search across all 48 settings.
-4. Bring the runtime manager and gamepad remapper onto the new components (see §17).
-5. Recording segmentation for multi-hour sessions.
+3. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
+   gets their settings into the search index.
+4. The control editor's *editing* surfaces: `EditControlSideDialog` is still a side panel of raw
+   fields (stroke width in dp, corner radius in per cent) and `ActionRow` is still a strip of
+   bare icons. The menu around them is designed now; what you actually touch to edit a button is
+   not.
+5. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
+   gallery with a preview, since a control layout is a picture, not a filename.
+6. Recording segmentation for multi-hour sessions.
 
 **Later**
-6. Shared-element transition from the version card into the version sheet.
-7. Recordings: in-app playback and trimming rather than handing off to an external player.
-8. Retire `activity_pojav_launcher.xml` chrome entirely once every fragment is Compose.
+7. Shared-element transition from the version card into the version sheet.
+8. Recordings: in-app playback and trimming rather than handing off to an external player.
+9. Retire `activity_pojav_launcher.xml` chrome entirely once every fragment is Compose.
+10. A joystick variant of the Pocket default, offered as a choice the way Bedrock offers it,
+    rather than something you assemble yourself in the editor.
 
 ---
 
@@ -552,15 +659,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 
 ```bash
 # There is no Android SDK in the dev container. CI is the compiler.
-git push -u origin claude/gameplay-screen-recorder-opengl-y9kqfs
+git push -u origin claude/amethyst-settings-controls-redesign-m29j5h
 # → GitHub Actions "Android CI" → artifact "app-debug (recommended)"
 ```
 
 Before pushing:
 - Verify every `R.*` reference resolves (script it against `res/values*/*.xml` and `res/drawable*`).
+  Ignore the noise from `android.R.*` and the `sdp`/`ssp` libraries; only new names matter.
+- Parse every file under `res/` as XML.
 - Render new vector drawables to SVG and screenshot them with
   `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell --screenshot`.
-- Check balanced braces in new Kotlin files.
+  A contact sheet of the whole family catches shapes that are merely upside down.
+- Check balanced braces in new Kotlin and Java files.
+- **Evaluate any changed control layout.** `${...}` substitution is a plain string replace
+  (`JSONUtils.insertSingleJSONValue`) and the result goes to exp4j, so a short Python script can
+  reproduce it exactly: substitute, map `px(n)` to `n * density`, `^` to `**`, and check every
+  button lands on screen across a grid of resolutions and button scales.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

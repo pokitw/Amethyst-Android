@@ -18,6 +18,7 @@ import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
+import net.kdt.pojavlaunch.customcontrols.ControlSkin;
 import net.kdt.pojavlaunch.customcontrols.gamepad.GamepadJoystick;
 import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 
@@ -112,6 +113,14 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
 
     @Override
     public void setBackground() {
+        // Only the three setters the joystick library has always had; the knob keeps its own
+        // colour rather than this reaching for an API the bundled version may not expose.
+        if (ControlSkin.isPocket()) {
+            setBorderWidth((int) Tools.dpToPx(ControlSkin.JOYSTICK_RING_DP * (getControlLayoutParent().getLayoutScale()/100f)));
+            setBorderColor(ControlSkin.JOYSTICK_RING);
+            setBackgroundColor(ControlSkin.JOYSTICK_FILL);
+            return;
+        }
         setBorderWidth((int) Tools.dpToPx(getProperties().strokeWidth * (getControlLayoutParent().getLayoutScale()/100f)));
         setBorderColor(getProperties().strokeColor);
         setBackgroundColor(getProperties().bgColor);

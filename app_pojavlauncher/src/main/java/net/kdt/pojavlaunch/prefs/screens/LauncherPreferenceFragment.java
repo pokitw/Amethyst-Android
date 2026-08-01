@@ -1,7 +1,6 @@
 package net.kdt.pojavlaunch.prefs.screens;
 
 
-import android.app.Activity;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.View;
@@ -11,47 +10,24 @@ import androidx.annotation.Nullable;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
-import net.kdt.pojavlaunch.LauncherActivity;
 import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 
 /**
- * Preference for the main screen, any sub-screen should inherit this class for consistent behavior,
- * overriding only onCreatePreferences
+ * Shared behavior for the settings leaves that are still PreferenceScreens.
+ *
+ * The eight-screen tree this used to be the root of is gone; Settings is Compose. What is left is
+ * the handful of leaves that are genuinely their own thing, so this declares no preferences of its
+ * own — it keeps the background and the write-through to
+ * {@link LauncherPreferences#loadPreferences(android.content.Context)}, which most preferences
+ * depend on because they are mirrored into static fields rather than read at the point of use.
  */
-public class LauncherPreferenceFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
+public abstract class LauncherPreferenceFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         view.setBackgroundColor(getResources().getColor(R.color.background_app));
         super.onViewCreated(view, savedInstanceState);
-    }
-
-    @Override
-    public void onCreatePreferences(Bundle b, String str) {
-        addPreferencesFromResource(R.xml.pref_main);
-        setupNotificationRequestPreference();
-    }
-
-    private void setupNotificationRequestPreference() {
-        Preference mRequestNotificationPermissionPreference = requirePreference("notification_permission_request");
-        Preference mMicrophonePermissionPreference = requirePreference("microphone_permission_request");
-        Activity activity = getActivity();
-        if(activity instanceof LauncherActivity) {
-            LauncherActivity launcherActivity = (LauncherActivity)activity;
-            mRequestNotificationPermissionPreference.setVisible(!launcherActivity.checkForNotificationPermission());
-            mRequestNotificationPermissionPreference.setOnPreferenceClickListener(preference -> {
-                launcherActivity.askForNotificationPermission(()->mRequestNotificationPermissionPreference.setVisible(false));
-                return true;
-            });
-            mMicrophonePermissionPreference.setVisible(!launcherActivity.checkForMicrophonePermission());
-            mMicrophonePermissionPreference.setOnPreferenceClickListener(preference -> {
-                launcherActivity.askForMicrophonePermission(()->mMicrophonePermissionPreference.setVisible(false));
-                return true;
-            });
-        }else{
-            mRequestNotificationPermissionPreference.setVisible(false);
-        }
     }
 
     @Override

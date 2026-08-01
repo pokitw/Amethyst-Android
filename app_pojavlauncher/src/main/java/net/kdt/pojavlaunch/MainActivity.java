@@ -853,6 +853,12 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     }
 
     @Override
+    public void onEditorShare() {
+        mControlCenter.close();
+        mControlLayout.shareLayout(this);
+    }
+
+    @Override
     public void onEditorExit() {
         mControlCenter.close();
         mControlLayout.openExitDialog(this);

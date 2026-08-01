@@ -24,7 +24,9 @@ import net.kdt.pojavlaunch.contracts.OpenDocumentWithExtension
 import net.kdt.pojavlaunch.multirt.MultiRTConfigDialog
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
+import net.kdt.pojavlaunch.ui.home.currentAccount
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
+import net.kdt.pojavlaunch.ui.home.currentProfileLabel
 import net.kdt.pojavlaunch.ui.settings.SettingsActions
 import net.kdt.pojavlaunch.ui.settings.SettingsEnvironment
 import net.kdt.pojavlaunch.ui.settings.SettingsRoute
@@ -117,6 +119,10 @@ class SettingsFragment : Fragment() {
             Formatter.formatShortFileSize(context, currentGameDirectory().usableSpace)
         }.getOrNull().orEmpty()
         val launcher = activity as? LauncherActivity
+        // The header says who is signed in and what they are about to play, which is what the
+        // launcher's old account bar used to occupy the top of this screen to say half of.
+        val account = runCatching { currentAccount(context) }.getOrNull()
+        val profile = runCatching { currentProfileLabel(context) }.getOrNull()
         return SettingsEnvironment(
             versionName = version,
             freeSpace = free,
@@ -124,7 +130,17 @@ class SettingsFragment : Fragment() {
             maxMemoryMb = maxMemory,
             gyroAvailable = Tools.deviceSupportsGyro(context),
             notificationPermission = launcher?.checkForNotificationPermission() ?: true,
-            microphonePermission = launcher?.checkForMicrophonePermission() ?: true
+            microphonePermission = launcher?.checkForMicrophonePermission() ?: true,
+            accountName = account?.username,
+            accountFace = account?.face,
+            accountKindRes = when {
+                account == null -> R.string.settings_account_none
+                account.isDemo -> R.string.settings_account_demo
+                account.isLocal -> R.string.settings_account_local
+                else -> R.string.settings_account_microsoft
+            },
+            profileTitle = profile?.first,
+            profileDetail = profile?.second?.let { " · $it" }.orEmpty()
         )
     }
 
