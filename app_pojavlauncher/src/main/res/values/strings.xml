@@ -733,4 +733,78 @@
     <string name="profile_type_modpack">Modpack</string>
     <string name="profile_type_modpack_blurb">Import one from CurseForge or Modrinth</string>
 
+    <!-- Crash diagnosis. Written like a build tool, not a chatbot: factual title, one-line
+         explanation, imperative advice. -->
+    <string name="crash_screen_title">Minecraft closed unexpectedly</string>
+    <string name="crash_exit_line">Exit code %1$d · latestlog.txt</string>
+    <string name="crash_signal_line">Fatal signal %1$d · latestlog.txt</string>
+    <string name="crash_what_to_try">WHAT TO TRY</string>
+    <string name="crash_from_the_log">FROM THE LOG</string>
+    <string name="crash_back_to_launcher">Back to launcher</string>
+
+    <string name="crash_memory_title">Minecraft ran out of memory</string>
+    <string name="crash_memory_explanation">The game filled everything the Memory allocation setting allows, and Java shut it down.</string>
+    <string name="crash_memory_advice">Raise Memory allocation in Settings → Performance if the phone has room — or lower render distance, resolution, or the mod count so the game needs less.</string>
+
+    <string name="crash_memory_native_title">The phone ran out of memory</string>
+    <string name="crash_memory_native_explanation">Java asked the phone for more memory than it could give.</string>
+    <string name="crash_memory_native_advice">Lower Memory allocation in Settings → Performance, and close other apps before playing.</string>
+
+    <string name="crash_killed_title">Android stopped the game</string>
+    <string name="crash_killed_explanation">The system force-closed the game\'s process, which usually means the phone ran out of memory.</string>
+
+    <string name="crash_java_version_title">Wrong Java version for this Minecraft</string>
+    <string name="crash_java_version_explanation_plain">This Minecraft needs a newer Java than the one the profile launched with.</string>
+    <string name="crash_java_version_explanation">This Minecraft is built for Java %1$d, but the profile launched with Java %2$d.</string>
+    <string name="crash_java_version_advice">In the profile\'s settings, switch Runtime to a newer Java — install one first from Settings → Performance → Runtime Manager if none is listed.</string>
+
+    <string name="crash_java_too_new_title">This Forge needs an older Java</string>
+    <string name="crash_java_too_new_explanation">Forge versions this old only run on Java 8, and the profile launched with something newer.</string>
+    <string name="crash_java_too_new_advice">In the profile\'s settings, switch Runtime to a Java 8 runtime.</string>
+
+    <string name="crash_dep_title">A mod is missing something it needs</string>
+    <string name="crash_fabric_dep_explanation">Fabric stopped the launch because a mod\'s requirements aren\'t installed.</string>
+    <string name="crash_fabric_dep_advice_plain">The lines under “Unmet dependency listing” in the log name the mod and what it wants. Install that, or remove the mod.</string>
+    <string name="crash_fabric_dep_advice">The log\'s suggested fix: install %1$s. Put it in the mods folder and launch again.</string>
+    <string name="crash_forge_dep_explanation_plain">Forge stopped the launch because a mod depends on another mod that isn\'t installed.</string>
+    <string name="crash_forge_dep_explanation">Forge stopped the launch because “%1$s” needs “%2$s”, which isn\'t installed.</string>
+    <string name="crash_forge_dep_advice">Install the missing mod, or remove the one that asks for it.</string>
+
+    <string name="crash_duplicate_title">The same mod is installed twice</string>
+    <string name="crash_duplicate_explanation_plain">Two copies of one mod are in the mods folder, and the loader refuses to choose.</string>
+    <string name="crash_duplicate_explanation">Two copies of “%1$s” are in the mods folder, and the loader refuses to choose.</string>
+    <string name="crash_duplicate_advice">Open the mods folder under Game files and delete the older copy.</string>
+
+    <string name="crash_mod_broken_title">A mod doesn\'t match this Minecraft</string>
+    <string name="crash_mod_broken_explanation">A mod tried to hook into game code that isn\'t there — usually a mod built for a different Minecraft or loader version.</string>
+    <string name="crash_mod_broken_advice">Update or remove the mod named in the log line below. After changing Minecraft versions, every mod needs a matching build.</string>
+
+    <string name="crash_renderer_title">The graphics driver failed</string>
+    <string name="crash_renderer_explanation">The renderer couldn\'t create or keep an OpenGL context on this device.</string>
+    <string name="crash_renderer_advice">Pick a different Renderer in Settings → Performance — it\'s saved per profile, so trying each one is safe.</string>
+
+    <string name="crash_storage_title">The phone is out of storage</string>
+    <string name="crash_storage_explanation">Minecraft tried to write a file and the system refused: no space left on the device.</string>
+    <string name="crash_storage_advice">Free some space — old recordings and unused apps are the usual suspects — then launch again.</string>
+
+    <string name="crash_account_title">The sign-in has expired</string>
+    <string name="crash_account_explanation">Minecraft\'s servers rejected this account\'s session.</string>
+    <string name="crash_account_advice">Open the account switcher on the home screen and sign in to the account again.</string>
+
+    <string name="crash_network_title">No connection to the download servers</string>
+    <string name="crash_network_explanation">Something the launch needed couldn\'t be fetched over the network.</string>
+    <string name="crash_network_advice">Check the connection and launch again — once a version is fully downloaded, it starts without internet.</string>
+
+    <string name="crash_corrupt_title">Game files are damaged</string>
+    <string name="crash_corrupt_explanation">A file this version depends on is incomplete or unreadable — usually the leftovers of an interrupted download.</string>
+    <string name="crash_corrupt_advice">Delete this version\'s folder inside Game files → versions, then launch again to re-download it cleanly.</string>
+
+    <string name="crash_native_title">The game crashed outside Java</string>
+    <string name="crash_native_explanation">Native code — most often the graphics driver — hit an error it couldn\'t recover from.</string>
+    <string name="crash_native_advice">Try a different Renderer in Settings → Performance. If every renderer crashes the same way, share the log.</string>
+
+    <string name="crash_generic_title">The log doesn\'t show a known cause</string>
+    <string name="crash_generic_explanation">The game ended without leaving one of the failure patterns this launcher recognises.</string>
+    <string name="crash_generic_advice">The answer is usually in the last lines of the log — share it, or open latestlog.txt under Game files.</string>
+
 </resources>

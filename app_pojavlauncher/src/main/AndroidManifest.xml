@@ -86,10 +86,11 @@
         <activity android:name=".ShowErrorActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|keyboard|navigation"
             android:theme="@style/Theme.AppCompat.DayNight.Dialog" />
+        <!-- No theme override: the crash screen is a full screen in the app's own dark theme
+             now, not a stock DayNight dialog that could render light over a dark launcher. -->
         <activity
             android:name=".ExitActivity"
-            android:configChanges="keyboardHidden|orientation|screenSize|keyboard|navigation"
-            android:theme="@style/Theme.AppCompat.DayNight.Dialog" />
+            android:configChanges="keyboardHidden|orientation|screenSize|keyboard|navigation" />
         <activity
             android:process=":gui_installer"
             android:name=".JavaGUILauncherActivity"

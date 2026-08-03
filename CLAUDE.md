@@ -398,6 +398,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
 | Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
 | Profile editor · type picker · MC version picker | **Compose** | `ui/profile/`, hosted by `ProfileEditorFragment.kt` and `ProfileTypeSelectFragment.kt` |
+| Crash screen | **Compose** | `diagnosis/`, hosted by `ExitActivity.kt` |
 | Skin editor | Not built | Designed, §18.1 |
 | Mod search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
 | Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
@@ -447,6 +448,14 @@ re-litigated. The reasoning lives in the commit that made the change.
 - **Profile editor / creator** — version and icon are the header, since together they are how a
   profile is recognised everywhere else. Delete stops sitting beside Save. Profile type tiles say
   what each loader *is* rather than repeating "Create X profile".
+- **Crash diagnosis** — `ExitActivity` (still resolved from JNI by name, so its package, class
+  and `showExitMessage(Landroid/content/Context;IZ)V` are **frozen**) now scans the tail of
+  `latestlog.txt` through `diagnosis/CrashDiagnosis.kt` — an ordered, first-match rule table —
+  and names the failure in words, quoting the log line it concluded from. Every stage is wrapped
+  and the old dialog remains the fallback; the composition renders only precomputed strings, so
+  the crash screen has nothing left to crash on. Rules live in the Kotlin/Python-shared regex
+  subset because `scripts/check_crash_rules.py` re-runs the shipped patterns against fixture
+  logs before every push (§19). New rule = new `Rule(...)` + strings + a fixture.
 
 ## 15. Coding conventions
 
@@ -614,6 +623,8 @@ Before pushing:
   (`JSONUtils.insertSingleJSONValue`) and the result goes to exp4j, so a short Python script can
   reproduce it exactly: substitute, map `px(n)` to `n * density`, `^` to `**`, and check every
   button lands on screen across a grid of resolutions and button scales.
+- **Run `python3 scripts/check_crash_rules.py`** if the crash rule table changed — it tests the
+  shipped patterns, parsed out of the Kotlin source, against fixture crash logs.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release
