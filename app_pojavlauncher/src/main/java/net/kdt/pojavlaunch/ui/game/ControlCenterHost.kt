@@ -77,6 +77,7 @@ class ControlCenterHost(
 
     fun open() {
         // The pull tab always means the menu, even if the keyboard was the last thing showing.
+        keyboardState.releaseAll()
         showingKeyboard = false
         sheetView.visibility = View.VISIBLE
         visible = true
@@ -84,6 +85,7 @@ class ControlCenterHost(
 
     /** Bring up the on-screen keyboard in place of the menu. */
     fun openKeyboard() {
+        keyboardState.releaseAll()
         keyboardState.showLetters()
         showingKeyboard = true
         sheetView.visibility = View.VISIBLE
@@ -100,6 +102,11 @@ class ControlCenterHost(
         handler.postDelayed({
             if (!visible) {
                 sheetView.visibility = View.GONE
+                // The sliding panel is still hit-testable for the length of that animation, so a
+                // second impatient tap can latch a key after the release above has already run.
+                // This is the one that catches it — and `close()` cannot, having already returned
+                // at its own guard by then.
+                keyboardState.releaseAll()
                 // Only after it is out of sight, so the sheet is never seen flipping back.
                 showingKeyboard = false
             }

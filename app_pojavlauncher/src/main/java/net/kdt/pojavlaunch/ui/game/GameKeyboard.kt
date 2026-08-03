@@ -271,6 +271,10 @@ class GameKeyboardState {
     /**
      * Mirror one latch into the modifier flags the rest of the input path reads.
      *
+     * These five booleans are a single global shared with every other input source — a control
+     * button bound to Shift, and a physical keyboard, whose `execKey` rewrites all five from each
+     * event's meta state. Nothing here can fix that; what it can do is not make it worse.
+     *
      * Deliberately narrow: it touches only the flag belonging to the key that just changed, and
      * derives that flag from [held] rather than from the change. Rewriting all five would stamp on
      * a modifier some other part of the launcher is holding, and reading the change alone would
@@ -403,8 +407,10 @@ private val LETTER_ROWS: List<List<Key>> = listOf(
 /**
  * The numpad, the navigation cluster and the right-hand modifiers — everything the letter board
  * has no room for. Between the two, every key the old keycode list offered is here, plus Delete,
- * Print Screen and Scroll Lock, which Android has no keycode for and that list therefore could not
- * reach at all.
+ * Print Screen and Scroll Lock, which were simply absent from
+ * [net.kdt.pojavlaunch.EfficientAndroidLWJGLKeycode]'s table and so could not be picked at all.
+ * Adding them there rather than sending them raw is what keeps them working on the SDL path,
+ * which translates back through that same table.
  */
 private val NUMERIC_ROWS: List<List<Key>> = listOf(
     listOf(

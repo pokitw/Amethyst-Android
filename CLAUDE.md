@@ -569,6 +569,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - The on-screen keyboard is **US layout**. The shift pairs are baked into the table because that is
   the layout the game's own keybind names assume; a player on another physical layout gets US
   symbols. It is landscape-only, which is safe because `MainActivity` is `sensorLandscape`.
+- **`CallbackBridge`'s five modifier booleans are one global with several writers**, and the
+  keyboard is the first surface that holds a modifier *across* other input, so it makes an old
+  problem reachable: a physical key rewrites all five from its event's meta state
+  (`EfficientAndroidLWJGLKeycode.execKey`), and a toggled control button bound to Shift shares the
+  same flag and the same key-down. Latching Shift on both, then releasing one, desynchronises them.
+  Properly fixing it needs global key-state tracking that does not exist; the keyboard confines the
+  damage by only ever touching the flag belonging to the key that changed.
 - **`VersionSelectorDialog` still exists** for the mod-search flow, which is the only caller left.
   The profile editor uses the Compose picker; the two should converge when mod search is redesigned.
 - A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server

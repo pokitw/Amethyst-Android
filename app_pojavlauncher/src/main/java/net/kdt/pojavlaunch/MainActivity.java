@@ -334,6 +334,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override
     protected void onPause() {
         mGyroControl.disable();
+        // Before the escape below, not after: a key latched on the on-screen keyboard is still
+        // down in the game, so leaving it there would send Ctrl+Esc instead of Esc — and would
+        // hold that modifier for as long as the app stayed in the background.
+        if(mControlCenter != null) mControlCenter.close();
         if (CallbackBridge.isGrabbing()){
             sendKeyPress(LwjglGlfwKeycode.GLFW_KEY_ESCAPE);
         }

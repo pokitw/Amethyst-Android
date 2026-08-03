@@ -14,7 +14,7 @@ public class EfficientAndroidLWJGLKeycode {
     //This old version of this class was using an ArrayMap, a generic Key -> Value data structure.
     //The key being the android keycode from a KeyEvent
     //The value its LWJGL equivalent.
-    private static final int KEYCODE_COUNT = 106;
+    private static final int KEYCODE_COUNT = 109;
     private static final int[] sAndroidKeycodes = new int[KEYCODE_COUNT];
     private static final int[] sLwjglKeycodesReversed = new int[LwjglGlfwKeycode.GLFW_KEY_LAST];
     private static final short[] sLwjglKeycodes = new short[KEYCODE_COUNT];
@@ -114,12 +114,15 @@ public class EfficientAndroidLWJGLKeycode {
         add(KeyEvent.KEYCODE_PAGE_DOWN, LwjglGlfwKeycode.GLFW_KEY_PAGE_DOWN);
 
         add(KeyEvent.KEYCODE_ESCAPE, LwjglGlfwKeycode.GLFW_KEY_ESCAPE);
+        add(KeyEvent.KEYCODE_FORWARD_DEL, LwjglGlfwKeycode.GLFW_KEY_DELETE); //112
 
         // Control keys
         add(KeyEvent.KEYCODE_CTRL_LEFT, LwjglGlfwKeycode.GLFW_KEY_LEFT_CONTROL);
         add(KeyEvent.KEYCODE_CTRL_RIGHT, LwjglGlfwKeycode.GLFW_KEY_RIGHT_CONTROL);
 
         add(KeyEvent.KEYCODE_CAPS_LOCK, LwjglGlfwKeycode.GLFW_KEY_CAPS_LOCK);
+        add(KeyEvent.KEYCODE_SCROLL_LOCK, LwjglGlfwKeycode.GLFW_KEY_SCROLL_LOCK); //116
+        add(KeyEvent.KEYCODE_SYSRQ, LwjglGlfwKeycode.GLFW_KEY_PRINT_SCREEN); //120
         add(KeyEvent.KEYCODE_BREAK, LwjglGlfwKeycode.GLFW_KEY_PAUSE);
         add(KeyEvent.KEYCODE_MOVE_HOME, LwjglGlfwKeycode.GLFW_KEY_HOME);
         add(KeyEvent.KEYCODE_MOVE_END, LwjglGlfwKeycode.GLFW_KEY_END);
