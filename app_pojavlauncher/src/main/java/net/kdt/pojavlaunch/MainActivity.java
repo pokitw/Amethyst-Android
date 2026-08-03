@@ -507,13 +507,6 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mHotbarView.setmLastIndex(a);
     }
 
-    private void dialogSendCustomKey() {
-        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
-        dialog.setTitle(R.string.control_customkey);
-        dialog.setItems(EfficientAndroidLWJGLKeycode.generateKeyName(), (dInterface, position) -> EfficientAndroidLWJGLKeycode.execKeyIndex(position));
-        dialog.show();
-    }
-
     boolean isInEditor;
     private void openCustomControls() {
         mControlLayout.setModifiable(true);
@@ -820,7 +813,9 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     @Override public void onToggleRecording() { mControlCenter.close(); toggleRecording(); }
     @Override public void onCustomControls() { mControlCenter.close(); openCustomControls(); }
-    @Override public void onSendKeycode() { mControlCenter.close(); dialogSendCustomKey(); }
+    // Not close-then-open: the keyboard takes the sheet's place rather than following it, so the
+    // scrim stays up and the two surfaces hand over to each other in one movement.
+    @Override public void onSendKeycode() { mControlCenter.openKeyboard(); }
     @Override public void onQuickSettings() { mControlCenter.close(); openQuickSettings(); }
     @Override public void onLogOutput() { mControlCenter.close(); openLogOutput(); }
     @Override public void onForceClose() { mControlCenter.close(); dialogForceClose(this); }

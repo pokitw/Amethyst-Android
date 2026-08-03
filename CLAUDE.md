@@ -432,6 +432,16 @@ re-litigated. The reasoning lives in the commit that made the change.
 - **In-game control center** — a sheet from the bottom, because in landscape that is where thumbs
   are. Recording is the card at the top. Force close is last, quiet, in the error colour.
   `ControlCenterHost` is the Java-facing seam.
+- **On-screen keyboard** (`ui/game/GameKeyboard.kt` + `KeyboardPanel.kt`) — replaces the keycode
+  `AlertDialog`. It **takes the control center's place** rather than opening over it, so the scrim
+  never stacks, and its scrim is lighter because the point of pressing F3 is to watch what F3 did.
+  Caps send a **GLFW keycode directly**, not an index into `EfficientAndroidLWJGLKeycode`, and
+  they carry their **character**, which is what lets the keyboard type in chat and not only fire
+  keybinds. **Any cap can be latched** by long press, which is the only way F3 + G was ever
+  reachable; latched keys are real key-downs inside the game, so `ControlCenterHost.close()` and
+  `release()` must go on releasing them. Every row's weights add up to `ROW_UNITS`; that is what
+  `scripts/check_keyboard.py` checks, along with the keycode range and that no key the old dialog
+  offered was lost.
 - **On-screen controls** — `ControlSkin` decides how a control is drawn **at draw time and never
   writes to the layout**, so turning it off gives the author's colours back. `ControlGlyphs` picks
   an icon from **the key a button sends**, not its name, so old layouts gain icons with no
@@ -556,6 +566,9 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   runs out of screen on a small display — inherent to nineteen buttons, and the layout is editable.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- The on-screen keyboard is **US layout**. The shift pairs are baked into the table because that is
+  the layout the game's own keybind names assume; a player on another physical layout gets US
+  symbols. It is landscape-only, which is safe because `MainActivity` is `sensorLandscape`.
 - **`VersionSelectorDialog` still exists** for the mod-search flow, which is the only caller left.
   The profile editor uses the Compose picker; the two should converge when mod search is redesigned.
 - A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server
@@ -625,6 +638,10 @@ Before pushing:
   button lands on screen across a grid of resolutions and button scales.
 - **Run `python3 scripts/check_crash_rules.py`** if the crash rule table changed — it tests the
   shipped patterns, parsed out of the Kotlin source, against fixture crash logs.
+- **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
+  tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
+  the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
+  can emit HTML and be screenshotted, which is how a row that does not line up gets caught.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

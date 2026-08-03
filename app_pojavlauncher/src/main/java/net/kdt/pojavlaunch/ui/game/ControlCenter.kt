@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -111,24 +112,36 @@ interface ControlCenterCallbacks {
 fun ControlCenter(
     visible: Boolean,
     editorMode: Boolean,
+    keyboard: Boolean,
+    keyboardState: GameKeyboardState,
     recording: RecordingUiState,
     callbacks: ControlCenterCallbacks,
     onDismiss: () -> Unit
 ) {
+    // The keyboard is meant to be watched through: the point of pressing F3 is to see what F3 did,
+    // and a scrim heavy enough to frame a menu would hide the answer.
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (keyboard) 0.34f else 0.62f,
+        animationSpec = tween(240, easing = FastOutSlowInEasing),
+        label = "controlCenterScrim"
+    )
+
     Box(Modifier.fillMaxSize()) {
         AnimatedVisibility(visible, enter = fadeIn(tween(220)), exit = fadeOut(tween(200))) {
             val interaction = remember { MutableInteractionSource() }
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.62f))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = scrimAlpha))
                     // No ripple: this is a dismissal target, not a control.
                     .clickable(interaction, indication = null, onClick = onDismiss)
             )
         }
 
+        // Two surfaces rather than one that swaps, so the change of mode is carried by the motion
+        // that is already here: the menu slides away and the keyboard rises in its place.
         AnimatedVisibility(
-            visible = visible,
+            visible = visible && !keyboard,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it } +
                     fadeIn(tween(180)),
@@ -136,6 +149,17 @@ fun ControlCenter(
                     fadeOut(tween(200))
         ) {
             Sheet(editorMode, recording, callbacks)
+        }
+
+        AnimatedVisibility(
+            visible = visible && keyboard,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it } +
+                    fadeIn(tween(180)),
+            exit = slideOutVertically(tween(240, easing = FastOutSlowInEasing)) { it } +
+                    fadeOut(tween(200))
+        ) {
+            KeyboardPanel(keyboardState, onDismiss)
         }
     }
 }

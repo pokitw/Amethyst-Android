@@ -606,12 +606,17 @@
     <string name="control_center_summary">%1$s · %2$d fps · %3$s</string>
     <string name="control_center_no_audio">no audio</string>
     <string name="control_center_tile_controls">Controls</string>
-    <string name="control_center_tile_keycode">Keycode</string>
+    <string name="control_center_tile_keycode">Keyboard</string>
     <string name="control_center_add_drawer">Add drawer</string>
     <string name="control_center_set_default">Set default</string>
     <string name="control_center_editing_title">Editing controls</string>
     <string name="control_center_editing_hint">Changes apply as you make them</string>
     <string name="control_center_exit_editor">Exit</string>
+
+    <!-- On-screen keyboard -->
+    <string name="control_keyboard_title">Keyboard</string>
+    <string name="control_keyboard_hint">Tap a key to send it. Hold to keep it down.</string>
+    <string name="control_keyboard_close">Close keyboard</string>
 
     <!-- Settings -->
     <string name="settings_home_subtitle">Grouped by what you came here to change</string>
