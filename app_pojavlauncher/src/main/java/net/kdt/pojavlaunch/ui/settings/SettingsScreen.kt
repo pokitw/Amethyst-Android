@@ -109,9 +109,8 @@ class SettingsEnvironment(
     val gyroAvailable: Boolean = true,
     /** Whether anything on this device can transcribe speech at all. */
     val voiceAvailable: Boolean = true,
-    /** How many jars are in the profile's mods folder, and how many of them are switched on. */
+    /** Roughly how much the profile owns, for the row that leads to it. */
     val modCount: Int = 0,
-    val modsEnabled: Int = 0,
     val notificationPermission: Boolean = true,
     val microphonePermission: Boolean = true,
     /** Who is signed in, and what they are about to play — the header says both. */
@@ -1118,19 +1117,17 @@ private fun GameFilesScreen(
         Spacer(Modifier.height(16.dp))
         SettingsCard {
             NavRow(
-                title = stringResource(R.string.mods_title),
-                description = stringResource(R.string.mods_settings_description),
-                value = if (environment.modCount == 0) stringResource(R.string.mods_settings_none)
-                else stringResource(
-                    R.string.mods_settings_count, environment.modCount, environment.modsEnabled
-                ),
-                iconRes = R.drawable.ic_x_install,
+                title = stringResource(R.string.content_title),
+                description = stringResource(R.string.content_settings_description),
+                value = if (environment.modCount == 0) null
+                else stringResource(R.string.content_settings_count, environment.modCount),
+                iconRes = R.drawable.ic_x_files,
                 onClick = actions.onMods
             )
             NavRow(
                 title = stringResource(R.string.mcl_button_open_directory),
                 description = stringResource(R.string.settings_summary_files, environment.freeSpace),
-                iconRes = R.drawable.ic_x_files,
+                iconRes = R.drawable.ic_x_install,
                 onClick = actions.onGameFiles
             )
         }

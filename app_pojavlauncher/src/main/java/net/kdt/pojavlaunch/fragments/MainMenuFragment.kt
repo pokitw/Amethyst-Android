@@ -29,8 +29,8 @@ import net.kdt.pojavlaunch.ui.home.Account
 import net.kdt.pojavlaunch.ui.home.GameProfile
 import net.kdt.pojavlaunch.ui.home.HomeActions
 import net.kdt.pojavlaunch.ui.home.HomeScreen
+import net.kdt.pojavlaunch.ContentActivity
 import net.kdt.pojavlaunch.ui.home.currentAccountName
-import net.kdt.pojavlaunch.ui.home.currentGameDirectory
 import net.kdt.pojavlaunch.ui.home.currentProfileKey
 import net.kdt.pojavlaunch.ui.home.loadAccounts
 import net.kdt.pojavlaunch.ui.home.loadProfiles
@@ -218,18 +218,15 @@ class MainMenuFragment : Fragment() {
         Tools.installMod(requireActivity(), customJavaArgs)
     }
 
+    /**
+     * The tile no longer hands the player off to a file manager and a path under `Android/data`.
+     *
+     * It opens the screen that lists what the profile actually owns — worlds, mods, packs,
+     * shaders and screenshots — which is what anyone tapping "Game files" was looking for. The
+     * folder itself is still one tap further in, for the times when only a file manager will do.
+     */
     private fun openGameFiles() {
-        val context = requireContext()
-        when {
-            // A different message on demo, since otherwise they would find the hidden demo folder.
-            Tools.isDemoProfile(context) -> Tools.hasNoOnlineProfileDialog(
-                requireActivity(),
-                getString(R.string.demo_unsupported),
-                getString(R.string.change_account)
-            )
-            !Tools.hasOnlineProfile() -> Tools.hasNoOnlineProfileDialog(requireActivity())
-            else -> Tools.openPath(context, currentGameDirectory(), false)
-        }
+        startActivity(Intent(requireContext(), ContentActivity::class.java))
     }
 
     private fun launcherActivity(): LauncherActivity? = activity as? LauncherActivity

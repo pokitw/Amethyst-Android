@@ -391,7 +391,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | --- | --- | --- |
 | Launcher home | **Compose** | `ui/home/`, hosted by `MainMenuFragment.kt` |
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
-| Mods | **Compose** | `ui/mods/`, `ModsActivity.kt` |
+| Game files (worlds, mods, packs, shaders, screenshots) | **Compose** | `ui/content/`, `ContentActivity.kt` |
 | Profile / account pickers on home | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
 | Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
@@ -481,14 +481,23 @@ re-litigated. The reasoning lives in the commit that made the change.
   needs a different refresh call and getting one wrong is invisible until a slider does nothing.
   This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
   `colorselector` package with it.
-- **Mods** (`ui/mods/`) — the profile's `mods/` folder as a screen, reached from Settings → Game
-  files. Adding one is a file picker; the jar is copied in, never a name collision overwritten.
-  Each jar is opened once and read for what it says about itself, and **the four metadata formats
-  are tried most-specific first** — a Quilt jar also ships `fabric.mod.json` and a NeoForge jar
-  also ships `mods.toml`, so the obvious order misreports both. A jar that cannot be parsed still
-  lists under its file name, because the game will still try to load it. Turning a mod off
-  **renames it to `.jar.disabled`** rather than deleting it, which is what bisecting a crash
-  actually needs. Nothing here touches the network: this is the folder, not a store.
+- **Game files** (`ui/content/`) — worlds, mods, resource packs, shader packs and screenshots as
+  **one screen**, reached from the home tile and from Settings. Both used to hand the player to a
+  file manager and a path under `Android/data`.
+  The reason it is one screen and not five is **the add button**: nobody thinks "place a file in
+  the resourcepacks directory", so the picker takes anything and **what it is decides where it
+  goes** — `.jar` is a mod, a zip with `pack.mcmeta` a resource pack, one with `shaders/` a shader
+  pack, one with `level.dat` a world, which gets unpacked. The categories are a **filter over one
+  list**, which is what lets search cross them. Rows are deliberately the same shape whatever they
+  hold; only mods carry a switch, because only a mod can be turned off in place.
+  Three things that must not be undone: **the four mod metadata formats are tried most-specific
+  first** (a Quilt jar also ships `fabric.mod.json`, a NeoForge jar also ships `mods.toml`, so the
+  obvious order misreports both); **a world's folder name is not its name**, so `level.dat` is
+  read through `NbtReader` for the real one; and **world extraction canonicalises every entry
+  path** before writing, because it is the only place in the launcher that unpacks something a
+  stranger sent. Nothing here touches the network: this is the folder, not a store.
+  The list is lazy — `LazyAppScaffold` exists because `AppScaffold` puts its content in a
+  scrolling `Column`, and a folder of four hundred screenshots cannot live in one.
 - **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
   because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
   flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and
@@ -715,6 +724,9 @@ Before pushing:
   button lands on screen across a grid of resolutions and button scales.
 - **Run `python3 scripts/check_crash_rules.py`** if the crash rule table changed — it tests the
   shipped patterns, parsed out of the Kotlin source, against fixture crash logs.
+- **Run `scripts/nbtsim/run.sh`** if `NbtReader` changed — it writes a `level.dat` shaped like a
+  real one, nested compounds and arrays and all, and reads it back through the shipped source.
+  Binary format parsing is wrong in ways reading cannot catch.
 - **Run `scripts/gyrosim/run.sh`** if gyro aiming changed — it stubs the four framework types
   `GyroControl` touches, compiles the real shipped source, and drives synthetic motion through it:
   1:1 scaling, no drift under a hardware bias, one-pixel steps on a slow turn, no added latency on

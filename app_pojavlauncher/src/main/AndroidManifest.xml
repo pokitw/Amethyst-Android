@@ -139,12 +139,12 @@
             android:label="@string/preference_recorder_title"
             android:process=":launcher"/>
 
-        <!-- The mods folder, as a screen. Launcher process: it reads jars and renames files, and
-             has nothing to do with the game. -->
+        <!-- Everything the profile owns, as a screen. Launcher process: it reads and renames
+             files and has nothing to do with the game. -->
         <activity
-            android:name=".ModsActivity"
+            android:name=".ContentActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
-            android:label="@string/mods_title"
+            android:label="@string/content_title"
             android:process=":launcher"/>
 
         <!-- The welcome. Same process as the launcher it hands over to, and not exported: it is

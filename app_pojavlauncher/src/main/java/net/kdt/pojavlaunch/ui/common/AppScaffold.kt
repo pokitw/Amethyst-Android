@@ -3,9 +3,11 @@ package net.kdt.pojavlaunch.ui.common
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -17,6 +19,10 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -138,6 +144,87 @@ fun AppScaffold(
                 Spacer(Modifier.height(6.dp))
                 content()
             }
+        }
+    }
+}
+
+/**
+ * The same screen, for a list that could be long.
+ *
+ * [AppScaffold] puts its content inside a scrolling `Column`, which composes and measures every
+ * row whether or not it is on screen. That is right for a settings page of twenty rows and wrong
+ * for a folder of four hundred screenshots, and a `LazyColumn` cannot be nested inside a scrolling
+ * `Column` at all — it would be given an infinite height to fill.
+ *
+ * So the chrome is the same and the body is lazy. The big title is the first item rather than a
+ * fixed header, which is what makes it scroll away by itself; the bar's copy of it fades in as it
+ * goes, exactly as it does above.
+ */
+@Composable
+fun LazyAppScaffold(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    state: LazyListState = rememberLazyListState(),
+    barAction: (@Composable () -> Unit)? = null,
+    content: LazyListScope.() -> Unit
+) {
+    val collapseDistance = with(LocalDensity.current) { 84.dp.toPx() }
+    // Past the first item the title is long gone, so the offset within it stops being the answer.
+    val collapse = if (state.firstVisibleItemIndex > 0) 1f
+    else (state.firstVisibleItemScrollOffset / collapseDistance).coerceIn(0f, 1f)
+
+    Column(
+        modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppBackButton(onBack)
+            Spacer(Modifier.width(4.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer { alpha = collapse }
+            )
+            if (barAction != null) barAction()
+        }
+        LazyColumn(
+            state = state,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            item(key = "appScaffoldTitle") {
+                Column(Modifier.graphicsLayer { alpha = 1f - collapse }) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (subtitle != null) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+            content()
         }
     }
 }

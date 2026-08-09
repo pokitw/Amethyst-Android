@@ -322,9 +322,10 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "folder storage worlds saves resource packs mods open"
     ),
     SettingEntry(
-        R.string.mods_title, SettingsRoute.FILES,
-        R.string.mods_settings_description, 0,
-        "mod jar fabric forge quilt neoforge install add disable", suggested = true
+        R.string.content_title, SettingsRoute.FILES,
+        R.string.content_settings_description, 0,
+        "world save mod jar resource pack shader screenshot add import fabric forge",
+        suggested = true
     ),
     SettingEntry(
         R.string.preference_download_source_title, SettingsRoute.FILES,
