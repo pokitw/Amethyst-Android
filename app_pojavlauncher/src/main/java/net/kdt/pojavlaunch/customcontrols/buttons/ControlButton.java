@@ -32,11 +32,17 @@ import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 
 import org.lwjgl.glfw.CallbackBridge;
+import java.util.Locale;
 
 @SuppressLint({"ViewConstructor", "AppCompatCustomView"})
 public class ControlButton extends TextView implements ControlInterface {
     /** How much of the shorter side the action icon takes. Sized like a Pocket Edition button. */
     private static final float GLYPH_SIZE_RATIO = 0.46f;
+
+    /** The label size a button keeps when its name already fits across it. */
+    private static final float BASE_TEXT_SP = 14f;
+    /** Below this a label stops being readable, so it wraps instead of shrinking further. */
+    private static final float MIN_TEXT_SP = 8f;
 
     private final Paint mRectPaint = new Paint();
     protected ControlData mProperties;
@@ -58,7 +64,6 @@ public class ControlButton extends TextView implements ControlInterface {
         setAllCaps(LauncherPreferences.PREF_BUTTON_ALL_CAPS);
         setTextColor(Color.WHITE);
         setPadding(4, 4, 4, 4);
-        setTextSize(14); // Nullify the default size setting
         setOutlineProvider(null); // Disable shadow casting, removing one drawing pass
 
         //setOnLongClickListener(this);
@@ -96,6 +101,43 @@ public class ControlButton extends TextView implements ControlInterface {
         // A button showing an icon shows nothing else: two things fighting for the same 50dp is
         // how the old layouts ended up with "Third\nPerson" wrapped over two lines.
         setText(mGlyph == null ? properties.name : "");
+        fitTextSize(properties);
+    }
+
+    /**
+     * Shrink a label until its longest word fits across the button.
+     *
+     * The text size used to be a flat 14sp whatever the button said, which was survivable only
+     * while every recognisable action carried an icon instead. With icons off — and they are off
+     * unless asked for — a 46dp button labelled "Keyboard" had to break the word across three
+     * lines and clipped the outer two. Wrapping between words is fine and expected; breaking
+     * inside one is the thing that reads as broken, so the longest word is what decides.
+     *
+     * Only the size changes. Nothing here touches the button's bounds, its background or its
+     * touch handling, and a button whose label already fits keeps the full 14sp.
+     */
+    private void fitTextSize(ControlData properties) {
+        setTextSize(BASE_TEXT_SP);
+        if (mGlyph != null || properties.name == null || properties.name.isEmpty()) return;
+
+        // Already in pixels, and already scaled by the user's button size, so this follows the
+        // slider without needing to know about it.
+        float available = properties.getWidth() - getPaddingLeft() - getPaddingRight();
+        if (available <= 0) return;
+
+        String longest = "";
+        for (String word : properties.name.split("\\s+")) {
+            if (word.length() > longest.length()) longest = word;
+        }
+        if (longest.isEmpty()) return;
+        // Measured as it will be drawn: capitals are wider, and they are on by default.
+        if (LauncherPreferences.PREF_BUTTON_ALL_CAPS) longest = longest.toUpperCase(Locale.ROOT);
+
+        float needed = getPaint().measureText(longest);
+        if (needed <= available) return;
+        // Floored rather than shrunk without limit: past this a label is unreadable anyway, and a
+        // word that still does not fit is better wrapped than turned into a grey smudge.
+        setTextSize(Math.max(MIN_TEXT_SP, BASE_TEXT_SP * (available / needed)));
     }
 
     private Drawable resolveGlyph(ControlData properties) {

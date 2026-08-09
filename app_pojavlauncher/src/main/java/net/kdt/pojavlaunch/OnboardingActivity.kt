@@ -48,8 +48,16 @@ class OnboardingActivity : BaseActivity() {
      *
      * The flag is written before the launcher starts so that a crash on the way in cannot put
      * someone back through the welcome a second time.
+     *
+     * The guard is not paranoia. `finish()` does not tear the activity down there and then — the
+     * window keeps input focus until the launcher's own has drawn — so an impatient second tap on
+     * Get started would start a *second* LauncherActivity. It is declared `standard`, so both
+     * would live, and the first one's LAUNCH_GAME listener is only unregistered in its onDestroy,
+     * which never runs. Pressing Play would then fire two downloads of the same version, which is
+     * exactly what the launch seam is meant to be protected from.
      */
     private fun finishOnboarding() {
+        if (isFinishing) return
         LauncherPreferences.DEFAULT_PREF.edit()
             .putBoolean(LauncherPreferences.PREF_KEY_ONBOARDING_DONE, true)
             .apply()

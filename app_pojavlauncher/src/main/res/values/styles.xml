@@ -61,11 +61,21 @@
         <item name="android:backgroundDimAmount">0.62</item>
         <item name="android:textColorPrimary">@color/primary_text</item>
         <item name="android:textColorSecondary">@color/secondary_text</item>
+        <item name="android:textColorAlertDialogListItem">@color/primary_text</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/AmethystXDialogButtonFramework</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/AmethystXDialogButtonFramework</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/AmethystXDialogButtonFramework</item>
     </style>
 
     <!-- Sentence case, not the shouty all-caps AppCompat defaults to, so the buttons read like the
          Compose ones beside them. -->
     <style name="AmethystXDialogButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/dialog_accent</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="AmethystXDialogButtonFramework" parent="@android:style/Widget.Material.Button.Borderless">
         <item name="android:textColor">@color/dialog_accent</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textStyle">bold</item>
