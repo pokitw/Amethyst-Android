@@ -143,6 +143,23 @@
     <string name="preference_recorder_audio_title">Record game audio</string>
     <string name="preference_recorder_audio_description">Needs Android 10 and a one-off capture permission</string>
     <string name="preference_recorder_audio_bitrate_title">Audio bitrate</string>
+
+    <string name="preference_screenshot_format_title">Image format</string>
+    <string name="preference_screenshot_format_description">PNG keeps every pixel and is what the game itself writes. JPEG is a fraction of the size.</string>
+    <string name="preference_screenshot_format_png">PNG</string>
+    <string name="preference_screenshot_format_jpeg">JPEG</string>
+    <string name="preference_screenshot_quality_title">JPEG quality</string>
+    <string name="preference_screenshot_quality_description">Higher looks better and takes more room. Below about 80 the sky starts to band.</string>
+    <string name="preference_screenshot_shutter_start_title">Show the shutter from the start</string>
+    <string name="preference_screenshot_shutter_start_description">It is on screen as soon as the game is, rather than switched on from the control center each time</string>
+    <string name="preference_screenshot_shutter_side_title">Which side</string>
+    <string name="preference_screenshot_shutter_side_description">Move it if your control layout already uses that edge</string>
+    <string name="preference_screenshot_shutter_side_right">Right</string>
+    <string name="preference_screenshot_shutter_side_left">Left</string>
+    <string name="preference_screenshot_shutter_size_title">Size</string>
+    <string name="preference_screenshot_shutter_size_small">Small</string>
+    <string name="preference_screenshot_shutter_size_medium">Medium</string>
+    <string name="preference_screenshot_shutter_size_large">Large</string>
     <string name="preference_recorder_estimate_title">Storage estimate</string>
     <string name="preference_recorder_estimate_summary">About %1$s per hour at these settings.\nUp to %2$s can be recorded in one clip (%3$s), then recording stops and the clip is saved.\n%4$s free.</string>
     <string name="preference_recorder_estimate_limit_file">limited by the maximum MP4 size</string>
@@ -823,7 +840,7 @@
     <string name="settings_dest_about">About Amethyst X</string>
     <string name="settings_performance_subtitle">How Minecraft runs on this device</string>
     <string name="settings_controls_subtitle">Touch, mouse, gyroscope and gamepad</string>
-    <string name="settings_recording_subtitle">What the in-game recorder captures</string>
+    <string name="settings_recording_subtitle">What the recorder and screenshots capture</string>
     <string name="settings_files_subtitle">Where the game is stored and downloaded from</string>
     <string name="settings_about_subtitle">Version, language and permissions</string>
     <string name="settings_about_blurb">A Minecraft: Java Edition launcher with a built-in gameplay recorder</string>
@@ -834,6 +851,8 @@
     <string name="settings_section_gestures">GESTURES</string>
     <string name="settings_section_video">VIDEO</string>
     <string name="settings_section_audio">AUDIO</string>
+    <string name="settings_section_screenshots">SCREENSHOTS</string>
+    <string name="settings_section_shutter">SHUTTER BUTTON</string>
     <string name="settings_section_downloads">DOWNLOADS</string>
     <string name="settings_section_cosmetics">COSMETICS</string>
     <string name="settings_section_app">APP</string>
@@ -854,7 +873,8 @@
     <string name="settings_summary_files">%1$s free</string>
     <string name="settings_summary_about">Version %1$s</string>
     <string name="settings_dest_controls">Controls</string>
-    <string name="settings_dest_recording">Recording</string>
+    <!-- Holds both the recorder and screenshots: they are the same thing at two lengths. -->
+    <string name="settings_dest_recording">Recording and screenshots</string>
     <string name="settings_section_style">BUTTON STYLE</string>
     <string name="settings_account_microsoft">Microsoft account</string>
     <string name="settings_account_local">Offline account</string>

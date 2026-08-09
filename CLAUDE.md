@@ -485,6 +485,12 @@ re-litigated. The reasoning lives in the commit that made the change.
   for the §12.9 reason, which is also why it cannot simply be dragged anywhere.
   A bound control button remains the better answer for anyone who wants one permanently; the
   shutter is that without a trip to the editor.
+  Its settings sit on the **recording** screen, now called "Recording and screenshots", because
+  the two are the same thing at two lengths and a sixth destination holding two rows would have
+  been worse than a section. Format is PNG by default — it is what the game's own F2 writes, and a
+  folder mixing the two sources should not also mix quality unless someone asked for that — and
+  the JPEG quality slider only appears once JPEG is chosen, because a slider that does nothing is
+  the one thing a settings screen must never show.
   It gets **no comparison-table row**, which is the one deliberate exception to the rule above.
   Upstream can bind F2 exactly as this can, so every honest mark would be a tie, and a table row
   that says nothing is worse than no row — the table is only worth reading because it is edited.
@@ -696,9 +702,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   button or in the control center, and it says so on screen instead of in the chat log. Anyone
   weighing up whether it earns its place should weigh it against that, not against nothing.
 - The floating shutter is placed for **the default control layout**, and a layout that puts its
-  own buttons on the right edge will have one underneath it. It can be switched off again from the
-  same row, and a bound screenshot button goes wherever its author drags it — which is the answer
-  for anyone whose layout is nothing like the default.
+  own buttons on that edge will have one underneath it. Settings move it to the other side and
+  resize it, it can be switched off from the same row that turned it on, and a bound screenshot
+  button goes wherever its author drags it — which is the answer for anyone whose layout is
+  nothing like the default.
+- Screenshot settings are read **when the game process starts**, like every other in-game setting
+  here, so changing the shutter's side or size takes effect at the next launch rather than at
+  once. The format is read per picture, since that costs nothing.
 - A screenshot **costs a `glFinish` and a full readback** on the frame it is taken, so the game
   hitches for one frame. That is the price of not touching any of the game's GL state, and it is
   paid once per picture rather than every frame like the recorder.

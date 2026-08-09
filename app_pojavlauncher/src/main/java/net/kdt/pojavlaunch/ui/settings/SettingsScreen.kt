@@ -1098,6 +1098,58 @@ private fun RecordingScreen(
                 )
             }
         }
+
+        // Screenshots live on the recording screen because they are the same thing at a different
+        // length, which is also why the control center groups them. Splitting them would have
+        // meant a sixth destination holding two rows.
+        SectionLabel(stringResource(R.string.settings_section_screenshots))
+        SettingsCard {
+            val format = store.string("screenshotFormat", "png")
+            ChoiceRow(
+                title = stringResource(R.string.preference_screenshot_format_title),
+                description = stringResource(R.string.preference_screenshot_format_description),
+                names = stringArrayResource(R.array.screenshot_format_names).toList(),
+                values = stringArrayResource(R.array.screenshot_format_values).toList(),
+                selected = format,
+                onSelect = { store.put("screenshotFormat", it) }
+            )
+            // PNG ignores the quality argument entirely, so a slider there would be a control
+            // that does nothing — the one thing a settings screen must never show.
+            if (format == "jpeg") {
+                SliderRow(
+                    title = stringResource(R.string.preference_screenshot_quality_title),
+                    description = stringResource(R.string.preference_screenshot_quality_description),
+                    value = store.int("screenshotQuality", 92),
+                    min = 40, max = 100,
+                    format = { "$it%" },
+                    onValueChange = { store.put("screenshotQuality", it) }
+                )
+            }
+        }
+
+        SectionLabel(stringResource(R.string.settings_section_shutter))
+        SettingsCard {
+            SwitchRow(
+                stringResource(R.string.preference_screenshot_shutter_start_title),
+                stringResource(R.string.preference_screenshot_shutter_start_description),
+                store.bool("screenshotShutterAtStart", false)
+            ) { store.put("screenshotShutterAtStart", it) }
+            ChoiceRow(
+                title = stringResource(R.string.preference_screenshot_shutter_side_title),
+                description = stringResource(R.string.preference_screenshot_shutter_side_description),
+                names = stringArrayResource(R.array.screenshot_shutter_side_names).toList(),
+                values = stringArrayResource(R.array.screenshot_shutter_side_values).toList(),
+                selected = store.string("screenshotShutterSide", "right"),
+                onSelect = { store.put("screenshotShutterSide", it) }
+            )
+            ChoiceRow(
+                title = stringResource(R.string.preference_screenshot_shutter_size_title),
+                names = stringArrayResource(R.array.screenshot_shutter_size_names).toList(),
+                values = stringArrayResource(R.array.screenshot_shutter_size_values).toList(),
+                selected = store.string("screenshotShutterSize", "medium"),
+                onSelect = { store.put("screenshotShutterSize", it) }
+            )
+        }
     }
 }
 

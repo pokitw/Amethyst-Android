@@ -1,5 +1,6 @@
 package net.kdt.pojavlaunch.screenshot;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.Looper;
@@ -75,11 +76,12 @@ public final class GameScreenshot {
      *
      * @param callback called on the main thread, exactly once
      */
-    public static void take(@NonNull final Callback callback) {
+    public static void take(@NonNull Context context, @NonNull final Callback callback) {
         if (busy) {
             callback.onScreenshotFailed(R.string.screenshot_failed_busy);
             return;
         }
+        final ScreenshotPreferences settings = ScreenshotPreferences.load(context);
         // Resolved here, on the caller's thread, because working it out goes through
         // LauncherProfiles — an unsynchronised static the handbook says to read on the main
         // thread (§12.7). Everything after this point is pure file and pixel work.
@@ -97,7 +99,7 @@ public final class GameScreenshot {
             public void run() {
                 File saved = null;
                 try {
-                    saved = capture(directory);
+                    saved = capture(directory, settings);
                 } catch (Throwable t) {
                     Log.e(TAG, "The screenshot could not be taken", t);
                 }
@@ -115,7 +117,8 @@ public final class GameScreenshot {
     }
 
     @Nullable
-    private static File capture(@NonNull File directory) {
+    private static File capture(@NonNull File directory,
+                                @NonNull ScreenshotPreferences settings) {
         if (!directory.exists() && !directory.mkdirs()) {
             Log.e(TAG, "Could not create " + directory);
             return null;
@@ -129,7 +132,7 @@ public final class GameScreenshot {
                 Log.e(TAG, "The renderer did not hand over a frame");
                 return null;
             }
-            return write(directory, pixels, info[0], info[1]);
+            return write(directory, settings, pixels, info[0], info[1]);
         } finally {
             // Always, including after a timeout: this is the only thing that frees the native
             // buffer and lets the next screenshot be asked for.
@@ -138,8 +141,8 @@ public final class GameScreenshot {
     }
 
     @Nullable
-    private static File write(@NonNull File directory, @NonNull ByteBuffer pixels,
-                              int width, int height) {
+    private static File write(@NonNull File directory, @NonNull ScreenshotPreferences settings,
+                              @NonNull ByteBuffer pixels, int width, int height) {
         if (width <= 0 || height <= 0) return null;
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         try {
@@ -147,11 +150,12 @@ public final class GameScreenshot {
             // what the native side kept. Nothing to swizzle.
             pixels.rewind();
             bitmap.copyPixelsFromBuffer(pixels);
-            File target = uniqueFile(directory);
+            File target = uniqueFile(directory, settings.extension());
             OutputStream out = new FileOutputStream(target);
             boolean encoded;
             try {
-                encoded = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+                encoded = bitmap.compress(
+                        settings.compressFormat(), settings.compressQuality(), out);
             } finally {
                 out.close();
             }
@@ -195,11 +199,11 @@ public final class GameScreenshot {
      * that means a folder holding both sources still reads as one sequence.
      */
     @NonNull
-    private static File uniqueFile(@NonNull File directory) {
+    private static File uniqueFile(@NonNull File directory, @NonNull String extension) {
         String stamp = new SimpleDateFormat(NAME_PATTERN, Locale.US).format(new Date());
-        File candidate = new File(directory, stamp + ".png");
+        File candidate = new File(directory, stamp + extension);
         for (int index = 1; candidate.exists() && index < 1000; index++) {
-            candidate = new File(directory, stamp + "_" + index + ".png");
+            candidate = new File(directory, stamp + "_" + index + extension);
         }
         return candidate;
     }

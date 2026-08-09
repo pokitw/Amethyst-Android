@@ -2,7 +2,9 @@ package net.kdt.pojavlaunch.ui.game
 
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -47,9 +49,11 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.screenshot.GameScreenshot
+import net.kdt.pojavlaunch.screenshot.ScreenshotPreferences
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 import net.kdt.pojavlaunch.ui.theme.SlotWell
 import java.io.File
@@ -86,6 +90,14 @@ class ScreenshotHost(
     private val view: ComposeView,
     private val shutterView: ComposeView
 ) {
+    /**
+     * The screenshot settings as they stood when the game launched.
+     *
+     * Read once, here, rather than per capture: the game is its own process and these cannot
+     * change under it, and reading the shutter's side and size per frame to lay out a button
+     * would be exactly the mistake §16.11 records.
+     */
+    private val settings = ScreenshotPreferences.load(shutterView.context)
 
     /**
      * The last thing said, kept after it has been dismissed.
@@ -114,9 +126,21 @@ class ScreenshotHost(
         shutterView.setViewCompositionStrategy(
             ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
         )
-        shutterView.setContent {
-            AmethystXTheme { Shutter(shutter, ::take) { applyShutter(false) } }
+        // Which edge it hangs off is a layout property, not something the composition can decide:
+        // the view is wrap_content so that the rest of the screen still receives touches, and a
+        // wrap_content view cannot move itself within a parent it does not fill.
+        (shutterView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            params.gravity = Gravity.CENTER_VERTICAL or
+                    (if (settings.shutterOnLeft()) Gravity.START else Gravity.END)
+            shutterView.layoutParams = params
         }
+        shutterView.setContent {
+            AmethystXTheme {
+                Shutter(shutter, settings.shutterDiameterDp().dp, settings.shutterOnLeft(),
+                    ::take) { applyShutter(false) }
+            }
+        }
+        if (settings.shutterAtStart) applyShutter(true)
     }
 
     /** Whether the floating shutter is on screen, so the control center can say so. */
@@ -142,7 +166,7 @@ class ScreenshotHost(
 
     /** Capture the frame the game is presenting, then report where it went. */
     fun take() {
-        GameScreenshot.take(object : GameScreenshot.Callback {
+        GameScreenshot.take(view.context, object : GameScreenshot.Callback {
             override fun onScreenshotSaved(file: File) {
                 show(ScreenshotMessage(R.string.screenshot_saved, file.name, true))
             }
@@ -195,17 +219,26 @@ private class ScreenshotMessage(val titleRes: Int, val detail: String?, val ok: 
  * the game and taking a screenshot must never cost a swing of the pickaxe.
  */
 @Composable
-private fun Shutter(visible: Boolean, onCapture: () -> Unit, onClose: () -> Unit) {
+private fun Shutter(
+    visible: Boolean,
+    diameter: Dp,
+    onLeft: Boolean,
+    onCapture: () -> Unit,
+    onClose: () -> Unit
+) {
     val colors = MaterialTheme.colorScheme
+    // Slides out of the edge it lives on, so it reads as having come from there rather than
+    // across the screen the player is trying to look at.
+    val fromEdge: (Int) -> Int = { if (onLeft) -it else it }
     AnimatedVisibility(
         visible = visible,
-        enter = slideInHorizontally(tween(240, easing = FastOutSlowInEasing)) { it } +
+        enter = slideInHorizontally(tween(240, easing = FastOutSlowInEasing), fromEdge) +
                 fadeIn(tween(180)),
-        exit = slideOutHorizontally(tween(200, easing = FastOutSlowInEasing)) { it } +
+        exit = slideOutHorizontally(tween(200, easing = FastOutSlowInEasing), fromEdge) +
                 fadeOut(tween(180))
     ) {
         Column(
-            Modifier.padding(end = 10.dp),
+            Modifier.padding(start = if (onLeft) 10.dp else 0.dp, end = if (onLeft) 0.dp else 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -234,7 +267,7 @@ private fun Shutter(visible: Boolean, onCapture: () -> Unit, onClose: () -> Unit
             )
             Box(
                 Modifier
-                    .size(58.dp)
+                    .size(diameter)
                     .clip(CircleShape)
                     // Faintly filled rather than transparent, so the ring still reads against a
                     // bright sky — the same problem the filled control glyphs exist for.
@@ -248,9 +281,11 @@ private fun Shutter(visible: Boolean, onCapture: () -> Unit, onClose: () -> Unit
                     ),
                 contentAlignment = Alignment.Center
             ) {
+                // The disc keeps its share of whatever diameter was chosen, so the ring stays a
+                // ring at every size rather than closing up at the small one.
                 Box(
                     Modifier
-                        .size(42.dp * inner)
+                        .size(diameter * 0.72f * inner)
                         .clip(CircleShape)
                         .background(colors.primary)
                 )

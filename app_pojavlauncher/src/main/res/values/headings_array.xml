@@ -66,6 +66,35 @@
         <item>256</item>
     </string-array>
 
+    <string-array name="screenshot_format_names">
+        <item>@string/preference_screenshot_format_png</item>
+        <item>@string/preference_screenshot_format_jpeg</item>
+    </string-array>
+    <string-array name="screenshot_format_values">
+        <item>png</item>
+        <item>jpeg</item>
+    </string-array>
+
+    <string-array name="screenshot_shutter_side_names">
+        <item>@string/preference_screenshot_shutter_side_right</item>
+        <item>@string/preference_screenshot_shutter_side_left</item>
+    </string-array>
+    <string-array name="screenshot_shutter_side_values">
+        <item>right</item>
+        <item>left</item>
+    </string-array>
+
+    <string-array name="screenshot_shutter_size_names">
+        <item>@string/preference_screenshot_shutter_size_small</item>
+        <item>@string/preference_screenshot_shutter_size_medium</item>
+        <item>@string/preference_screenshot_shutter_size_large</item>
+    </string-array>
+    <string-array name="screenshot_shutter_size_values">
+        <item>small</item>
+        <item>medium</item>
+        <item>large</item>
+    </string-array>
+
     <string-array name="renderer_values">
         <item>opengles2</item> <!-- BZLZHH/NG-GL4ES (Krypton Wrapper) -->
         <item>opengles3_desktopgl_zink_kopper</item> <!-- Swung's Kopper Zink backport to 23.0.4 -->
