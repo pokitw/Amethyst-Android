@@ -233,14 +233,14 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "gyroscope motion aim speed"
     ),
     SettingEntry(
-        R.string.preference_gyro_sample_rate_title, SettingsRoute.CONTROLS,
-        R.string.preference_gyro_sample_rate_description, R.string.preference_category_gyro_controls,
-        "gyroscope polling rate smooth"
+        R.string.preference_gyro_space_title, SettingsRoute.CONTROLS,
+        R.string.preference_gyro_space_description, R.string.preference_category_gyro_controls,
+        "gyroscope tilt player space lying down flat orientation"
     ),
     SettingEntry(
         R.string.preference_gyro_smoothing_title, SettingsRoute.CONTROLS,
         R.string.preference_gyro_smoothing_description, R.string.preference_category_gyro_controls,
-        "gyroscope jitter filter"
+        "gyroscope jitter filter shake steady"
     ),
     SettingEntry(
         R.string.preference_gyro_invert_x_axis, SettingsRoute.CONTROLS,

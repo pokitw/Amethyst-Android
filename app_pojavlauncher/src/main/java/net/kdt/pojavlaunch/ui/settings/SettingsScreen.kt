@@ -949,27 +949,30 @@ private fun ControlsScreen(
                     store.bool("enableGyro", false)
                 ) { store.put("enableGyro", it) }
                 if (store.bool("enableGyro", false)) {
+                    // Resolved out here because a slider's formatter is a plain lambda, not a
+                    // composable, so it cannot reach for a string resource itself.
+                    val steadinessOff = stringResource(R.string.global_off)
                     SliderRow(
                         title = stringResource(R.string.preference_gyro_sensitivity_title),
                         description = stringResource(R.string.preference_gyro_sensitivity_description),
                         value = store.int("gyroSensitivity", 100),
-                        min = 25, max = 300, step = 5,
+                        min = 25, max = 400, step = 5,
                         format = { "$it%" },
                         onValueChange = { store.put("gyroSensitivity", it) }
                     )
-                    SliderRow(
-                        title = stringResource(R.string.preference_gyro_sample_rate_title),
-                        description = stringResource(R.string.preference_gyro_sample_rate_description),
-                        value = store.int("gyroSampleRate", 16),
-                        min = 5, max = 50,
-                        format = { "$it ms" },
-                        onValueChange = { store.put("gyroSampleRate", it) }
-                    )
                     SwitchRow(
-                        stringResource(R.string.preference_gyro_smoothing_title),
-                        stringResource(R.string.preference_gyro_smoothing_description),
-                        store.bool("gyroSmoothing", true)
-                    ) { store.put("gyroSmoothing", it) }
+                        stringResource(R.string.preference_gyro_space_title),
+                        stringResource(R.string.preference_gyro_space_description),
+                        store.bool("gyroPlayerSpace", true)
+                    ) { store.put("gyroPlayerSpace", it) }
+                    SliderRow(
+                        title = stringResource(R.string.preference_gyro_smoothing_title),
+                        description = stringResource(R.string.preference_gyro_smoothing_description),
+                        value = store.int("gyroSmoothingLevel", 40),
+                        min = 0, max = 100, step = 5,
+                        format = { if (it == 0) steadinessOff else "$it%" },
+                        onValueChange = { store.put("gyroSmoothingLevel", it) }
+                    )
                     SwitchRow(
                         stringResource(R.string.preference_gyro_invert_x_axis),
                         stringResource(R.string.preference_gyro_invert_x_axis_description),

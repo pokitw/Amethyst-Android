@@ -278,8 +278,10 @@
     <string name="preference_gyro_invert_y_axis">Invert Y axis</string>
     <string name="preference_gyro_invert_x_axis_description">Invert the horizontal axis.</string>
     <string name="preference_gyro_invert_y_axis_description">Invert the vertical axis.</string>
-    <string name="preference_gyro_smoothing_title">Enable gyroscope smoothing</string>
-    <string name="preference_gyro_smoothing_description">Reduce jitter in exchange of latency.</string>
+    <string name="preference_gyro_smoothing_title">Steadiness</string>
+    <string name="preference_gyro_smoothing_description">Smooths out hand shake. Only the smallest movements are averaged, so deliberate turns are never delayed.</string>
+    <string name="preference_gyro_space_title">Tilt-aware turning</string>
+    <string name="preference_gyro_space_description">Turns around the world\'s vertical axis rather than the phone\'s, so aiming still works with the phone tilted back or lying nearly flat. Off, it reads the screen\'s own axis, like most mobile shooters.</string>
 
     <string name="preference_back_title">Back to the last screen</string>
     <string name="unnamed">Unnamed</string>
@@ -320,7 +322,7 @@
     <string name="preference_enable_gyro_title">Enable gyroscope controls</string>
     <string name="preference_enable_gyro_description">Enabling this will allow you to turn in-game by turning your phone.</string>
     <string name="preference_gyro_sensitivity_title">Gyroscope controls sensitivity</string>
-    <string name="preference_gyro_sensitivity_description">Adjust the sensitivity of gyroscope controls.</string>
+    <string name="preference_gyro_sensitivity_description">At 100% the view turns by as much as you turned the phone, assuming the game\'s own mouse sensitivity is at its default.</string>
     <string name="toast_turn_on_gyro">Enable gyroscope controls first to use this!</string>
     <string name="preference_gyro_sample_rate_title">Gyroscope sampling rate</string>
     <string name="preference_gyro_sample_rate_description">If you have performance issues with gyroscope controls, increase this.</string>

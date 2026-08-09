@@ -57,8 +57,9 @@ public class LauncherPreferences {
 
     public static boolean PREF_ENABLE_GYRO = false;
     public static float PREF_GYRO_SENSITIVITY = 1f;
-    public static int PREF_GYRO_SAMPLE_RATE = 16;
-    public static boolean PREF_GYRO_SMOOTHING = true;
+    /** 0 for none, 100 for the longest window. Not the old boolean, hence the new key. */
+    public static int PREF_GYRO_SMOOTHING = 40;
+    public static boolean PREF_GYRO_PLAYER_SPACE = true;
     public static boolean PREF_GYRO_INVERT_X = false;
     public static boolean PREF_GYRO_INVERT_Y = false;
 
@@ -112,8 +113,8 @@ public class LauncherPreferences {
         PREF_SCALE_FACTOR = DEFAULT_PREF.getInt("resolutionRatio", findBestResolution(ctx, isDevicePowerful))/100f;
         PREF_ENABLE_GYRO = DEFAULT_PREF.getBoolean("enableGyro", false);
         PREF_GYRO_SENSITIVITY = ((float)DEFAULT_PREF.getInt("gyroSensitivity", 100))/100f;
-        PREF_GYRO_SAMPLE_RATE = DEFAULT_PREF.getInt("gyroSampleRate", 16);
-        PREF_GYRO_SMOOTHING = DEFAULT_PREF.getBoolean("gyroSmoothing", true);
+        PREF_GYRO_SMOOTHING = DEFAULT_PREF.getInt("gyroSmoothingLevel", 40);
+        PREF_GYRO_PLAYER_SPACE = DEFAULT_PREF.getBoolean("gyroPlayerSpace", true);
         PREF_GYRO_INVERT_X = DEFAULT_PREF.getBoolean("gyroInvertX", false);
         PREF_GYRO_INVERT_Y = DEFAULT_PREF.getBoolean("gyroInvertY", false);
         PREF_FORCE_VSYNC = DEFAULT_PREF.getBoolean("force_vsync", isDevicePowerful);

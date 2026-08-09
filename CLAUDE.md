@@ -489,6 +489,18 @@ re-litigated. The reasoning lives in the commit that made the change.
   lists under its file name, because the game will still try to load it. Turning a mod off
   **renames it to `.jar.disabled`** rather than deleting it, which is what bisecting a crash
   actually needs. Nothing here touches the network: this is the folder, not a store.
+- **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
+  because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
+  flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and
+  then jumping two pixels; the threshold was there to hide drift. It now reads **raw angular
+  velocity** at the fastest rate the device offers, integrates against the **measured** interval
+  between samples so the feel is rate-independent, and **calibrates the bias away** instead of
+  hiding it. Sub-pixel movement survives because `CallbackBridge.mouseX` is a float and the
+  bridge floors only at `GLFW_invoke_CursorPos`. Yaw is taken **around gravity, not around the
+  screen** (Jibb Smart's player space, relax factor 2), so aiming still works with the phone
+  tilted back or flat — the case local space, and every mobile shooter that uses it, gets wrong.
+  Smoothing is **tiered**: only movements below ~1.5°/s are averaged, so shake is removed and a
+  flick is not delayed. 100% sensitivity is **1:1** with the view.
 - **Sign-in** — one screen, not two. Microsoft carries the gradient and offline is quieter beneath
   it, because they are not equal choices: offline cannot join a server. The username is asked for
   in place, validated as it is typed. Microsoft still hands off to `MicrosoftLoginFragment`, and an
@@ -632,7 +644,15 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server
   reads a skin from, and an offline account has no profile to attach one to. Any skin editor has
   to say so rather than appearing to work and silently doing nothing.
-- No automated tests. There is no test harness in the project and no device in CI.
+- Gyro aiming is **verified by simulation, not on hardware** (`scripts/gyrosim/`). The maths and
+  the axis mapping are checked; what a real MEMS gyroscope's noise floor feels like in the hand is
+  not, and neither is the cost of 400Hz sensor callbacks on a weak device.
+- Gyro aiming has **no acceleration curve**. Deliberate: the goal is to feel like a mouse, and a
+  mouse has none. A "quick turn" boost for large movements is a reasonable thing to want and is
+  not built.
+- The gyro's 100% is now **1:1**, which is roughly 38% of what 100% used to mean. Anyone who had
+  tuned the slider has to raise it once; the range goes to 400% so the old feel is still reachable.
+- No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
 
@@ -695,6 +715,11 @@ Before pushing:
   button lands on screen across a grid of resolutions and button scales.
 - **Run `python3 scripts/check_crash_rules.py`** if the crash rule table changed — it tests the
   shipped patterns, parsed out of the Kotlin source, against fixture crash logs.
+- **Run `scripts/gyrosim/run.sh`** if gyro aiming changed — it stubs the four framework types
+  `GyroControl` touches, compiles the real shipped source, and drives synthetic motion through it:
+  1:1 scaling, no drift under a hardware bias, one-pixel steps on a slow turn, no added latency on
+  a flick, player space vs local space, and two sample rates agreeing. There is no device in CI, so
+  this is the only thing that can catch a sign error or a broken integration before a user does.
 - **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
