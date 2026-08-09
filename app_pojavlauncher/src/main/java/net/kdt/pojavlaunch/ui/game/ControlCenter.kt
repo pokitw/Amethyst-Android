@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -24,17 +25,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -46,6 +48,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -161,42 +164,67 @@ private fun Sheet(
         shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            Modifier
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
+        // The game is landscape, so the sheet has width to spare and almost no height. Left to
+        // stack, the card, the capture row, the tiles and force close come to more than a phone
+        // is tall and the sheet covers the whole screen — which is the one thing a sheet over a
+        // running game must not do. Past 600dp of width it lays out in two columns instead, and
+        // the cap is raised to let them be real columns rather than two narrow ones.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val twoColumns = maxWidth >= 600.dp
+            val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+            Column(
                 Modifier
-                    .width(34.dp)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.outline)
-            )
-            Spacer(Modifier.height(12.dp))
-            // In landscape the sheet is far wider than the content wants to be; capping it keeps
-            // the tiles square-ish instead of stretching them across the whole display.
-            Column(Modifier.widthIn(max = 620.dp)) {
-                if (editorMode) {
-                    EditorBanner(callbacks::onEditorShare, callbacks::onEditorExit)
-                    Spacer(Modifier.height(12.dp))
-                    EditorActions(callbacks)
-                } else {
-                    RecordingCard(recording, callbacks::onToggleRecording)
-                    // Directly under recording rather than as a fifth tile in the hotbar: the two
-                    // are the same thing at two lengths, and a row of five tiles reads as a
-                    // drawer of settings rather than as the two ways of capturing what you see.
-                    Spacer(Modifier.height(10.dp))
-                    ScreenshotRows(
-                        shutterOn,
-                        callbacks::onScreenshot,
-                        callbacks::onToggleShutter
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    GameActions(callbacks)
-                    ForceClose(callbacks::onForceClose)
+                    .align(Alignment.TopCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 14.dp)
+                    // A backstop, not the plan: on a screen too short even for the two-column
+                    // layout the sheet stops here and scrolls, so nothing is ever unreachable.
+                    .heightIn(max = screenHeight * 0.8f)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    Modifier
+                        .width(34.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.outline)
+                )
+                Spacer(Modifier.height(12.dp))
+                Column(Modifier.widthIn(max = if (twoColumns) 900.dp else 620.dp)) {
+                    when {
+                        editorMode -> EditorLayout(twoColumns, callbacks)
+                        twoColumns -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                RecordingCard(recording, callbacks::onToggleRecording)
+                                CaptureCard(
+                                    shutterOn,
+                                    callbacks::onScreenshot,
+                                    callbacks::onToggleShutter
+                                )
+                            }
+                            Column(Modifier.weight(1f)) {
+                                GameActions(callbacks)
+                                ForceClose(callbacks::onForceClose)
+                            }
+                        }
+                        else -> Column {
+                            RecordingCard(recording, callbacks::onToggleRecording)
+                            Spacer(Modifier.height(10.dp))
+                            CaptureCard(
+                                shutterOn,
+                                callbacks::onScreenshot,
+                                callbacks::onToggleShutter
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            GameActions(callbacks)
+                            ForceClose(callbacks::onForceClose)
+                        }
+                    }
                 }
             }
         }
@@ -302,77 +330,39 @@ private fun RecordingCard(state: RecordingUiState, onToggle: () -> Unit) {
 }
 
 /**
- * Stills, for when a video is more than you wanted. Two rows sharing one surface.
+ * Stills, for when a video is more than you wanted. One card, two ways in.
  *
- * <b>Both ways, because they answer different questions.</b> The first takes the picture now,
+ * <b>Both, because they answer different questions.</b> The row itself takes the picture now,
  * which is what you want when the thing worth keeping is already on screen and you only came in
- * here to say so. The second puts a shutter over the running game, which is what you want when
- * you need to see the shot before taking it — this sheet is covering the very thing being
- * photographed, and no arrangement of it will ever fix that.
+ * here to say so. The button on the end puts a shutter over the running game, which is what you
+ * want when you need to see the shot before taking it — this sheet is covering the very thing
+ * being photographed, and no arrangement of it will ever fix that.
+ *
+ * One card rather than two rows because they are one subject, and because vertical space in
+ * landscape is the thing this sheet has least of.
  *
  * Quiet on purpose. The gradient above is the sheet's one bold element and this sits directly
  * underneath, so it borrows the grouping without competing for it.
  */
 @Composable
-private fun ScreenshotRows(
+private fun CaptureCard(
     shutterOn: Boolean,
     onScreenshot: () -> Unit,
     onToggleShutter: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    Column(
+    Row(
         Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(colors.surfaceContainerLow)
-    ) {
-        CaptureRow(
-            iconRes = R.drawable.ic_x_camera,
-            title = stringResource(R.string.control_center_screenshot),
-            hint = stringResource(R.string.control_center_screenshot_hint),
-            onClick = onScreenshot
-        )
-        CaptureRow(
-            iconRes = R.drawable.ic_x_shutter,
-            title = stringResource(R.string.control_center_shutter),
-            hint = stringResource(
-                if (shutterOn) R.string.control_center_shutter_hint_on
-                else R.string.control_center_shutter_hint
-            ),
-            onClick = onToggleShutter
-        ) {
-            Switch(
-                checked = shutterOn,
-                onCheckedChange = { onToggleShutter() },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Amethyst20,
-                    checkedTrackColor = colors.primary
-                )
-            )
-        }
-    }
-}
-
-/** One row of the capture group: a slot well, two lines, and whatever control it needs. */
-@Composable
-private fun CaptureRow(
-    iconRes: Int,
-    title: String,
-    hint: String,
-    onClick: () -> Unit,
-    trailing: (@Composable () -> Unit)? = null
-) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 15.dp, vertical = 12.dp),
+            .clickable(onClick = onScreenshot)
+            .padding(start = 15.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SlotWell {
             Icon(
-                painterResource(iconRes),
+                painterResource(R.drawable.ic_x_camera),
                 contentDescription = null,
                 tint = colors.primary,
                 modifier = Modifier.size(21.dp)
@@ -380,18 +370,42 @@ private fun CaptureRow(
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
             Text(
-                hint,
+                stringResource(R.string.control_center_screenshot),
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.onSurface
+            )
+            Text(
+                stringResource(
+                    if (shutterOn) R.string.control_center_shutter_hint_on
+                    else R.string.control_center_shutter_hint
+                ),
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        if (trailing != null) {
-            Spacer(Modifier.width(12.dp))
-            trailing()
+        Spacer(Modifier.width(10.dp))
+        // Its own target inside the row, and filled when it is on, because it is the one control
+        // here whose state you cannot see from the sheet — the thing it turns on is behind it.
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .background(if (shutterOn) colors.primary else colors.surfaceContainerHigh)
+                .clickable(
+                    onClick = onToggleShutter,
+                    onClickLabel = stringResource(R.string.control_center_shutter)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_x_shutter),
+                contentDescription = stringResource(R.string.control_center_shutter),
+                tint = if (shutterOn) Amethyst20 else colors.onSurfaceVariant,
+                modifier = Modifier.size(21.dp)
+            )
         }
     }
 }
@@ -458,33 +472,68 @@ private fun GameActions(callbacks: ControlCenterCallbacks) {
     }
 }
 
-/** The same grid, holding what the control layout editor needs while it is open. */
+/**
+ * The editor's half of the sheet.
+ *
+ * Six tiles in one row where there is room for them, two rows of three where there is not. The
+ * banner stays across the top either way — it is a sentence, and a sentence in a column half the
+ * width would wrap to four lines and cost more height than the row it saved.
+ */
 @Composable
-private fun EditorActions(callbacks: ControlCenterCallbacks) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionTile(
-                R.drawable.ic_x_add_button, R.string.customctrl_addbutton,
-                callbacks::onEditorAddButton
-            )
-            ActionTile(
-                R.drawable.ic_x_add_drawer, R.string.control_center_add_drawer,
-                callbacks::onEditorAddDrawer
-            )
-            ActionTile(
-                R.drawable.ic_x_joystick, R.string.customctrl_addbutton_joystick,
-                callbacks::onEditorAddJoystick
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ActionTile(R.drawable.ic_x_files, R.string.global_load, callbacks::onEditorLoad)
-            ActionTile(R.drawable.ic_x_install, R.string.global_save, callbacks::onEditorSave)
-            ActionTile(
-                R.drawable.ic_x_star, R.string.control_center_set_default,
-                callbacks::onEditorSetDefault
-            )
+private fun EditorLayout(twoColumns: Boolean, callbacks: ControlCenterCallbacks) {
+    Column {
+        EditorBanner(callbacks::onEditorShare, callbacks::onEditorExit)
+        Spacer(Modifier.height(12.dp))
+        if (twoColumns) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { EditorTiles(callbacks) }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ActionTile(
+                        R.drawable.ic_x_add_button, R.string.customctrl_addbutton,
+                        callbacks::onEditorAddButton
+                    )
+                    ActionTile(
+                        R.drawable.ic_x_add_drawer, R.string.control_center_add_drawer,
+                        callbacks::onEditorAddDrawer
+                    )
+                    ActionTile(
+                        R.drawable.ic_x_joystick, R.string.customctrl_addbutton_joystick,
+                        callbacks::onEditorAddJoystick
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ActionTile(R.drawable.ic_x_files, R.string.global_load, callbacks::onEditorLoad)
+                    ActionTile(
+                        R.drawable.ic_x_install, R.string.global_save, callbacks::onEditorSave
+                    )
+                    ActionTile(
+                        R.drawable.ic_x_star, R.string.control_center_set_default,
+                        callbacks::onEditorSetDefault
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun RowScope.EditorTiles(callbacks: ControlCenterCallbacks) {
+    ActionTile(
+        R.drawable.ic_x_add_button, R.string.customctrl_addbutton, callbacks::onEditorAddButton
+    )
+    ActionTile(
+        R.drawable.ic_x_add_drawer, R.string.control_center_add_drawer, callbacks::onEditorAddDrawer
+    )
+    ActionTile(
+        R.drawable.ic_x_joystick, R.string.customctrl_addbutton_joystick,
+        callbacks::onEditorAddJoystick
+    )
+    ActionTile(R.drawable.ic_x_files, R.string.global_load, callbacks::onEditorLoad)
+    ActionTile(R.drawable.ic_x_install, R.string.global_save, callbacks::onEditorSave)
+    ActionTile(
+        R.drawable.ic_x_star, R.string.control_center_set_default, callbacks::onEditorSetDefault
+    )
 }
 
 @Composable

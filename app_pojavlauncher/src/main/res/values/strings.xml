@@ -630,10 +630,9 @@
     <string name="control_center_summary">%1$s · %2$d fps · %3$s</string>
     <string name="control_center_no_audio">no audio</string>
     <string name="control_center_screenshot">Take a screenshot</string>
-    <string name="control_center_screenshot_hint">Just the game — none of the buttons</string>
     <string name="control_center_shutter">Shutter button</string>
-    <string name="control_center_shutter_hint">Put one on screen, so you can see the shot</string>
-    <string name="control_center_shutter_hint_on">On screen. Hold it to move it anywhere</string>
+    <string name="control_center_shutter_hint">Just the game. Pin a shutter to see the shot first</string>
+    <string name="control_center_shutter_hint_on">Shutter is on screen — hold it to move it</string>
     <string name="control_center_tile_controls">Controls</string>
     <string name="control_center_tile_keycode">Keyboard</string>
     <string name="control_center_add_drawer">Add drawer</string>

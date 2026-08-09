@@ -449,6 +449,13 @@ re-litigated. The reasoning lives in the commit that made the change.
 - **In-game control center** — a sheet from the bottom, because in landscape that is where thumbs
   are. Recording is the card at the top. Force close is last, quiet, in the error colour.
   `ControlCenterHost` is the Java-facing seam.
+  **It lays out in two columns past 600dp of width**, and that is not a tablet affordance: the
+  game is landscape, so the sheet has width to spare and almost no height, and stacked it grew
+  past what a phone is tall and covered the whole screen — the one thing a sheet over a running
+  game must not do. Anything added to it has to be measured in the height it costs, which is also
+  why capture is **one card with two targets** (the row takes the picture, the button on the end
+  pins the shutter) rather than a row each. There is a `heightIn` cap and a scroll behind all of
+  it as a backstop, so a screen too short even for two columns loses nothing.
 - **On-screen keyboard** (`ui/game/GameKeyboard.kt` + `KeyboardPanel.kt` + `GameKeyboardHost.kt`)
   — replaces the keycode `AlertDialog`. It has **its own bottom-anchored `ComposeView`**, not the
   control center's full-screen one, so the game stays visible *and touchable* above it and it
