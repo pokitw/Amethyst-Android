@@ -29,6 +29,8 @@ class ControlCenterHost(
     // Named apart from setEditorMode(): a property of that name would generate the same JVM setter.
     private var editing by mutableStateOf(false)
     private var recording by mutableStateOf(RecordingUiState())
+    // Named apart from setShutterOn(): a property of that name would clash with it on the JVM.
+    private var shutter by mutableStateOf(false)
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -53,7 +55,7 @@ class ControlCenterHost(
         )
         sheetView.setContent {
             AmethystXTheme {
-                ControlCenter(visible, editing, recording, callbacks, ::close)
+                ControlCenter(visible, editing, recording, shutter, callbacks, ::close)
             }
         }
         pillView.setViewCompositionStrategy(
@@ -83,6 +85,16 @@ class ControlCenterHost(
     /** Swap the actions for the ones the control layout editor needs while it is open. */
     fun setEditorMode(editor: Boolean) {
         editing = editor
+    }
+
+    /**
+     * Whether the floating shutter is on screen.
+     *
+     * The sheet only reads this; the shutter itself lives in its own host, because it has to
+     * outlive the sheet — the whole point of it is being there once this has gone.
+     */
+    fun applyShutterOn(on: Boolean) {
+        shutter = on
     }
 
     /**

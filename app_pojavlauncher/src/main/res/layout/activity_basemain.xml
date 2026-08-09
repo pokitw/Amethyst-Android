@@ -157,6 +157,30 @@
 			android:visibility="gone"/>
 
 		<!--
+			The shutter, for framing a screenshot with the game actually in view.
+
+			Anchored to the right edge because that is the one part of the screen the default
+			layout leaves alone: the top row and both bottom corners are full of buttons, and the
+			middle is where you are looking.
+
+			Lifted 40dp above the vertical centre, which is not decoration. FrameLayout offsets a
+			centred child by (topMargin - bottomMargin), and dead centre on a short landscape
+			screen lands on top of the sneak button — the free band on that edge runs from under
+			the top row down to the bottom cluster, and its middle is above the screen's.
+
+			Sized to its content, so the rest of the screen stays playable. A match_parent view
+			here would take every touch the game is waiting for (§12.9), which is also why it
+			cannot simply be dragged anywhere.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/screenshot_shutter"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="end|center_vertical"
+			android:layout_marginBottom="40dp"
+			android:visibility="gone"/>
+
+		<!--
 			The control center itself. Stretched over the game, so it stays GONE while closed:
 			visible it would sit in front of every touch the game is waiting for.
 		-->

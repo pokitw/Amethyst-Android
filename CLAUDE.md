@@ -477,6 +477,14 @@ re-litigated. The reasoning lives in the commit that made the change.
   of buffer** — tightly packed, top-down, opaque RGBA — so `Bitmap.copyPixelsFromBuffer` takes it
   with nothing said about strides, row order or alpha, and there is no second place for those to
   be got wrong.
+  **The control center does not take the picture; it hands over a shutter.** Capturing from inside
+  the sheet photographs the one moment the player cannot see, because the sheet is over it — so
+  the row is a switch, and what it switches on is a round shutter floating over the running game.
+  It sits on the right edge, 40dp above centre: that edge is the only part the default layout
+  leaves alone, and dead centre lands on the sneak button on a short screen. It is `wrap_content`
+  for the §12.9 reason, which is also why it cannot simply be dragged anywhere.
+  A bound control button remains the better answer for anyone who wants one permanently; the
+  shutter is that without a trip to the editor.
   It gets **no comparison-table row**, which is the one deliberate exception to the rule above.
   Upstream can bind F2 exactly as this can, so every honest mark would be a tie, and a table row
   that says nothing is worse than no row — the table is only worth reading because it is edited.
@@ -687,6 +695,10 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   is that it does not go through the game: no keybind to know or to lose to a modpack, one tap on a
   button or in the control center, and it says so on screen instead of in the chat log. Anyone
   weighing up whether it earns its place should weigh it against that, not against nothing.
+- The floating shutter is placed for **the default control layout**, and a layout that puts its
+  own buttons on the right edge will have one underneath it. It can be switched off again from the
+  same row, and a bound screenshot button goes wherever its author drags it — which is the answer
+  for anyone whose layout is nothing like the default.
 - A screenshot **costs a `glFinish` and a full readback** on the frame it is taken, so the game
   hitches for one frame. That is the price of not touching any of the game's GL state, and it is
   paid once per picture rather than every frame like the recorder.

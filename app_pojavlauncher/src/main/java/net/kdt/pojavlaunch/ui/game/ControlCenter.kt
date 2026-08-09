@@ -33,6 +33,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -113,6 +115,7 @@ fun ControlCenter(
     visible: Boolean,
     editorMode: Boolean,
     recording: RecordingUiState,
+    shutterOn: Boolean,
     callbacks: ControlCenterCallbacks,
     onDismiss: () -> Unit
 ) {
@@ -136,7 +139,7 @@ fun ControlCenter(
             exit = slideOutVertically(tween(240, easing = FastOutSlowInEasing)) { it } +
                     fadeOut(tween(200))
         ) {
-            Sheet(editorMode, recording, callbacks)
+            Sheet(editorMode, recording, shutterOn, callbacks)
         }
     }
 }
@@ -145,6 +148,7 @@ fun ControlCenter(
 private fun Sheet(
     editorMode: Boolean,
     recording: RecordingUiState,
+    shutterOn: Boolean,
     callbacks: ControlCenterCallbacks
 ) {
     Surface(
@@ -180,7 +184,7 @@ private fun Sheet(
                     // are the same thing at two lengths, and a row of five tiles reads as a
                     // drawer of settings rather than as the two ways of capturing what you see.
                     Spacer(Modifier.height(10.dp))
-                    ScreenshotRow(callbacks::onScreenshot)
+                    ScreenshotRow(shutterOn, callbacks::onScreenshot)
                     Spacer(Modifier.height(12.dp))
                     GameActions(callbacks)
                     ForceClose(callbacks::onForceClose)
@@ -291,18 +295,24 @@ private fun RecordingCard(state: RecordingUiState, onToggle: () -> Unit) {
 /**
  * A still, for when a video is more than you wanted.
  *
- * Quiet on purpose. The gradient above it is the sheet's one bold element and this sits directly
- * underneath, so it borrows the grouping without competing for it — the same relationship a
- * secondary action has with a primary one everywhere else in the launcher.
+ * <b>It puts a shutter on screen rather than taking the picture itself.</b> Taking it from here
+ * would photograph the moment this sheet is covering, which is the one moment you cannot see —
+ * so what the row does is hand you a shutter over the running game and get out of the way. It
+ * reads as a switch for exactly that reason: the sheet is where things are turned on, the game is
+ * where they happen, and recording directly above it works the same way.
+ *
+ * Quiet on purpose. The gradient above is the sheet's one bold element and this sits directly
+ * underneath, so it borrows the grouping without competing for it.
  */
 @Composable
-private fun ScreenshotRow(onScreenshot: () -> Unit) {
+private fun ScreenshotRow(on: Boolean, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
     Row(
         Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .clickable(onClick = onScreenshot)
+            .background(colors.surfaceContainerLow)
+            .clickable(onClick = onToggle)
             .padding(horizontal = 15.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -310,25 +320,40 @@ private fun ScreenshotRow(onScreenshot: () -> Unit) {
             Icon(
                 painterResource(R.drawable.ic_x_camera),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = colors.primary,
                 modifier = Modifier.size(21.dp)
             )
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                stringResource(R.string.control_center_screenshot),
+                stringResource(
+                    if (on) R.string.control_center_screenshot_hide
+                    else R.string.control_center_screenshot
+                ),
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface
+                color = colors.onSurface
             )
             Text(
-                stringResource(R.string.control_center_screenshot_hint),
+                stringResource(
+                    if (on) R.string.control_center_screenshot_hint_on
+                    else R.string.control_center_screenshot_hint
+                ),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = on,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Amethyst20,
+                checkedTrackColor = colors.primary
+            )
+        )
     }
 }
 

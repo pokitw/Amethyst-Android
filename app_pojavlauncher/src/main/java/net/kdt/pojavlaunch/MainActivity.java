@@ -342,7 +342,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mGameKeyboard = new GameKeyboardHost(findViewById(R.id.game_keyboard));
         mVoiceInput = new VoiceInputHost(findViewById(R.id.voice_overlay), new VoiceInput(this),
                 new LwjglCharSender(), this);
-        mScreenshot = new ScreenshotHost(findViewById(R.id.screenshot_toast));
+        mScreenshot = new ScreenshotHost(findViewById(R.id.screenshot_toast),
+                findViewById(R.id.screenshot_shutter));
     }
 
     @Override
@@ -859,6 +860,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override
     public void onClickedMenu() {
         mControlCenter.setRecordingSummary(describeRecordingSettings());
+        mControlCenter.applyShutterOn(mScreenshot.isShutterVisible());
         mControlCenter.open();
     }
 
@@ -919,13 +921,17 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override public void onToggleRecording() { mControlCenter.close(); toggleRecording(); }
 
     /**
-     * Armed before the sheet is told to close, not after.
+     * Puts the shutter on screen rather than taking the picture.
      *
-     * The sheet is a Compose overlay above the game surface and was never in the frame the
-     * renderer draws, so waiting for it to go would only cost the 300ms of its exit animation and
-     * capture a later moment than the one that was asked for.
+     * Taking it from in here would photograph the moment the sheet is covering, which is the one
+     * moment the player cannot see. So the sheet hands over a shutter and gets out of the way.
      */
-    @Override public void onScreenshot() { mScreenshot.take(); mControlCenter.close(); }
+    @Override
+    public void onScreenshot() {
+        mScreenshot.toggleShutter();
+        mControlCenter.applyShutterOn(mScreenshot.isShutterVisible());
+        mControlCenter.close();
+    }
 
     @Override public void onCustomControls() { mControlCenter.close(); openCustomControls(); }
     @Override public void onSendKeycode() { mControlCenter.close(); mGameKeyboard.open(); }
