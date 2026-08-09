@@ -1,37 +1,31 @@
 package net.kdt.pojavlaunch.ui.content
 
-import android.text.format.DateUtils
-import android.text.format.Formatter
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -45,6 +39,8 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,33 +48,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.kdt.pojavlaunch.R
-import androidx.compose.foundation.lazy.items
 import net.kdt.pojavlaunch.ui.common.LazyAppScaffold
+import net.kdt.pojavlaunch.ui.settings.ChoiceRow
+import net.kdt.pojavlaunch.ui.settings.InfoRow
+import net.kdt.pojavlaunch.ui.settings.SectionLabel
+import net.kdt.pojavlaunch.ui.settings.SettingsCard
 import net.kdt.pojavlaunch.ui.theme.Amethyst20
-import net.kdt.pojavlaunch.ui.theme.Amethyst40
-import net.kdt.pojavlaunch.ui.theme.Amethyst50
-import net.kdt.pojavlaunch.ui.theme.Amethyst70
-import net.kdt.pojavlaunch.ui.theme.Amethyst90
-import net.kdt.pojavlaunch.ui.theme.Neutral70
 import net.kdt.pojavlaunch.ui.theme.SlotWell
-import java.util.Locale
 
-/** Everything the screen shows, gathered so the activity owns the state and the screen is pure. */
+/**
+ * One category's worth of rows, with the heading already written.
+ *
+ * [kind] is carried alongside the heading because the heading is not stable — it grows a size as
+ * the folders are measured — and a lazy list keyed on text that changes underneath it loses its
+ * place mid-scroll.
+ */
+@Immutable
+class ContentSection(val kind: ContentKind, val heading: String, val items: List<ContentItem>)
+
+/** Everything the screen shows. Built by the activity so the screen only has to draw it. */
+@Immutable
 class ContentState(
-    val items: List<ContentItem>,
+    val sections: List<ContentSection>,
+    val total: Int,
     val loading: Boolean,
     val profileLabel: String?,
-    val freeSpace: String
+    val storageLine: String,
+    val filterLabel: String,
+    val searching: Boolean,
+    val filtered: Boolean
 )
 
 /**
@@ -89,45 +95,32 @@ class ContentState(
  * at all inside the launcher. "Game files" handed you off to a file manager and a path under
  * `Android/data`.
  *
- * The reason they are one screen and not five tabs is the add button. Nobody thinks "I would like
- * to place a file in the resourcepacks directory"; they think "add this". So there is one button,
- * and what you picked decides where it goes — a jar is a mod, a zip with a `pack.mcmeta` is a
- * resource pack, one with a `level.dat` is a world. The categories along the top are a filter over
- * one list, not five destinations, which is also what lets search cross them: type "sky" and the
- * world and the shader pack both come back.
+ * The reason they are one screen and not five is the add button. Nobody thinks "I would like to
+ * place a file in the resourcepacks directory"; they think "add this". So the categories are a
+ * filter over one list rather than five destinations, which is also what lets search cross them.
  *
- * The rows are deliberately the same shape whatever they hold — a picture, a name, a line of
- * detail, at most one control — because that is what makes a mixed list scannable.
+ * <b>Built out of the settings components on purpose.</b> This first shipped with a gradient
+ * storage meter, a row of filter chips and every item on its own floating card, and next to
+ * Settings — which is the screen people arrive from — it read as a different application. It uses
+ * the same grouped cards, the same section labels, the same row metrics and the same choice rows
+ * now. The information it shows is unchanged; only the vocabulary is, and the vocabulary was
+ * already decided.
  */
 @Composable
 fun ContentScreen(
     state: ContentState,
+    query: String,
+    onQuery: (String) -> Unit,
+    onFilter: (String) -> Unit,
     onAdd: () -> Unit,
     onToggle: (ContentItem, Boolean) -> Unit,
     onDelete: (ContentItem) -> Unit,
     onOpen: (ContentItem) -> Unit,
+    onNeedThumbnail: (ContentItem) -> Unit,
     onOpenFolder: () -> Unit,
     onBack: () -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf<ContentKind?>(null) }
     var confirming by remember { mutableStateOf<ContentItem?>(null) }
-
-    val lowered = query.trim().lowercase(Locale.getDefault())
-    val matching = remember(state.items, lowered) { state.items.filter { it.matches(lowered) } }
-    val shown = remember(matching, filter) {
-        if (filter == null) matching else matching.filter { it.kind == filter }
-    }
-
-    // Grouped only when nothing is filtered, so a single category reads as one list rather than
-    // as a list with a redundant heading over it.
-    val sections = remember(shown, filter) {
-        if (filter != null) listOf<Pair<ContentKind?, List<ContentItem>>>(null to shown)
-        else ContentKind.values().mapNotNull { kind ->
-            val ofKind = shown.filter { it.kind == kind }
-            if (ofKind.isEmpty()) null else kind to ofKind
-        }
-    }
 
     LazyAppScaffold(
         title = stringResource(R.string.content_title),
@@ -135,53 +128,79 @@ fun ContentScreen(
         onBack = onBack,
         barAction = { AddButton(onAdd) }
     ) {
-        item(key = "storage") {
-            Column {
-                Spacer(Modifier.height(4.dp))
-                StorageBar(state.items, state.freeSpace, state.loading)
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-        // Kept out of the item above so typing does not recompose the storage bar with it.
         item(key = "search") {
             Column {
-                SearchField(query) { query = it }
-                Spacer(Modifier.height(12.dp))
-                KindChips(matching, filter) { filter = it }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(4.dp))
+                SearchField(query, onQuery)
+                Spacer(Modifier.height(18.dp))
+                SettingsCard {
+                    InfoRow(
+                        title = stringResource(R.string.content_storage),
+                        value = state.storageLine
+                    )
+                    ChoiceRow(
+                        title = stringResource(R.string.content_show),
+                        names = filterNames(),
+                        values = FILTER_VALUES,
+                        selected = state.filterLabel,
+                        onSelect = onFilter
+                    )
+                }
+                // The gesture that is not obvious, named once, the way every sheet in the app
+                // names its long press. A delete link on every row would put the one irreversible
+                // action on this screen under a scrolling thumb four hundred times over.
+                Spacer(Modifier.height(9.dp))
+                Text(
+                    stringResource(R.string.content_hold_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
             }
         }
 
-        if (state.loading && state.items.isEmpty()) {
-            item(key = "skeleton") { SkeletonList() }
-        } else if (shown.isEmpty()) {
+        if (state.loading && state.total == 0) {
+            item(key = "skeleton") {
+                Column {
+                    SectionLabel(stringResource(R.string.content_loading))
+                    SkeletonCard()
+                }
+            }
+        } else if (state.sections.isEmpty()) {
             item(key = "empty") {
-                EmptyState(filter = filter, searching = lowered.isNotEmpty(), onAdd = onAdd)
+                Column {
+                    Spacer(Modifier.height(22.dp))
+                    EmptyState(state.searching, state.filtered, onAdd)
+                }
             }
         } else {
-            for ((kind, ofKind) in sections) {
-                if (kind != null) {
-                    item(key = "header-" + kind.name) {
-                        Text(
-                            stringResource(kind.titleRes).uppercase(Locale.getDefault()),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 9.dp)
-                        )
-                    }
-                }
-                items(ofKind, key = { it.kind.name + "/" + it.id }) { item ->
-                    Column {
-                        ContentRow(item, onToggle, { confirming = it }, onOpen)
-                        Spacer(Modifier.height(9.dp))
-                    }
+            for (section in state.sections) {
+                item(key = "head-" + section.kind.name) { SectionLabel(section.heading) }
+                // Every row is its own lazy item, and the card is rebuilt from their corners.
+                //
+                // Putting the section inside one `SettingsCard` would have read identically and
+                // composed every row in it the moment the section scrolled into view — four
+                // hundred screenshots in a single item is a LazyColumn that is not lazy, which is
+                // the whole reason this screen is not built on `AppScaffold` in the first place.
+                itemsIndexed(
+                    section.items,
+                    key = { _, entry -> entry.kind.name + "/" + entry.id }
+                ) { index, entry ->
+                    ContentRow(
+                        item = entry,
+                        shape = groupedShape(index, section.items.size),
+                        onToggle = onToggle,
+                        onDelete = { confirming = it },
+                        onOpen = onOpen,
+                        onNeedThumbnail = onNeedThumbnail
+                    )
                 }
             }
         }
 
         item(key = "footer") {
             Column {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(24.dp))
                 Text(
                     stringResource(R.string.content_open_folder),
                     style = MaterialTheme.typography.labelLarge,
@@ -203,9 +222,11 @@ fun ContentScreen(
             text = {
                 Text(
                     stringResource(
-                        if (target.kind == ContentKind.WORLD) R.string.content_delete_world
-                        else if (target.toggleable) R.string.content_delete_toggleable
-                        else R.string.content_delete_plain
+                        when {
+                            target.kind == ContentKind.WORLD -> R.string.content_delete_world
+                            target.toggleable -> R.string.content_delete_toggleable
+                            else -> R.string.content_delete_plain
+                        }
                     )
                 )
             },
@@ -221,126 +242,50 @@ fun ContentScreen(
                 TextButton(onClick = { confirming = null }) {
                     Text(stringResource(android.R.string.cancel))
                 }
-            }
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     }
 }
 
+/** The values [ChoiceRow] round-trips through; the names beside them are localised. */
+val FILTER_VALUES: List<String> =
+    listOf("all") + ContentKind.values().map { it.name }
+
+@Composable
+private fun filterNames(): List<String> =
+    listOf(stringResource(R.string.content_kind_all)) +
+            ContentKind.values().map { stringResource(it.titleRes) }
+
 /**
- * Where the space went.
+ * The corner a row wears so that a run of them reads as one card.
  *
- * The screen's one bold element, and the only gradient on it. It earns the place because storage
- * is the constraint people actually hit on a phone — a folder of shader packs quietly being four
- * gigabytes is exactly the kind of thing you cannot see from a list of names.
+ * The card radius, but only on the outside of the run: the top row is rounded above, the bottom
+ * row below, everything between is square, and a section of one is a whole card. Taken from the
+ * theme rather than written as a number, because the nesting rule in the handbook is stated in
+ * terms of the card radius and a literal here would quietly stop tracking it.
  */
 @Composable
-private fun StorageBar(items: List<ContentItem>, freeSpace: String, loading: Boolean) {
-    val colors = MaterialTheme.colorScheme
-    val totals = remember(items) {
-        ContentKind.values().associateWith { kind ->
-            items.filter { it.kind == kind }.sumOf { it.sizeBytes }
-        }
-    }
-    val used = totals.values.sum()
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.large)
-            .background(colors.surfaceContainer)
-            .padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                if (used == 0L && loading) stringResource(R.string.content_measuring)
-                else Formatter.formatShortFileSize(LocalContext.current, used),
-                style = MaterialTheme.typography.headlineSmall,
-                color = colors.onSurface
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                stringResource(R.string.content_free, freeSpace),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 3.dp)
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(10.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceContainerHighest)
-        ) {
-            if (used > 0L) {
-                for (kind in ContentKind.values()) {
-                    val share = (totals[kind] ?: 0L).toFloat() / used
-                    // Below this a segment is a sliver nobody can read, and rounding it up would
-                    // make the bar lie about the big ones.
-                    if (share < 0.012f) continue
-                    Box(
-                        Modifier
-                            .weight(share)
-                            .fillMaxHeight()
-                            .background(kindBrush(kind))
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            for (kind in ContentKind.values()) {
-                val bytes = totals[kind] ?: 0L
-                if (bytes <= 0L) continue
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(kindBrush(kind))
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(kind.titleRes),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onSurfaceVariant
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        Formatter.formatShortFileSize(LocalContext.current, bytes),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onSurface
-                    )
-                }
-            }
-        }
-    }
+private fun groupedShape(index: Int, count: Int): RoundedCornerShape {
+    val card = MaterialTheme.shapes.medium
+    val flat = CornerSize(0.dp)
+    val first = index == 0
+    val last = index == count - 1
+    return RoundedCornerShape(
+        topStart = if (first) card.topStart else flat,
+        topEnd = if (first) card.topEnd else flat,
+        bottomEnd = if (last) card.bottomEnd else flat,
+        bottomStart = if (last) card.bottomStart else flat
+    )
 }
 
 /**
- * One accent, five steps of it.
+ * The search field.
  *
- * Five unrelated hues would turn the bar into a pie chart from 2009. Walking the amethyst ramp
- * keeps the screen on one colour while still telling the segments apart — and the steps are taken
- * from the ramp itself rather than from the theme's secondary and tertiary roles, which are the
- * same value here and would have drawn two of these identically.
+ * Deliberately the same object as Settings' way into search — same circle, same padding, same
+ * nineteen-pixel icon, same `bodyLarge` hint. The only difference is that this one is the field
+ * rather than a button to one, because there is nowhere else for the results to go.
  */
-private fun kindBrush(kind: ContentKind): Brush {
-    val end = when (kind) {
-        ContentKind.WORLD -> Amethyst70
-        ContentKind.MOD -> Amethyst50
-        ContentKind.RESOURCE_PACK -> Amethyst90
-        ContentKind.SHADER_PACK -> Amethyst40
-        // Screenshots are the one thing here that is not part of the game, so they sit off the
-        // accent entirely.
-        ContentKind.SCREENSHOT -> Neutral70
-    }
-    return Brush.horizontalGradient(listOf(end.copy(alpha = 0.7f), end))
-}
-
 @Composable
 private fun SearchField(query: String, onQuery: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
@@ -349,22 +294,24 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
             .fillMaxWidth()
             .clip(CircleShape)
             .background(colors.surfaceContainer)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            Icons.Default.Search,
+            Icons.Filled.Search,
             contentDescription = null,
             tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(19.dp)
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(12.dp))
         Box(Modifier.weight(1f)) {
             if (query.isEmpty()) {
                 Text(
                     stringResource(R.string.content_search_hint),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurfaceVariant
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             BasicTextField(
@@ -375,17 +322,16 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
                     MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface)
                 ),
                 cursorBrush = SolidColor(colors.primary),
-                keyboardOptions = KeyboardOptions.Default,
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        AnimatedVisibility(query.isNotEmpty(), enter = fadeIn(), exit = fadeOut()) {
+        if (query.isNotEmpty()) {
             Icon(
-                Icons.Default.Close,
+                Icons.Filled.Close,
                 contentDescription = stringResource(R.string.content_search_clear),
                 tint = colors.onSurfaceVariant,
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(19.dp)
                     .clickable { onQuery("") }
             )
         }
@@ -393,107 +339,56 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
 }
 
 /**
- * The categories, with their counts.
+ * One item, in the shape every other row in the launcher has.
  *
- * Counts rather than plain labels because they are the cheapest possible answer to "what have I
- * got" — and they follow the search, so typing narrows them and an empty category disappears
- * rather than offering a dead end.
- */
-@Composable
-private fun KindChips(
-    items: List<ContentItem>,
-    selected: ContentKind?,
-    onSelect: (ContentKind?) -> Unit
-) {
-    Row(
-        Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Chip(stringResource(R.string.content_kind_all), items.size, selected == null) {
-            onSelect(null)
-        }
-        for (kind in ContentKind.values()) {
-            val count = items.count { it.kind == kind }
-            if (count == 0) continue
-            Chip(stringResource(kind.titleRes), count, selected == kind) { onSelect(kind) }
-        }
-    }
-}
-
-@Composable
-private fun Chip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(if (selected) colors.primary.copy(alpha = 0.16f) else colors.surfaceContainer)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) colors.primary else colors.onSurfaceVariant
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            count.toString(),
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) colors.primary else colors.onSurface
-        )
-    }
-}
-
-/**
- * One item, whatever it is.
+ * A settings row is a slot well, a title in `titleSmall`, a description in `bodySmall` and the
+ * current value in accent `labelLarge` underneath — and that accent line is what makes a long
+ * screen scannable. Here the "value" is what the item is: its version, its loader, its size.
  *
- * The trailing control is the only part that differs by kind, and only mods have one: a mod can be
- * switched off in place, and nothing else can. Deleting is a quiet link rather than a button,
- * because it is rare and irreversible and should not sit under a thumb that is scrolling.
+ * The switch is the only part that differs by kind, and only mods have one, because a mod is the
+ * only thing here that can be turned off rather than deleted.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContentRow(
     item: ContentItem,
+    shape: RoundedCornerShape,
     onToggle: (ContentItem, Boolean) -> Unit,
     onDelete: (ContentItem) -> Unit,
-    onOpen: (ContentItem) -> Unit
+    onOpen: (ContentItem) -> Unit,
+    onNeedThumbnail: (ContentItem) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val context = LocalContext.current
+    // Asked for when the row first appears, not when the folder is read: a profile with four
+    // hundred screenshots would otherwise decode four hundred bitmaps to show eight of them.
+    LaunchedEffect(item.kind, item.id) {
+        if (!item.thumbnailRequested) onNeedThumbnail(item)
+    }
+
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .clip(shape)
             .background(colors.surfaceContainer)
-            .clickable {
-                if (item.toggleable) onToggle(item, !item.enabled) else onOpen(item)
-            }
-            .padding(12.dp),
+            .combinedClickable(
+                onClick = {
+                    if (item.toggleable) onToggle(item, !item.enabled) else onOpen(item)
+                },
+                onLongClick = { onDelete(item) }
+            )
+            .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Thumbnail(item)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    item.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (item.enabled) colors.onSurface else colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (item.version != null) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        item.version,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-            }
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = if (item.enabled) colors.onSurface else colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             if (!item.detail.isNullOrEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -504,44 +399,17 @@ private fun ContentRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (item.badge != null) {
-                    Badge(item.badge)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(
-                    buildString {
-                        if (item.sizeBytes > 0L) {
-                            append(Formatter.formatShortFileSize(context, item.sizeBytes))
-                        }
-                        if (item.modifiedMs > 0L && item.kind != ContentKind.MOD) {
-                            if (isNotEmpty()) append(" · ")
-                            append(
-                                DateUtils.getRelativeTimeSpanString(
-                                    item.modifiedMs, System.currentTimeMillis(),
-                                    DateUtils.MINUTE_IN_MILLIS
-                                )
-                            )
-                        }
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.onSurfaceVariant
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    stringResource(R.string.content_delete_action),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.error,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable { onDelete(item) }
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
+            Spacer(Modifier.height(3.dp))
+            Text(
+                item.summary,
+                style = MaterialTheme.typography.labelLarge,
+                color = colors.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         if (item.toggleable) {
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(12.dp))
             Switch(
                 checked = item.enabled,
                 onCheckedChange = { onToggle(item, it) },
@@ -554,73 +422,35 @@ private fun ContentRow(
     }
 }
 
-@Composable
-private fun Badge(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.extraSmall)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.13f))
-            .padding(horizontal = 6.dp, vertical = 1.dp)
-    )
-}
-
 /**
- * The item's own picture, in an inventory slot.
+ * The item's own picture, in the same inventory slot every other row's icon sits in.
  *
- * A world's icon, a mod's logo, a pack's `pack.png`, a screenshot itself. Where there is none, the
- * first letter in the same well — a wall of identical placeholder glyphs is harder to scan than a
- * wall of letters, and both are better than a gap.
+ * A world's icon, a mod's logo, a pack's `pack.png`, the screenshot itself. Where there is none,
+ * the first letter in the same well — a wall of identical placeholder glyphs is harder to scan
+ * than a wall of letters, and both are better than a gap.
  */
 @Composable
 private fun Thumbnail(item: ContentItem) {
-    // Screenshots are the one thing worth showing wide: they are pictures of a place, and a
-    // square crop of one tells you much less than the shape it was taken in.
-    val wide = item.kind == ContentKind.SCREENSHOT
-    val shape = RoundedCornerShape(12.dp)
-    val bitmap = item.thumbnail
-    if (wide) {
-        Box(
-            Modifier
-                .width(76.dp)
-                .height(46.dp)
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center
-        ) {
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else if (!item.detailed) {
-                ShimmerBox(Modifier.fillMaxSize())
-            }
-        }
-        return
-    }
-    SlotWell(size = 46.dp) {
+    SlotWell(size = 38.dp) {
+        val bitmap = item.thumbnail
         when {
             bitmap != null -> Image(
                 bitmap = bitmap.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(9.dp))
             )
-            !item.detailed -> ShimmerBox(
+            !item.detailed -> Box(
                 Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .shimmer()
             )
             else -> Text(
-                item.title.take(1).uppercase(Locale.getDefault()),
-                style = MaterialTheme.typography.titleMedium,
+                item.initial,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -630,42 +460,42 @@ private fun Thumbnail(item: ContentItem) {
 /**
  * Rows the shape of the real ones, while the folder is still being read.
  *
- * A spinner says "wait"; this says "here is what is coming", and on a folder of two hundred mods
- * the difference is whether the screen feels instant or feels like it is thinking. The real rows
- * replace these as each one is opened, so the list fills in rather than appearing all at once.
+ * A spinner says "wait"; this says "here is what is coming". The real rows replace these as each
+ * item is opened, so the list fills in rather than appearing all at once.
  */
 @Composable
-private fun SkeletonList() {
-    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        for (index in 0 until 6) {
+private fun SkeletonCard() {
+    SettingsCard {
+        for (index in 0 until 5) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .padding(12.dp),
+                    .padding(horizontal = 15.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ShimmerBox(
+                Box(
                     Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .shimmer()
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    // Varied widths, because six identical bars read as a broken layout rather
+                    // Varied widths, because five identical bars read as a broken layout rather
                     // than as a list of things with different names.
-                    ShimmerBox(
+                    Box(
                         Modifier
-                            .fillMaxWidth(0.32f + (index % 3) * 0.16f)
-                            .height(12.dp)
+                            .fillMaxWidth(0.34f + (index % 3) * 0.16f)
+                            .height(11.dp)
                             .clip(CircleShape)
+                            .shimmer()
                     )
-                    ShimmerBox(
+                    Box(
                         Modifier
                             .fillMaxWidth(0.2f + (index % 2) * 0.1f)
                             .height(9.dp)
                             .clip(CircleShape)
+                            .shimmer()
                     )
                 }
             }
@@ -673,36 +503,25 @@ private fun SkeletonList() {
     }
 }
 
-/** A slow sweep across a placeholder. One transition drives them all, so they move together. */
+/** A slow sweep, from one transition, so every placeholder on screen moves together. */
 @Composable
-private fun ShimmerBox(modifier: Modifier) {
+private fun Modifier.shimmer(): Modifier {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val progress by transition.animateFloat(
-        initialValue = 0f,
+        initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = FastOutSlowInEasing),
+            animation = tween(1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "shimmerProgress"
     )
-    val colors = MaterialTheme.colorScheme
-    Box(
-        modifier.background(
-            Brush.horizontalGradient(
-                listOf(
-                    colors.surfaceContainerHigh,
-                    colors.surfaceContainerHighest.copy(alpha = 0.4f + progress * 0.6f),
-                    colors.surfaceContainerHigh
-                )
-            )
-        )
-    )
+    return background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = progress))
 }
 
 /** The first thing a new profile shows, so it says what to do rather than that there is nothing. */
 @Composable
-private fun EmptyState(filter: ContentKind?, searching: Boolean, onAdd: () -> Unit) {
+private fun EmptyState(searching: Boolean, filtered: Boolean, onAdd: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Column(
         Modifier
@@ -725,14 +544,14 @@ private fun EmptyState(filter: ContentKind?, searching: Boolean, onAdd: () -> Un
             stringResource(
                 when {
                     searching -> R.string.content_empty_search
-                    filter != null -> filter.emptyRes
+                    filtered -> R.string.content_empty_filter
                     else -> R.string.content_empty_all
                 }
             ),
             style = MaterialTheme.typography.titleMedium,
             color = colors.onSurface
         )
-        if (!searching) {
+        if (!searching && !filtered) {
             Spacer(Modifier.height(6.dp))
             Text(
                 stringResource(R.string.content_empty_body),
@@ -765,7 +584,7 @@ private fun AddButton(onAdd: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            Icons.Default.Add,
+            Icons.Filled.Add,
             contentDescription = null,
             tint = Amethyst20,
             modifier = Modifier.size(18.dp)

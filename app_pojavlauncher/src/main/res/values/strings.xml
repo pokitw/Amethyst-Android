@@ -668,7 +668,6 @@
     <string name="content_toggle_failed">That could not be renamed, so it is unchanged.</string>
     <string name="content_delete_failed">That could not be deleted.</string>
     <string name="content_open_failed">Nothing on this device could open that.</string>
-    <string name="content_delete_action">Delete</string>
     <string name="content_delete_title">Delete %1$s?</string>
     <string name="content_delete_world">The whole world folder goes, and there is no copy. If you only want to stop it appearing in game, move it out instead.</string>
     <string name="content_delete_toggleable">The file is removed. Turning it off instead keeps it, so you can put it back.</string>
@@ -676,8 +675,11 @@
     <string name="content_delete_confirm">Delete</string>
     <string name="content_search_hint">Search worlds, mods, packs…</string>
     <string name="content_search_clear">Clear search</string>
-    <string name="content_free">%1$s free</string>
-    <string name="content_measuring">Measuring…</string>
+    <string name="content_storage">Storage</string>
+    <string name="content_storage_line">%1$s used · %2$s free</string>
+    <string name="content_show">Show</string>
+    <string name="content_hold_hint">Tap a mod to turn it on or off, tap anything else to open it. Hold to delete.</string>
+    <string name="content_loading">Reading the folder</string>
     <string name="content_open_folder">Open the folder in a file manager</string>
     <string name="content_settings_description">Worlds, mods, resource packs, shaders and screenshots</string>
     <string name="content_settings_count">%1$d items</string>
@@ -691,6 +693,7 @@
 
     <string name="content_empty_all">Nothing here yet</string>
     <string name="content_empty_search">Nothing matches that</string>
+    <string name="content_empty_filter">None of those yet</string>
     <string name="content_empty_body">Add a .jar or a .zip and it goes where it belongs on its own.</string>
     <string name="content_empty_worlds">No worlds yet</string>
     <string name="content_empty_mods">No mods yet</string>

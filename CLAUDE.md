@@ -498,6 +498,23 @@ re-litigated. The reasoning lives in the commit that made the change.
   stranger sent. Nothing here touches the network: this is the folder, not a store.
   The list is lazy — `LazyAppScaffold` exists because `AppScaffold` puts its content in a
   scrolling `Column`, and a folder of four hundred screenshots cannot live in one.
+  It is **drawn with the settings components** (§9), not with a vocabulary of its own. It first
+  shipped with a gradient storage meter, a row of filter chips and every item on its own floating
+  card, and next to Settings — the screen most people arrive from — it read as a different
+  application. Same grouped card, same section labels, same row metrics, same choice row. The
+  category filter is a `ChoiceRow` rather than chips because chips are for identity, not actions,
+  and delete moved to a **long press with a named hint** rather than a red link on every row.
+  **Every row is its own lazy item**, and the card around a section is rebuilt from the rows'
+  corners — first rounded above, last below, the rest square. Putting a section inside one
+  `SettingsCard` reads identically and composes all four hundred rows the moment the section
+  scrolls into view, which is a `LazyColumn` that is not lazy.
+  Three rules keep it fast, and each of them was a visible stall: **pictures are read when a row
+  asks**, never during the scan; **a resume keeps every item whose file has not changed** (matched
+  on `level.dat` for a world, because a folder's own timestamp does not move when a region file
+  inside it does), so coming back from a screenshot viewer costs a directory listing rather than
+  two hundred jars reopened; and **the background passes merge rather than replace** — the switch,
+  the rename behind it and the picture that just arrived are taken from the row as it stands, or a
+  mod turned off while its jar was being read turns itself back on.
 - **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
   because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
   flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and

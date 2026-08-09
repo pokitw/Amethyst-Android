@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.text.format.DateUtils
+import android.text.format.Formatter
 import androidx.compose.runtime.Immutable
 import net.kdt.pojavlaunch.R
 import java.io.File
@@ -65,8 +67,26 @@ data class ContentItem(
     /** Only mods can be switched off in place; everything else is on or deleted. */
     val toggleable: Boolean = false,
     val thumbnail: Bitmap? = null,
-    val detailed: Boolean = false
+    val detailed: Boolean = false,
+    /**
+     * The accent line under the title — version, loader, size, when it was last touched.
+     *
+     * Built where a `Context` is available rather than in the composition, because formatting a
+     * file size needs one and doing it per frame for four hundred rows is four hundred lookups
+     * of the locale's byte suffixes.
+     */
+    val summary: String = "",
+    /**
+     * Set once the picture has been read, so a row scrolling back into view does not ask again.
+     *
+     * Only an early exit — the screen's host keeps the real record, because an item with no
+     * picture at all never gets this set and must still not be opened twice.
+     */
+    val thumbnailRequested: Boolean = false
 ) {
+    /** Precomputed: this is read every time a row without a picture is drawn. */
+    val initial: String = title.take(1).uppercase(Locale.getDefault())
+
     /** Everything search looks at, lowercased once so matching is a plain substring test. */
     val haystack: String = buildString {
         append(title.lowercase(Locale.getDefault()))
@@ -77,6 +97,28 @@ data class ContentItem(
     }
 
     fun matches(query: String): Boolean = query.isEmpty() || haystack.contains(query)
+}
+
+/**
+ * Everything under the title, in one line.
+ *
+ * Deliberately not a row of chips and badges. The launcher's rows put the state in one accent
+ * line under the description, and this is that line.
+ */
+fun summarise(context: Context, item: ContentItem): String {
+    val parts = ArrayList<String>(4)
+    item.badge?.let { parts.add(it) }
+    item.version?.let { parts.add(it) }
+    if (item.sizeBytes > 0L) parts.add(Formatter.formatShortFileSize(context, item.sizeBytes))
+    // Recency matters for the things you come back to and not for the things you install once.
+    if (item.modifiedMs > 0L && (item.kind == ContentKind.WORLD || item.kind == ContentKind.SCREENSHOT)) {
+        parts.add(
+            DateUtils.getRelativeTimeSpanString(
+                item.modifiedMs, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS
+            ).toString()
+        )
+    }
+    return parts.joinToString(" · ")
 }
 
 /** Where each kind lives for the profile that is about to be played. */
@@ -190,6 +232,16 @@ fun describe(item: ContentItem): ContentItem = try {
     item.copy(detailed = true)
 }
 
+/**
+ * How much space a folder takes, measured separately from everything else.
+ *
+ * A world is thousands of region files and this is the only part of reading a profile that is
+ * genuinely slow, so it is not allowed to hold up the names — which are what the screen is for.
+ * It runs last, and the sizes appear when they appear.
+ */
+fun measure(item: ContentItem): Long =
+    if (item.file.isDirectory) directorySize(item.file) else item.file.length()
+
 private fun describeWorld(item: ContentItem): ContentItem {
     val level = NbtReader.read(File(item.file, "level.dat"))
     val name = NbtReader.getString(level, "Data", "LevelName")
@@ -208,7 +260,6 @@ private fun describeWorld(item: ContentItem): ContentItem {
             mode == 0L -> "SURVIVAL"
             else -> null
         },
-        sizeBytes = directorySize(item.file),
         // The game's own record of when it was last opened beats the folder's timestamp, which
         // any backup tool or file copy will have rewritten.
         modifiedMs = if (lastPlayed > 0L) lastPlayed else item.modifiedMs,
@@ -235,7 +286,6 @@ private fun describePack(item: ContentItem): ContentItem {
     return item.copy(
         detail = meta?.description,
         badge = meta?.format?.let { "PACK $it" },
-        sizeBytes = if (item.file.isDirectory) directorySize(item.file) else item.file.length(),
         detailed = true
     )
 }
