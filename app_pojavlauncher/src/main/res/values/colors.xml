@@ -19,4 +19,15 @@
 
     <color name="primary_text">#E9E2EF</color>
     <color name="secondary_text">#A79DB4</color>
+
+    <!--
+        Dialogs. The launcher still shows a couple of dozen AlertDialogs from the parts of it that
+        are not Compose yet — errors, confirmations, the crash fallback — and left alone they render
+        in stock AppCompat grey with a teal accent, which is the single loudest thing on the screen
+        that does not belong to this app. These are the same tokens as ui/theme/Color.kt so a
+        dialog sits on the surface ramp the Compose sheets use.
+    -->
+    <color name="dialog_surface">#1D1826</color>
+    <color name="dialog_accent">#C08CE8</color>
+    <color name="dialog_scrim">#0E0B12</color>
 </resources>

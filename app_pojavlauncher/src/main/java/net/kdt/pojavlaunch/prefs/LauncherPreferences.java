@@ -25,6 +25,12 @@ import java.util.LinkedHashMap;
 public class LauncherPreferences {
     public static final String PREF_KEY_CURRENT_PROFILE = "currentProfile";
     public static final String PREF_KEY_SKIP_NOTIFICATION_CHECK = "skipNotificationPermissionCheck";
+    /**
+     * Whether the welcome has been through once. A one-shot gate rather than a setting, so it
+     * is read straight off DEFAULT_PREF and deliberately not mirrored into a PREF_ field by
+     * loadPreferences() — nothing in the game process has any business asking.
+     */
+    public static final String PREF_KEY_ONBOARDING_DONE = "onboardingCompleted";
 
     public static SharedPreferences DEFAULT_PREF;
 
@@ -75,7 +81,7 @@ public class LauncherPreferences {
     public static boolean PREF_KEYBOARD_PANNING = true;
 
     public static boolean PREF_CONTROL_POCKET_SKIN = true;
-    public static boolean PREF_CONTROL_GLYPHS = true;
+    public static boolean PREF_CONTROL_GLYPHS = false;
 
 
     public static void loadPreferences(Context ctx) {
@@ -120,7 +126,7 @@ public class LauncherPreferences {
         PREF_MOUSE_GRAB_FORCE = DEFAULT_PREF.getBoolean("always_grab_mouse", false);
         PREF_KEYBOARD_PANNING = DEFAULT_PREF.getBoolean("keyboardPanning", true);
         PREF_CONTROL_POCKET_SKIN = DEFAULT_PREF.getBoolean("controlPocketSkin", true);
-        PREF_CONTROL_GLYPHS = DEFAULT_PREF.getBoolean("controlGlyphs", true);
+        PREF_CONTROL_GLYPHS = DEFAULT_PREF.getBoolean("controlGlyphs", false);
 
         // User may have deleted their default control
         String userDefCtrl = DEFAULT_PREF.getString("defaultCtrl", Tools.CTRLDEF_FILE);

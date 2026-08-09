@@ -613,6 +613,45 @@
     <string name="control_center_editing_hint">Changes apply as you make them</string>
     <string name="control_center_exit_editor">Exit</string>
 
+    <!-- Onboarding, shown once on first launch -->
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Get started</string>
+
+    <string name="onboarding_welcome_title">Amethyst X</string>
+    <string name="onboarding_welcome_body">Minecraft: Java Edition, on your phone. This is a fork of Amethyst with a recorder built into the renderer and most of the launcher redrawn.</string>
+
+    <string name="onboarding_record_title">Record the game, not your screen</string>
+    <string name="onboarding_record_body">Capture happens inside the graphics pipeline, before anything is drawn on top. Your on-screen buttons, notifications and the status bar never appear in the video — just the game.</string>
+    <string name="onboarding_record_note">Not available on the Zink renderer, and a clip stops before 4 GB — around 40 minutes at 1080p60.</string>
+
+    <string name="onboarding_design_title">Rebuilt, screen by screen</string>
+    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker and the in-game menu were redrawn from scratch — designed around what you actually do, and built to work one-handed.</string>
+
+    <string name="onboarding_crash_title">Crashes explained in English</string>
+    <string name="onboarding_crash_body">When the game dies, the log gets read for you and the cause is named — a missing mod dependency, not enough memory, the wrong Java version — with the line it concluded from.</string>
+
+    <string name="onboarding_keyboard_title">A keyboard you can hold</string>
+    <string name="onboarding_keyboard_body">A real on-screen keyboard instead of a list of keycodes. Hold a key down to keep it there, so F3 + G finally works, and type straight into chat.</string>
+    <string name="onboarding_keyboard_note">US layout, landscape only.</string>
+
+    <string name="onboarding_compare_title">Amethyst, and Amethyst X</string>
+    <string name="onboarding_compare_body">What this fork adds, and the two places it is behind.</string>
+    <string name="onboarding_compare_them">Amethyst</string>
+    <string name="onboarding_compare_us">X</string>
+    <string name="onboarding_compare_yes">Included</string>
+    <string name="onboarding_compare_partial">Part</string>
+    <string name="onboarding_compare_footnote">Compared against the version this was forked from, not a live check of the latest Amethyst.</string>
+
+    <string name="onboarding_row_play">Plays Minecraft: Java Edition</string>
+    <string name="onboarding_row_record">Built-in gameplay recorder</string>
+    <string name="onboarding_row_crash">Crash cause explained</string>
+    <string name="onboarding_row_keyboard">On-screen keyboard</string>
+    <string name="onboarding_row_search">Searchable settings</string>
+    <string name="onboarding_row_controls">Redesigned controls</string>
+    <string name="onboarding_row_skin">Skin editor</string>
+    <string name="onboarding_row_size">Smaller download</string>
+
     <!-- On-screen keyboard -->
     <string name="control_keyboard_title">Keyboard</string>
     <string name="control_keyboard_hint">Tap a key to send it. Hold to keep it down.</string>

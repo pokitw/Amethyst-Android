@@ -66,7 +66,12 @@ public class TestStorageActivity extends Activity {
         AsyncAssetManager.unpackComponents(this);
         AsyncAssetManager.unpackSingleFiles(this);
 
-        Intent intent =  new Intent(this, LauncherActivity.class);
+        // First launch goes through the welcome instead. This is the only point where the
+        // preferences are loaded but LauncherActivity has not been constructed yet, which is what
+        // keeps the welcome clear of the account spinner and the launch listener it installs.
+        boolean seenWelcome = LauncherPreferences.DEFAULT_PREF
+                .getBoolean(LauncherPreferences.PREF_KEY_ONBOARDING_DONE, false);
+        Intent intent = new Intent(this, seenWelcome ? LauncherActivity.class : OnboardingActivity.class);
         startActivity(intent);
         finish();
     }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The window background every AlertDialog in the launcher now sits on.
+
+    A dialog window fills the screen and paints its own card, so the inset is what gives the card
+    its margin — without it the shape would run edge to edge and the corners would never be seen.
+    The radius matches shapes.large in ui/theme/Shape.kt, which is what the Compose hero card uses,
+    so a legacy dialog and a Compose sheet read as the same object at the same depth.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="20dp"
+    android:insetRight="20dp"
+    android:insetTop="24dp"
+    android:insetBottom="24dp">
+    <shape android:shape="rectangle">
+        <solid android:color="@color/dialog_surface" />
+        <corners android:radius="22dp" />
+    </shape>
+</inset>

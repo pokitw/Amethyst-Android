@@ -817,7 +817,7 @@ private fun ControlsScreen(
             SwitchRow(
                 stringResource(R.string.preference_control_glyphs_title),
                 stringResource(R.string.preference_control_glyphs_description),
-                store.bool("controlGlyphs", true)
+                store.bool("controlGlyphs", false)
             ) { store.put("controlGlyphs", it) }
         }
 

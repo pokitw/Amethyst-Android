@@ -82,10 +82,10 @@
         <activity
             android:name=".FatalErrorActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|keyboard|navigation"
-            android:theme="@style/Theme.AppCompat.DayNight.Dialog" />
+            android:theme="@style/AmethystXDialogActivity" />
         <activity android:name=".ShowErrorActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|keyboard|navigation"
-            android:theme="@style/Theme.AppCompat.DayNight.Dialog" />
+            android:theme="@style/AmethystXDialogActivity" />
         <!-- No theme override: the crash screen is a full screen in the app's own dark theme
              now, not a stock DayNight dialog that could render light over a dark launcher. -->
         <activity
@@ -139,6 +139,14 @@
             android:name=".recorder.RecordingsActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:label="@string/preference_recorder_title"
+            android:process=":launcher"/>
+
+        <!-- The welcome. Same process as the launcher it hands over to, and not exported: it is
+             reached only from TestStorageActivity on a first run. -->
+        <activity
+            android:name=".OnboardingActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:exported="false"
             android:process=":launcher"/>
 
         <service android:name=".recorder.RecorderService" android:process=":game"

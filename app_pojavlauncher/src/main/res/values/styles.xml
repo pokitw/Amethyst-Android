@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Light or not? -->
-    <style name="AppTheme" parent="@style/Theme.AppCompat.NoActionBar">
+    <!--
+        Everything the app theme is, minus the one thing that differs by orientation.
+
+        `values-land/styles.xml` used to repeat this block wholesale to change a single text size,
+        which meant anything added here silently did not apply in landscape — and landscape is the
+        orientation the game itself runs in. The two now share this base and override only the size,
+        so a change made once applies everywhere.
+    -->
+    <style name="AmethystXBaseTheme" parent="@style/Theme.AppCompat.NoActionBar">
         <item name="windowNoTitle">true</item>
         <item name="windowActionBar">false</item>
         <item name="android:windowContentOverlay">@null</item>
@@ -9,8 +16,78 @@
         <item name="android:navigationBarColor">@color/background_app</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
 
-        <item name="android:textSize">@dimen/_12ssp</item>
+        <!--
+            Both are needed, and they are not interchangeable. AppCompat's AlertDialog.Builder
+            resolves `alertDialogTheme`; the framework's android.app.AlertDialog ignores that one
+            entirely and reads `android:alertDialogTheme`. The launcher uses both builders, so
+            setting only one leaves half the dialogs stock grey.
+        -->
+        <item name="alertDialogTheme">@style/AmethystXDialogTheme</item>
+        <item name="android:alertDialogTheme">@style/AmethystXDialogThemeFramework</item>
+    </style>
 
+    <style name="AppTheme" parent="AmethystXBaseTheme">
+        <item name="android:textSize">@dimen/_12ssp</item>
+    </style>
+
+    <!--
+        The dialog look. Applied by theme rather than at the call sites on purpose: the launcher
+        still raises a couple of dozen AlertDialogs from its pre-Compose half, and several of them
+        are the last thing standing when something has already gone wrong — the crash fallback, the
+        fatal-error reporter, the ones that block the game's launch thread waiting for an answer.
+        Restyling those through a theme attribute changes how they look without touching a line of
+        the code that has to keep working when everything else has stopped.
+    -->
+    <style name="AmethystXDialogTheme" parent="ThemeOverlay.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/dialog_accent</item>
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:backgroundDimAmount">0.62</item>
+        <item name="android:textColorPrimary">@color/primary_text</item>
+        <item name="android:textColorSecondary">@color/secondary_text</item>
+        <item name="android:textColorAlertDialogListItem">@color/primary_text</item>
+        <item name="buttonBarPositiveButtonStyle">@style/AmethystXDialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/AmethystXDialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/AmethystXDialogButton</item>
+    </style>
+
+    <!--
+        The same look for the framework builder. It cannot inherit the AppCompat one: a
+        ThemeOverlay.AppCompat parent would drag AppCompat attributes into a window the platform
+        inflates itself, so this starts from the platform's own dark alert theme instead.
+    -->
+    <style name="AmethystXDialogThemeFramework" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:colorAccent">@color/dialog_accent</item>
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:backgroundDimAmount">0.62</item>
+        <item name="android:textColorPrimary">@color/primary_text</item>
+        <item name="android:textColorSecondary">@color/secondary_text</item>
+    </style>
+
+    <!-- Sentence case, not the shouty all-caps AppCompat defaults to, so the buttons read like the
+         Compose ones beside them. -->
+    <style name="AmethystXDialogButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/dialog_accent</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!--
+        FatalErrorActivity and ShowErrorActivity are windowed dialogs rather than dialogs raised by
+        an activity, so they take their look from the manifest and never see AppTheme. They used
+        DayNight, which would render them light on a phone set to light — in an app that is dark
+        only. This pins them dark and gives them the same card as everything else.
+    -->
+    <style name="AmethystXDialogActivity" parent="Theme.AppCompat.Dialog">
+        <item name="colorAccent">@color/dialog_accent</item>
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:backgroundDimAmount">0.62</item>
+        <item name="android:textColorPrimary">@color/primary_text</item>
+        <item name="android:textColorSecondary">@color/secondary_text</item>
+        <item name="alertDialogTheme">@style/AmethystXDialogTheme</item>
+        <item name="android:alertDialogTheme">@style/AmethystXDialogThemeFramework</item>
+        <item name="buttonBarPositiveButtonStyle">@style/AmethystXDialogButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/AmethystXDialogButton</item>
+        <item name="buttonBarNeutralButtonStyle">@style/AmethystXDialogButton</item>
     </style>
 
     <style name="LauncherFragment_Divider">
