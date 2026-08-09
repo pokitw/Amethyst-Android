@@ -395,6 +395,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
 | Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
 | In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` **and** `CustomControlsActivity` |
+| On-screen keyboard · voice overlay | **Compose** | `ui/game/`, each with its own bottom-anchored `ComposeView` |
 | Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
 | Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
 | Profile editor · type picker · MC version picker | **Compose** | `ui/profile/`, hosted by `ProfileEditorFragment.kt` and `ProfileTypeSelectFragment.kt` |
@@ -432,16 +433,35 @@ re-litigated. The reasoning lives in the commit that made the change.
 - **In-game control center** — a sheet from the bottom, because in landscape that is where thumbs
   are. Recording is the card at the top. Force close is last, quiet, in the error colour.
   `ControlCenterHost` is the Java-facing seam.
-- **On-screen keyboard** (`ui/game/GameKeyboard.kt` + `KeyboardPanel.kt`) — replaces the keycode
-  `AlertDialog`. It **takes the control center's place** rather than opening over it, so the scrim
-  never stacks, and its scrim is lighter because the point of pressing F3 is to watch what F3 did.
-  Caps send a **GLFW keycode directly**, not an index into `EfficientAndroidLWJGLKeycode`, and
-  they carry their **character**, which is what lets the keyboard type in chat and not only fire
-  keybinds. **Any cap can be latched** by long press, which is the only way F3 + G was ever
-  reachable; latched keys are real key-downs inside the game, so `ControlCenterHost.close()` and
-  `release()` must go on releasing them. Every row's weights add up to `ROW_UNITS`; that is what
+- **On-screen keyboard** (`ui/game/GameKeyboard.kt` + `KeyboardPanel.kt` + `GameKeyboardHost.kt`)
+  — replaces the keycode `AlertDialog`. It has **its own bottom-anchored `ComposeView`**, not the
+  control center's full-screen one, so the game stays visible *and touchable* above it and it
+  needs no scrim at all; a keyboard you poke mid-fight is not a menu. Caps send a **GLFW keycode
+  directly**, not an index into `EfficientAndroidLWJGLKeycode`, and they carry their
+  **character**, which is what lets the keyboard type in chat and not only fire keybinds. **Any
+  cap can be latched** by long press, which is the only way F3 + G was ever reachable; latched
+  keys are real key-downs inside the game, so `GameKeyboardHost.close()` and `release()` must go
+  on releasing them. Every row's weights add up to `ROW_UNITS`; that is what
   `scripts/check_keyboard.py` checks, along with the keycode range and that no key the old dialog
   offered was lost.
+- **Control-center actions straight from a button** — `SPECIALBTN_GAMEKEYBOARD` (-12) opens the
+  keyboard without the sheet. Special keycodes are **appended, never inserted**: the editor's
+  spinner converts position ↔ keycode by arithmetic over the *reversed* name list, and the
+  keycode itself is what is written into saved layout JSON, so an insertion silently re-points
+  every layout anyone has ever saved.
+- **Voice typing** (`ui/game/VoiceInputHost.kt` + `VoiceOverlay.kt`, `customcontrols/keyboard/`)
+  — `SPECIALBTN_VOICE` (-13), plus an opt-in hold on a button bound to T or `/`. Four decisions
+  hold it together. It uses the **bound-service `SpeechRecognizer`**, never
+  `ACTION_RECOGNIZE_SPEECH` as an activity: that pauses the game, and `onPause` sends ESCAPE
+  while the cursor is grabbed, so every dictation would open the pause menu. Words go out as
+  **characters** (`CallbackBridge.sendChar`), never key events, or a dictated "quick" would drop
+  the held item and open the inventory. `LiveTyper` **models the chat box it cannot read**,
+  typing each new guess as a diff against the last, which is why anything that could desync the
+  two calls `forget()` rather than keeping on correcting. And **only the back key undoes** a
+  dictation — the overlay's stop control keeps the words, because deleting text someone watched
+  appear is the more startling of the two. The recogniser watchdog is a **silence** timer that
+  every callback pushes back; a fixed session limit would cut off exactly the long sentence the
+  feature exists for.
 - **On-screen controls** — `ControlSkin` decides how a control is drawn **at draw time and never
   writes to the layout**, so turning it off gives the author's colours back. `ControlGlyphs` picks
   an icon from **the key a button sends**, not its name, so old layouts gain icons with no
@@ -566,6 +586,14 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   runs out of screen on a small display — inherent to nineteen buttons, and the layout is editable.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- Voice typing **cannot open chat for you**. The chat key is rebindable and nothing on the
+  launcher side can read the player's keybinds, so a voice button pressed with no text field open
+  types into nothing. That is also why the hold shortcut is hardcoded to T and `/` — the vanilla
+  defaults — and says so in Settings rather than pretending to be general.
+- Voice typing **refuses while the recorder holds the microphone**, and says so. One device, one
+  microphone; both trying gives both a broken stream.
+- Dictation quality, latency and offline support are **the device's recogniser**, not ours.
+  `EXTRA_PREFER_OFFLINE` is a request, ignored where unsupported.
 - The on-screen keyboard is **US layout**. The shift pairs are baked into the table because that is
   the layout the game's own keybind names assume; a player on another physical layout gets US
   symbols. It is landscape-only, which is safe because `MainActivity` is `sensorLandscape`.

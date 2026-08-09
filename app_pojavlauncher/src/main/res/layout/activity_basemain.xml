@@ -97,6 +97,38 @@
 			android:visibility="gone"/>
 
 		<!--
+			The launcher's on-screen keyboard, opened straight from a control button.
+
+			Deliberately NOT inside the control center's full-screen view. A keyboard you poke
+			mid-fight should leave the game visible and touchable above it, so this is only as
+			tall as the board itself and captures touches only inside its own rectangle. That is
+			also why it needs no scrim.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/game_keyboard"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_gravity="bottom"
+			android:visibility="gone"/>
+
+		<!--
+			The dictation overlay. Small, bottom-anchored and GONE unless listening, so it covers
+			as little of the game as possible and the rest of the screen stays playable while it
+			is up. Wrap_content is doing real work here: a match_parent ComposeView would take
+			every touch the game is waiting for, which is the rule the control center below obeys
+			by being GONE instead.
+
+			After the keyboard rather than before it: both sit at the bottom, and a listening
+			indicator hidden behind the board would be worse than one covering a row of it.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/voice_overlay"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:layout_gravity="bottom|center_horizontal"
+			android:visibility="gone"/>
+
+		<!--
 			The control center itself. Stretched over the game, so it stays GONE while closed:
 			visible it would sit in front of every touch the game is waiting for.
 		-->

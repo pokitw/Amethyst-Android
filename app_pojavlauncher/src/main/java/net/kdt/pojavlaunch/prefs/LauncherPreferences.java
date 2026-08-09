@@ -83,6 +83,10 @@ public class LauncherPreferences {
     public static boolean PREF_CONTROL_POCKET_SKIN = true;
     public static boolean PREF_CONTROL_GLYPHS = false;
 
+    public static boolean PREF_VOICE_LIVE_TYPING = true;
+    public static boolean PREF_VOICE_AUTO_SEND = false;
+    public static boolean PREF_VOICE_HOLD_CHAT = false;
+
 
     public static void loadPreferences(Context ctx) {
         //Required for CTRLDEF_FILE and MultiRT
@@ -127,6 +131,9 @@ public class LauncherPreferences {
         PREF_KEYBOARD_PANNING = DEFAULT_PREF.getBoolean("keyboardPanning", true);
         PREF_CONTROL_POCKET_SKIN = DEFAULT_PREF.getBoolean("controlPocketSkin", true);
         PREF_CONTROL_GLYPHS = DEFAULT_PREF.getBoolean("controlGlyphs", false);
+        PREF_VOICE_LIVE_TYPING = DEFAULT_PREF.getBoolean("voiceLiveTyping", true);
+        PREF_VOICE_AUTO_SEND = DEFAULT_PREF.getBoolean("voiceAutoSend", false);
+        PREF_VOICE_HOLD_CHAT = DEFAULT_PREF.getBoolean("voiceHoldChat", false);
 
         // User may have deleted their default control
         String userDefCtrl = DEFAULT_PREF.getString("defaultCtrl", Tools.CTRLDEF_FILE);

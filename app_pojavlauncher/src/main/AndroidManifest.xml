@@ -154,5 +154,14 @@
     </application>
     <queries>
         <package android:name="net.kdt.pojavlaunch.ffmpeg"/>
+        <!--
+            Voice typing binds to whichever app provides speech recognition. Without this,
+            package visibility hides every one of them from API 30 up and
+            SpeechRecognizer.isRecognitionAvailable() reports false on a device that can dictate
+            perfectly well.
+        -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
     </queries>
 </manifest>

@@ -106,6 +106,8 @@ class SettingsEnvironment(
     val deviceMemoryMb: Int = 4096,
     val maxMemoryMb: Int = 3072,
     val gyroAvailable: Boolean = true,
+    /** Whether anything on this device can transcribe speech at all. */
+    val voiceAvailable: Boolean = true,
     val notificationPermission: Boolean = true,
     val microphonePermission: Boolean = true,
     /** Who is signed in, and what they are about to play — the header says both. */
@@ -841,6 +843,36 @@ private fun ControlsScreen(
                 stringResource(R.string.mcl_setting_subtitle_keyboard_panning),
                 store.bool("keyboardPanning", true)
             ) { store.put("keyboardPanning", it) }
+        }
+
+        SectionLabel(stringResource(R.string.settings_section_voice))
+        SettingsCard {
+            InfoRow(
+                stringResource(R.string.preference_voice_title),
+                stringResource(
+                    if (environment.voiceAvailable) R.string.preference_voice_description
+                    else R.string.preference_voice_unavailable
+                )
+            )
+            // The switches below only shape a dictation, so on a device that cannot dictate at
+            // all they would be three controls over nothing.
+            if (environment.voiceAvailable) {
+                SwitchRow(
+                    stringResource(R.string.preference_voice_live_title),
+                    stringResource(R.string.preference_voice_live_description),
+                    store.bool("voiceLiveTyping", true)
+                ) { store.put("voiceLiveTyping", it) }
+                SwitchRow(
+                    stringResource(R.string.preference_voice_autosend_title),
+                    stringResource(R.string.preference_voice_autosend_description),
+                    store.bool("voiceAutoSend", false)
+                ) { store.put("voiceAutoSend", it) }
+                SwitchRow(
+                    stringResource(R.string.preference_voice_hold_chat_title),
+                    stringResource(R.string.preference_voice_hold_chat_description),
+                    store.bool("voiceHoldChat", false)
+                ) { store.put("voiceHoldChat", it) }
+            }
         }
 
         SectionLabel(stringResource(R.string.settings_section_mouse))

@@ -21,6 +21,7 @@ import net.kdt.pojavlaunch.LauncherActivity
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.contracts.OpenDocumentWithExtension
+import net.kdt.pojavlaunch.customcontrols.keyboard.VoiceInput
 import net.kdt.pojavlaunch.multirt.MultiRTConfigDialog
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
@@ -129,6 +130,7 @@ class SettingsFragment : Fragment() {
             deviceMemoryMb = deviceMemory,
             maxMemoryMb = maxMemory,
             gyroAvailable = Tools.deviceSupportsGyro(context),
+            voiceAvailable = VoiceInput.isAvailable(context),
             notificationPermission = launcher?.checkForNotificationPermission() ?: true,
             microphonePermission = launcher?.checkForMicrophonePermission() ?: true,
             accountName = account?.username,

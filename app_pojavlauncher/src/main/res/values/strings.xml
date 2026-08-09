@@ -657,6 +657,31 @@
     <string name="control_keyboard_hint">Tap a key to send it. Hold to keep it down.</string>
     <string name="control_keyboard_close">Close keyboard</string>
 
+    <!-- Voice typing, in game -->
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_hint">Say it — the words go wherever the cursor is.</string>
+    <string name="voice_stop">Stop dictating</string>
+    <string name="voice_error_timeout">Nothing was heard, so listening stopped.</string>
+    <string name="voice_error_unavailable">This device has no speech recognition.</string>
+    <string name="voice_error_permission">Voice typing needs microphone access.</string>
+    <string name="voice_error_network">Speech recognition needs a connection right now.</string>
+    <string name="voice_error_no_match">Didn\'t catch that.</string>
+    <string name="voice_error_busy">Speech recognition is busy.</string>
+    <string name="voice_error_generic">Voice typing stopped.</string>
+    <string name="voice_error_recorder_microphone">The recorder is using the microphone.</string>
+
+    <!-- Voice typing, in settings -->
+    <string name="settings_section_voice">VOICE TYPING</string>
+    <string name="preference_voice_title">Voice typing</string>
+    <string name="preference_voice_description">Adds a VOICE button to the control editor. Speak, and the words are typed into chat.</string>
+    <string name="preference_voice_live_title">Type as you speak</string>
+    <string name="preference_voice_live_description">Words appear in chat while you are still talking and correct themselves as they are recognised.</string>
+    <string name="preference_voice_autosend_title">Send when you stop</string>
+    <string name="preference_voice_autosend_description">Press Enter as soon as the last word has been typed.</string>
+    <string name="preference_voice_hold_chat_title">Hold chat to dictate</string>
+    <string name="preference_voice_hold_chat_description">Holding a button bound to T or / opens chat and starts listening. Tapping it still just opens chat.</string>
+    <string name="preference_voice_unavailable">This device has no speech recognition, so voice typing has nothing to run on.</string>
+
     <!-- Settings -->
     <string name="settings_home_subtitle">Grouped by what you came here to change</string>
     <string name="settings_dest_performance">Performance</string>

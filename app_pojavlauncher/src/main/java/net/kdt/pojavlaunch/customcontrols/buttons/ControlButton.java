@@ -44,6 +44,27 @@ public class ControlButton extends TextView implements ControlInterface {
     /** Below this a label stops being readable, so it wraps instead of shrinking further. */
     private static final float MIN_TEXT_SP = 8f;
 
+    /**
+     * How long a chat button has to be held before it starts dictating.
+     *
+     * Well clear of a tap, which is nearer 100ms, and short enough that the hold does not feel
+     * like waiting. Deliberately not PREF_LONGPRESS_TRIGGER: that one belongs to the gesture that
+     * mines a block, and shortening it to break faster should not make chat harder to open.
+     */
+    private static final int HOLD_TO_DICTATE_MS = 400;
+
+    /**
+     * The keys that open a text field in vanilla Minecraft: chat, and the command prompt.
+     *
+     * Hardcoded because nothing on the launcher side can read the player's keybinds — the game
+     * owns options.txt and there is no route to it from here. So the shortcut is offered for the
+     * keys chat is bound to out of the box, is off until it is asked for, and says in Settings
+     * exactly which keys it applies to rather than appearing to be general.
+     */
+    private static final int[] CHAT_KEYS = {
+            LwjglGlfwKeycode.GLFW_KEY_T, LwjglGlfwKeycode.GLFW_KEY_SLASH
+    };
+
     private final Paint mRectPaint = new Paint();
     protected ControlData mProperties;
     private final ControlLayout mControlLayout;
@@ -56,6 +77,19 @@ public class ControlButton extends TextView implements ControlInterface {
 
     protected boolean mIsToggled = false;
     protected boolean mIsPointerOutOfBounds = false;
+
+    /** Whether the hold on this button has turned into a dictation that still has to be ended. */
+    private boolean mDictating = false;
+    private final Runnable mDictateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            mDictating = true;
+            // The chat key must not stay down for the length of a sentence. It has already done
+            // its job — the text field is open — so it is given back here rather than on release.
+            sendKeyPresses(false);
+            mControlLayout.notifyVoiceShortcut(true);
+        }
+    };
 
     public ControlButton(ControlLayout layout, ControlData properties) {
         super(layout.getContext());
@@ -204,6 +238,9 @@ public class ControlButton extends TextView implements ControlInterface {
                             sendKeyPresses(false);
                         }
                     }
+                    // A finger that has slid off is no longer holding this button, whatever it
+                    // goes on to do, so the pending dictation goes with it.
+                    endDictation();
                     mIsPointerOutOfBounds = true;
                     getControlLayoutParent().onTouch(this, event);
                     break;
@@ -225,6 +262,7 @@ public class ControlButton extends TextView implements ControlInterface {
                 if(!getProperties().isToggle){
                     sendKeyPresses(true);
                 }
+                scheduleDictation();
                 break;
 
             case MotionEvent.ACTION_UP: // 1
@@ -237,6 +275,7 @@ public class ControlButton extends TextView implements ControlInterface {
                 if(mIsPointerOutOfBounds) getControlLayoutParent().onTouch(this, event);
                 mIsPointerOutOfBounds = false;
 
+                endDictation();
                 if(!triggerToggle()) {
                     sendKeyPresses(false);
                 }
@@ -250,6 +289,41 @@ public class ControlButton extends TextView implements ControlInterface {
     }
 
 
+
+    /**
+     * Start the clock on hold-to-dictate, for a button that is bound to a chat key.
+     *
+     * Deliberately does not delay the key itself: holding chat still opens chat the instant it is
+     * pressed, and only the dictation waits. A shortcut that made the ordinary press feel slower
+     * would cost every player something to give some of them a feature.
+     */
+    private void scheduleDictation() {
+        if(!LauncherPreferences.PREF_VOICE_HOLD_CHAT) return;
+        if(mProperties.isToggle || mProperties.keycodes.length != 1) return;
+        boolean isChatKey = false;
+        for(int chatKey : CHAT_KEYS) {
+            if(mProperties.keycodes[0] == chatKey) isChatKey = true;
+        }
+        if(!isChatKey) return;
+        mDictating = false;
+        postDelayed(mDictateRunnable, HOLD_TO_DICTATE_MS);
+    }
+
+    /** Drop a pending dictation, and close one that has already started. */
+    private void endDictation() {
+        removeCallbacks(mDictateRunnable);
+        if(!mDictating) return;
+        mDictating = false;
+        mControlLayout.notifyVoiceShortcut(false);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        // A button can be removed mid-press in the editor, and a dictation left running would
+        // have nothing left to end it.
+        endDictation();
+        super.onDetachedFromWindow();
+    }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean triggerToggle(){
@@ -320,6 +394,19 @@ public class ControlButton extends TextView implements ControlInterface {
 
             case ControlData.SPECIALBTN_MOUSEFWD:
                 sendMouseButton(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_5, isDown);
+                break;
+
+            // Guarded on isDown. sendSpecialKey runs on both edges of a press, so an unguarded
+            // one-shot fires twice — SPECIALBTN_MENU above still does.
+            case ControlData.SPECIALBTN_GAMEKEYBOARD:
+                if (isDown) mControlLayout.notifyGameKeyboard();
+                break;
+
+            // The one special that wants both edges: a tap toggles listening and a hold listens
+            // only while held, and the difference between those is how long the finger stayed
+            // down — which only the receiver is in a position to measure.
+            case ControlData.SPECIALBTN_VOICE:
+                mControlLayout.notifyVoice(isDown);
                 break;
 
             default:

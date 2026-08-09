@@ -163,6 +163,26 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "keyboard pan shift screen typing"
     ),
     SettingEntry(
+        R.string.preference_voice_title, SettingsRoute.CONTROLS,
+        R.string.preference_voice_description, R.string.settings_section_voice,
+        "voice speech dictate dictation microphone mic talk chat speak", suggested = true
+    ),
+    SettingEntry(
+        R.string.preference_voice_live_title, SettingsRoute.CONTROLS,
+        R.string.preference_voice_live_description, R.string.settings_section_voice,
+        "voice speech dictation live partial while talking"
+    ),
+    SettingEntry(
+        R.string.preference_voice_autosend_title, SettingsRoute.CONTROLS,
+        R.string.preference_voice_autosend_description, R.string.settings_section_voice,
+        "voice speech dictation enter send automatically"
+    ),
+    SettingEntry(
+        R.string.preference_voice_hold_chat_title, SettingsRoute.CONTROLS,
+        R.string.preference_voice_hold_chat_description, R.string.settings_section_voice,
+        "voice speech dictation hold chat shortcut push to talk"
+    ),
+    SettingEntry(
         R.string.mcl_setting_title_mousescale, SettingsRoute.CONTROLS,
         R.string.mcl_setting_subtitle_mousescale, R.string.settings_section_mouse,
         "cursor size pointer"

@@ -123,6 +123,14 @@ public class GameRecorder {
     @Nullable private NoiseSuppressor mNoiseSuppressor;
     /** Channels the microphone actually gave us; mono captures are widened when read. */
     private int mMicChannels;
+    /**
+     * Whether the microphone is currently held open by this recording.
+     *
+     * A mirror of {@code mMicRecord != null}, kept because that field belongs to the control
+     * thread and this is read from the UI thread: voice typing has to refuse while the recorder
+     * owns the microphone, and it has to say so rather than quietly fight over the device.
+     */
+    private volatile boolean mCapturingMicrophone;
     /** Scratch space for the microphone's share of a mixed buffer. */
     @Nullable private ByteBuffer mMixBuffer;
     @Nullable private short[] mMonoBuffer;
@@ -186,6 +194,14 @@ public class GameRecorder {
         long startedAt = mStartedAtMs;
         if (!mSessionActive || startedAt == 0L) return 0L;
         return SystemClock.elapsedRealtime() - startedAt;
+    }
+
+    /**
+     * @return whether this recording currently holds the microphone open, in which case nothing
+     *         else on the device can have it.
+     */
+    public boolean isCapturingMicrophone() {
+        return mSessionActive && mCapturingMicrophone;
     }
 
     /** @return roughly how much has been written to the current file so far, in bytes. */
@@ -407,6 +423,7 @@ public class GameRecorder {
             // Echo cancellation matters when the two are mixed: without it a device playing
             // through its speaker records the game twice, once cleanly and once through the room.
             mMicRecord = createMicrophoneCapture(sampleRate, minBuffer, mAudioRecord != null);
+            mCapturingMicrophone = mMicRecord != null;
             if (mMicRecord == null)
                 Log.w(TAG, "The microphone could not be captured");
         }
@@ -739,6 +756,7 @@ public class GameRecorder {
     private void releaseAudio() {
         mAudioRecord = releaseRecord(mAudioRecord, "the game's audio capture");
         mMicRecord = releaseRecord(mMicRecord, "the microphone capture");
+        mCapturingMicrophone = false;
         if (mEchoCanceler != null) {
             try {
                 mEchoCanceler.release();

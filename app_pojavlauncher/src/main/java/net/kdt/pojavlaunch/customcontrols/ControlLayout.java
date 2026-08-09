@@ -461,6 +461,18 @@ public class ControlLayout extends FrameLayout {
 		if(mMenuListener != null) mMenuListener.onClickedMenu();
 	}
 
+	public void notifyGameKeyboard() {
+		if(mMenuListener != null) mMenuListener.onClickedGameKeyboard();
+	}
+
+	public void notifyVoice(boolean down) {
+		if(mMenuListener != null) mMenuListener.onClickedVoice(down);
+	}
+
+	public void notifyVoiceShortcut(boolean down) {
+		if(mMenuListener != null) mMenuListener.onVoiceShortcut(down);
+	}
+
 	/** Cached getter for perf purposes */
 	public MinecraftGLSurface getGameSurface(){
 		if(mGameSurface == null){

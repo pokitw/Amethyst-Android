@@ -64,6 +64,7 @@ import net.kdt.pojavlaunch.customcontrols.CustomControls;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.customcontrols.keyboard.LwjglCharSender;
 import net.kdt.pojavlaunch.customcontrols.keyboard.TouchCharInput;
+import net.kdt.pojavlaunch.customcontrols.keyboard.VoiceInput;
 import net.kdt.pojavlaunch.customcontrols.mouse.GyroControl;
 import net.kdt.pojavlaunch.customcontrols.mouse.HotbarView;
 import net.kdt.pojavlaunch.customcontrols.mouse.Touchpad;
@@ -76,6 +77,8 @@ import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
+import net.kdt.pojavlaunch.ui.game.GameKeyboardHost;
+import net.kdt.pojavlaunch.ui.game.VoiceInputHost;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
 import net.kdt.pojavlaunch.utils.TouchControllerInputView;
@@ -94,7 +97,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class MainActivity extends BaseActivity implements ControlButtonMenuListener, EditorExitable, ServiceConnection,
-        TouchControllerInputView.InputAreaRectListener, ControlCenterCallbacks {
+        TouchControllerInputView.InputAreaRectListener, ControlCenterCallbacks, VoiceInputHost.Gate {
     public static volatile ClipboardManager GLOBAL_CLIPBOARD;
     public static final String TAG = "MainActivity";
     public static final String INTENT_MINECRAFT_VERSION = "intent_version";
@@ -109,6 +112,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private DrawerLayout drawerLayout;
     private View mDrawerPullButton;
     private ControlCenterHost mControlCenter;
+    private GameKeyboardHost mGameKeyboard;
+    private VoiceInputHost mVoiceInput;
     private GyroControl mGyroControl = null;
     private ControlLayout mControlLayout;
     private HotbarView mHotbarView;
@@ -127,6 +132,13 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     private static final int REQUEST_MEDIA_PROJECTION = 1001;
     private static final int REQUEST_RECORD_AUDIO = 1002;
+    /**
+     * Kept apart from {@link #REQUEST_RECORD_AUDIO}, which resumes a recording that was paused
+     * mid-start. Granting the microphone to dictation resumes nothing: the button is still under
+     * the player's thumb, and a dictation that began by itself on the way back from a system
+     * dialog would be listening before anyone meant it to.
+     */
+    private static final int REQUEST_RECORD_AUDIO_VOICE = 1003;
     /** Set once the capture prompt has been explained, so it is only shown the first time. */
     private static final String PREF_KEY_CAPTURE_EXPLAINED = "recorderCaptureExplained";
     private GameRecorder mGameRecorder;
@@ -321,6 +333,9 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                 findViewById(R.id.control_center),
                 findViewById(R.id.control_center_pill),
                 this);
+        mGameKeyboard = new GameKeyboardHost(findViewById(R.id.game_keyboard));
+        mVoiceInput = new VoiceInputHost(findViewById(R.id.voice_overlay), new VoiceInput(this),
+                new LwjglCharSender(), this);
     }
 
     @Override
@@ -338,6 +353,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         // down in the game, so leaving it there would send Ctrl+Esc instead of Esc — and would
         // hold that modifier for as long as the app stayed in the background.
         if(mControlCenter != null) mControlCenter.close();
+        if(mGameKeyboard != null) mGameKeyboard.close();
+        // The microphone belongs to whatever is in the foreground now. Dismissed rather than
+        // cancelled: leaving the app is not a decision to throw away the half-sentence already
+        // sitting in the chat box, and it will still be there on the way back.
+        if(mVoiceInput != null) mVoiceInput.dismiss();
         if (CallbackBridge.isGrabbing()){
             sendKeyPress(LwjglGlfwKeycode.GLFW_KEY_ESCAPE);
         }
@@ -371,6 +391,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         CallbackBridge.removeGrabListener(touchpad);
         CallbackBridge.removeGrabListener(minecraftGLView);
         if(mControlCenter != null) mControlCenter.release();
+        if(mGameKeyboard != null) mGameKeyboard.release();
+        if(mVoiceInput != null) mVoiceInput.release();
         ContextExecutor.clearActivity();
     }
 
@@ -612,6 +634,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // Nothing to resume: see REQUEST_RECORD_AUDIO_VOICE. Pressing the button again now works.
+        if(requestCode == REQUEST_RECORD_AUDIO_VOICE) return;
         if(requestCode != REQUEST_RECORD_AUDIO) return;
         if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             requestProjectionAndRecord();
@@ -718,6 +742,19 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             if(event.getAction() == KeyEvent.ACTION_UP) mControlCenter.close();
             return true;
         }
+        // Same reasoning for the two surfaces that can be up without it. Dictation is taken first:
+        // when both are showing, back means "never mind that sentence", not "put the keyboard
+        // away" — and back is the one gesture that undoes what was dictated rather than keeping it.
+        if(event.getKeyCode() == KeyEvent.KEYCODE_BACK && mVoiceInput != null
+                && mVoiceInput.isListening()) {
+            if(event.getAction() == KeyEvent.ACTION_UP) mVoiceInput.cancel();
+            return true;
+        }
+        if(event.getKeyCode() == KeyEvent.KEYCODE_BACK && mGameKeyboard != null
+                && mGameKeyboard.isOpen()) {
+            if(event.getAction() == KeyEvent.ACTION_UP) mGameKeyboard.close();
+            return true;
+        }
         if(isInEditor) {
             if(event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
                 if(event.getAction() == KeyEvent.ACTION_DOWN) mControlLayout.askToExit(this);
@@ -813,13 +850,51 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mControlCenter.open();
     }
 
+    @Override
+    public void onClickedGameKeyboard() {
+        // Closed rather than left underneath: the keyboard is a shortcut past the control center,
+        // so having pressed it there is no reason for the sheet to still be there afterwards.
+        mControlCenter.close();
+        mGameKeyboard.open();
+    }
+
+    @Override
+    public void onClickedVoice(boolean down) {
+        if(down) mVoiceInput.onButtonDown();
+        else mVoiceInput.onButtonUp();
+    }
+
+    @Override
+    public void onVoiceShortcut(boolean down) {
+        mVoiceInput.onShortcut(down);
+    }
+
+    /* Voice typing's two questions about the rest of the game. */
+
+    @Override
+    public int voiceBlockedReason() {
+        // One microphone, and the recorder took it first. Refusing out loud beats both of them
+        // getting a broken stream, which is what fighting over the device actually produces.
+        if(mGameRecorder != null && mGameRecorder.isCapturingMicrophone())
+            return R.string.voice_error_recorder_microphone;
+        if(!VoiceInput.isAvailable(this)) return R.string.voice_error_unavailable;
+        return 0;
+    }
+
+    @Override
+    public boolean ensureMicrophonePermission() {
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) return true;
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO_VOICE);
+        return false;
+    }
+
     /* Control center actions. Every one of these already existed; only the way in has changed. */
 
     @Override public void onToggleRecording() { mControlCenter.close(); toggleRecording(); }
     @Override public void onCustomControls() { mControlCenter.close(); openCustomControls(); }
-    // Not close-then-open: the keyboard takes the sheet's place rather than following it, so the
-    // scrim stays up and the two surfaces hand over to each other in one movement.
-    @Override public void onSendKeycode() { mControlCenter.openKeyboard(); }
+    @Override public void onSendKeycode() { mControlCenter.close(); mGameKeyboard.open(); }
     @Override public void onQuickSettings() { mControlCenter.close(); openQuickSettings(); }
     @Override public void onLogOutput() { mControlCenter.close(); openLogOutput(); }
     @Override public void onForceClose() { mControlCenter.close(); dialogForceClose(this); }
