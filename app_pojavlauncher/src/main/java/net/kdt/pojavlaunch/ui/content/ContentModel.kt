@@ -102,12 +102,15 @@ data class ContentItem(
 /**
  * Everything under the title, in one line.
  *
- * Deliberately not a row of chips and badges. The launcher's rows put the state in one accent
- * line under the description, and this is that line.
+ * Deliberately not a row of chips. The launcher's rows put the state in one accent line under the
+ * description, and this is that line.
+ *
+ * The badge is **not** in it. A survival world reads "SURVIVAL · 1.20.1 · 412 MB · 2 days ago",
+ * which is four parts and does not fit a phone's row width — so the badge, which is the shortest
+ * and the most recognisable of them, sits beside the title instead and the line keeps three.
  */
 fun summarise(context: Context, item: ContentItem): String {
-    val parts = ArrayList<String>(4)
-    item.badge?.let { parts.add(it) }
+    val parts = ArrayList<String>(3)
     item.version?.let { parts.add(it) }
     if (item.sizeBytes > 0L) parts.add(Formatter.formatShortFileSize(context, item.sizeBytes))
     // Recency matters for the things you come back to and not for the things you install once.

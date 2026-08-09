@@ -382,13 +382,31 @@ private fun ContentRow(
         Thumbnail(item)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                item.title,
-                style = MaterialTheme.typography.titleSmall,
-                color = if (item.enabled) colors.onSurface else colors.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (item.enabled) colors.onSurface else colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                // The quiet badge of §9, not the filled one Settings uses for "THIS PROFILE":
+                // that one is loud because it appears once, and this appears on every row.
+                if (!item.badge.isNullOrEmpty()) {
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        item.badge,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.primary,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.extraSmall)
+                            .background(colors.primary.copy(alpha = 0.13f))
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    )
+                }
+            }
             if (!item.detail.isNullOrEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
