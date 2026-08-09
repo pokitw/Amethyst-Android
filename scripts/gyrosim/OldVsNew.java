@@ -4,6 +4,8 @@
  * then flush the whole accumulator at once. Sampled at 62.5 Hz off a fused rotation vector.
  */
 public class OldVsNew {
+    static final double NEW_HZ = 200.0;
+
     public static void main(String[] a) {
         for (double dps : new double[]{1.0, 3.0, 10.0, 45.0}) {
             System.out.printf("%n--- turning at %.0f deg/s ---%n", dps);
@@ -33,7 +35,9 @@ public class OldVsNew {
         }
         System.out.printf("  old: %d updates in 2 s, largest jump %.0f px, longest freeze %.0f ms%n",
                 emits, biggestStep, maxGapMs);
-        System.out.printf("  new: 800 updates in 2 s, largest jump 1 px, longest freeze %.1f ms%n",
-                1000.0 / 400.0);
+        // 200 Hz is what GyroControl asks for; above that Android wants a permission, and the
+        // game only reads the cursor once a frame anyway.
+        System.out.printf("  new: %.0f updates in 2 s, largest jump 1 px, longest freeze %.0f ms%n",
+                2 * NEW_HZ, 1000.0 / NEW_HZ);
     }
 }

@@ -6,6 +6,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.util.Log;
 import android.view.Surface;
 import android.view.WindowManager;
 
@@ -69,13 +70,24 @@ public class GyroControl implements SensorEventListener, GrabListener {
 
     private static final float RAD_TO_DEG = 57.29578f;
 
+    private static final String TAG = "GyroControl";
+
     /**
-     * Asked-for time between gyroscope samples, in microseconds. Devices clamp this to whatever
-     * their gyro actually runs at — typically 200Hz to 500Hz. Nothing downstream depends on the
-     * rate, because every sample is integrated against its own measured interval; a faster sensor
-     * simply means smaller, more frequent steps.
+     * Asked-for time between gyroscope samples, in microseconds — 200Hz, and not by accident.
+     *
+     * Android 12 throws {@link SecurityException} out of
+     * {@link SensorManager#registerListener(SensorEventListener, Sensor, int)} for any period
+     * under 5000µs unless the app declares {@code HIGH_SAMPLING_RATE_SENSORS}. This asked for
+     * 2500µs and crashed the game on resume, because that call happens in {@code onResume} and a
+     * throw there is not a gyro that failed, it is an activity that cannot start.
+     *
+     * <p>The permission is deliberately <b>not</b> declared, because the rate above 200Hz buys
+     * nothing here. The game reads the cursor once per {@code pojavPumpEvents}, which is once a
+     * frame, so a sensor running at three times the frame rate is already being coalesced before
+     * the game sees it — and the whole point of integrating against the measured interval is that
+     * the rate does not change the result. {@code scripts/gyrosim/run.sh} checks exactly that.
      */
-    private static final int GYRO_PERIOD_US = 2500;
+    private static final int GYRO_PERIOD_US = 5000;
 
     /** Gravity moves slowly and is only used to decide which way is up. 50Hz is ample. */
     private static final int GRAVITY_PERIOD_US = 20000;
@@ -158,22 +170,53 @@ public class GyroControl implements SensorEventListener, GrabListener {
         updateOrientation();
     }
 
+    /**
+     * Start listening.
+     *
+     * Called from {@code MainActivity.onResume}, which is why nothing in here is allowed to throw:
+     * an exception on this path does not disable the gyroscope, it stops the game from starting.
+     * Sensor registration is the part that can, so it is tried at descending rates and the gyro is
+     * simply given up on if none of them are permitted.
+     */
     public void enable() {
         if (mGyroscope == null) return;
         mLastTimestamp = 0;
         mStillSeconds = 0;
         mSmoother.reset();
-        mSensorManager.registerListener(this, mGyroscope, GYRO_PERIOD_US);
-        if (mGravitySensor != null) {
-            mSensorManager.registerListener(this, mGravitySensor, GRAVITY_PERIOD_US);
+
+        if (!register(mGyroscope, GYRO_PERIOD_US)
+                && !register(mGyroscope, SensorManager.SENSOR_DELAY_GAME)
+                && !register(mGyroscope, SensorManager.SENSOR_DELAY_NORMAL)) {
+            Log.w(TAG, "The gyroscope would not start at any rate; aiming by motion is off");
+            return;
         }
+        // Only which way is up. Losing it costs the tilt-aware turning, not the gyro.
+        if (mGravitySensor != null) register(mGravitySensor, GRAVITY_PERIOD_US);
+
         mShouldHandleEvents = CallbackBridge.isGrabbing();
+        // Removed first because enable() is reached both from onResume and from the in-game
+        // toggle, and the listener list would otherwise gain a duplicate every time.
+        CallbackBridge.removeGrabListener(this);
         CallbackBridge.addGrabListener(this);
+    }
+
+    /** @return whether the sensor is now being listened to at that rate */
+    private boolean register(Sensor sensor, int periodUs) {
+        try {
+            return mSensorManager.registerListener(this, sensor, periodUs);
+        } catch (Throwable t) {
+            Log.w(TAG, "Sensor " + sensor.getType() + " refused a " + periodUs + "us period", t);
+            return false;
+        }
     }
 
     public void disable() {
         if (mGyroscope == null) return;
-        mSensorManager.unregisterListener(this);
+        try {
+            mSensorManager.unregisterListener(this);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not unregister the motion sensors", t);
+        }
         mLastTimestamp = 0;
         mSmoother.reset();
         CallbackBridge.removeGrabListener(this);

@@ -7,7 +7,8 @@ import org.lwjgl.glfw.CallbackBridge;
 public class GyroSim {
     static final Sensor GYRO = new Sensor(Sensor.TYPE_GYROSCOPE);
     static final Sensor GRAV = new Sensor(Sensor.TYPE_GRAVITY);
-    static final double HZ = 400.0;
+    /** The rate GyroControl actually asks for: 200Hz, the fastest Android allows unpermitted. */
+    static final double HZ = 200.0;
     static final long STEP_NS = (long) (1e9 / HZ);
     static long clock = 1_000_000_000L;
     static int failures = 0;
@@ -155,6 +156,39 @@ public class GyroSim {
         check("100 Hz and 400 Hz give the same turn",
               Math.abs(totals[0] - totals[1]) < 15,
               String.format("%.1f vs %.1f px", totals[0], totals[1]));
+
+        // enable() is called from MainActivity.onResume, so a throw there is not a gyro that
+        // failed -- it is an activity that cannot resume. This shipped once: 2500us asked for,
+        // SecurityException raised, game dead on launch.
+        android.hardware.SensorManager.strictBelowUs = 5000;
+        boolean threw = false;
+        try { fresh(); } catch (Throwable t) { threw = true; }
+        check("enable() at the real Android 12 limit", !threw, "no exception");
+
+        // A stricter device than any that exists, so the fallback to SENSOR_DELAY_GAME is taken.
+        android.hardware.SensorManager.strictBelowUs = 100000;
+        threw = false;
+        try {
+            GyroControl fb = fresh();
+            turn(fb, 90.0, 0.0, 1.0);
+            check("falls back to a slower rate and still aims",
+                    Math.abs(-CallbackBridge.mouseX - 600) < 12,
+                    String.format("got %.1f px", -CallbackBridge.mouseX));
+        } catch (Throwable t) { threw = true; }
+        check("fallback path does not throw", !threw, "no exception");
+
+        // Nothing will start at all. The game must still run, without a gyro.
+        android.hardware.SensorManager.strictBelowUs = Integer.MAX_VALUE;
+        threw = false;
+        try {
+            CallbackBridge.mouseX = 0;
+            GyroControl dead = new GyroControl(new android.app.Activity());
+            dead.enable();
+            dead.onGrabState(true);
+            dead.disable();
+        } catch (Throwable t) { threw = true; }
+        check("a gyro that will not start is not a crash", !threw, "no exception");
+        android.hardware.SensorManager.strictBelowUs = 5000;
 
         System.out.println(failures == 0 ? "\nALL CHECKS PASSED" : "\n" + failures + " FAILED");
         System.exit(failures == 0 ? 0 : 1);

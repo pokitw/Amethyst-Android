@@ -604,7 +604,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     pointing up: the apex was the first point in the path, and the first point is where the pen
     starts, not where the arrow points. It took ten seconds to spot in a contact sheet and would
     have taken a build cycle and a screenshot from a user otherwise.
-15. **A generated layout file cannot be reviewed.** The old `default.json` had 400-character
+15. **A sampling rate is a permission.** `registerListener` throws `SecurityException` on
+    Android 12+ for any period under 5000µs unless the app declares
+    `HIGH_SAMPLING_RATE_SENSORS` — and `GyroControl.enable()` is called from `onResume`, so
+    asking for 2500µs was not a gyroscope that failed, it was a game that would not launch.
+    200Hz is the fastest unpermitted rate and costs nothing here: the game reads the cursor once
+    per `pojavPumpEvents`, which is once a frame. **Anything on the resume or launch path that
+    touches a system service has to be unable to throw**, not merely unlikely to.
+16. **A stub that always succeeds tests nothing about the call it stands in for.** The gyro
+    harness verified the maths thoroughly and shipped a crash, because its fake `SensorManager`
+    returned `true` for every rate — so the one contract that actually broke was the one the
+    tests could not see. It now throws exactly as the platform does, and there are checks for
+    the real limit, the fallback, and a sensor that will not start at all. When a harness stands
+    in for a platform, **model the platform's refusals, not just its successes**.
+17. **A generated layout file cannot be reviewed.** The old `default.json` had 400-character
     position expressions with `10^-13` coefficients in them; nobody could tell whether a button
     was in the right place without running it. The replacement is written in the simple
     vocabulary and evaluated by a script against a grid of screen sizes and button scales, which
