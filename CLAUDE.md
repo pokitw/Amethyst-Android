@@ -397,6 +397,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` **and** `CustomControlsActivity` |
 | On-screen keyboard · voice overlay | **Compose** | `ui/game/`, each with its own bottom-anchored `ComposeView` |
 | Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
+| Control editor panel · key picker | **Compose** | `ui/controls/`, driven by `ControlLayout.setEditorHost` |
 | Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
 | Profile editor · type picker · MC version picker | **Compose** | `ui/profile/`, hosted by `ProfileEditorFragment.kt` and `ProfileTypeSelectFragment.kt` |
 | Crash screen | **Compose** | `diagnosis/`, hosted by `ExitActivity.kt` |
@@ -469,6 +470,16 @@ re-litigated. The reasoning lives in the commit that made the change.
   shape written in the simple expression vocabulary so it can be read and checked (§19).
 - **Control layout editor** — hosts the same control center in editor mode, so the editor from
   Settings and the one from inside a game are one screen with two ways in.
+- **Editing a button** (`ui/controls/`) — the keycode spinners are gone: **you bind a key by
+  pressing it on a keyboard**, the same board the on-screen keyboard uses, from the same `Key`
+  tables. Everything a control can do that is not a key sits behind an Actions tab with real
+  names — "Left click", not `SPECIAL_PRI`. Slots appear one at a time rather than four at once,
+  binding the first one **names an unnamed button after its key**, and every change is live on
+  the button behind the panel, which is why the panel is narrow and hugs the edge the button is
+  not on. `ControlEditorState` is the only thing that writes `ControlData`, because each field
+  needs a different refresh call and getting one wrong is invisible until a slider does nothing.
+  This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
+  `colorselector` package with it.
 - **Sign-in** — one screen, not two. Microsoft carries the gradient and offline is quieter beneath
   it, because they are not equal choices: offline cannot join a server. The username is asked for
   in place, validated as it is typed. Microsoft still hands off to `MicrosoftLoginFragment`, and an
@@ -634,10 +645,6 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 **Next**
 2. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
    gets their settings into the search index.
-3. The control editor's *editing* surfaces: `EditControlSideDialog` is still a side panel of raw
-   fields (stroke width in dp, corner radius in per cent) and `ActionRow` is still a strip of
-   bare icons. The menu around them is designed now; what you actually touch to edit a button is
-   not.
 4. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
    gallery with a preview, since a control layout is a picture, not a filename.
 5. Recording segmentation for multi-hour sessions.

@@ -657,6 +657,73 @@
     <string name="control_keyboard_hint">Tap a key to send it. Hold to keep it down.</string>
     <string name="control_keyboard_close">Close keyboard</string>
 
+    <!-- Control editor -->
+    <string name="control_editor_close">Close</string>
+    <string name="control_editor_name_hint">Name</string>
+    <string name="control_editor_joystick">Joystick</string>
+    <string name="control_editor_section_keys">SENDS</string>
+    <string name="control_editor_section_drawer">DRAWER</string>
+    <string name="control_editor_section_size">SIZE</string>
+    <string name="control_editor_section_look">LOOK</string>
+    <string name="control_editor_section_behaviour">BEHAVIOUR</string>
+    <string name="control_editor_section_visibility">SHOW</string>
+    <string name="control_editor_key_none">Choose a key</string>
+    <string name="control_editor_key_add">Add key</string>
+    <string name="control_editor_keys_hint">Tap a key to change it. One button can send up to four at once.</string>
+    <string name="control_editor_width">Width</string>
+    <string name="control_editor_height">Height</string>
+    <string name="control_editor_opacity">Opacity</string>
+    <string name="control_editor_corners">Corners</string>
+    <string name="control_editor_border">Border</string>
+    <string name="control_editor_fill">Fill</string>
+    <string name="control_editor_border_colour">Border colour</string>
+    <string name="control_editor_colour_alpha">Transparency</string>
+    <string name="control_editor_colour_custom">Mix your own</string>
+    <string name="control_editor_colour_palette">Back to the palette</string>
+    <string name="control_editor_colour_red">Red</string>
+    <string name="control_editor_colour_green">Green</string>
+    <string name="control_editor_colour_blue">Blue</string>
+    <string name="control_editor_toggle">Stay pressed</string>
+    <string name="control_editor_toggle_description">One tap holds the key down, the next lets it up.</string>
+    <string name="control_editor_swipe">Release when you slide off</string>
+    <string name="control_editor_swipe_description">Sliding your thumb off the button lets the key up, so you can run your finger across a row of them.</string>
+    <string name="control_editor_passthrough">Pass touches through</string>
+    <string name="control_editor_passthrough_description">The game also sees the touch, so this button can be used to look around.</string>
+    <string name="control_editor_forward_lock">Lock to forward</string>
+    <string name="control_editor_forward_lock_description">The stick only walks forward, never back.</string>
+    <string name="control_editor_absolute">Follow the finger exactly</string>
+    <string name="control_editor_absolute_description">The stick jumps to where you touched instead of easing towards it.</string>
+    <string name="control_editor_show_game">While playing</string>
+    <string name="control_editor_show_game_description">Visible when the cursor is hidden and you are looking around.</string>
+    <string name="control_editor_show_menu">In menus</string>
+    <string name="control_editor_show_menu_description">Visible when the cursor is showing, in inventories and screens.</string>
+    <string name="control_editor_orientation">Buttons come out</string>
+    <string name="control_editor_add_sub">Add a button to this drawer</string>
+    <string name="control_editor_duplicate">Duplicate</string>
+    <string name="control_editor_delete">Delete</string>
+    <string name="control_editor_pick_first">Press the key this button sends</string>
+    <string name="control_editor_pick_extra">Press another key to add</string>
+    <string name="control_editor_pick_empty">Nothing bound yet</string>
+    <string name="control_editor_pick_current">Currently %1$s</string>
+    <string name="control_editor_pick_keys">Keys</string>
+    <string name="control_editor_pick_actions">Actions</string>
+    <string name="control_editor_pick_clear">Clear</string>
+
+    <!-- What a control can do instead of sending a key -->
+    <string name="control_special_mouse_primary">Left click</string>
+    <string name="control_special_mouse_secondary">Right click</string>
+    <string name="control_special_mouse_middle">Middle click</string>
+    <string name="control_special_scroll_up">Scroll up</string>
+    <string name="control_special_scroll_down">Scroll down</string>
+    <string name="control_special_mouse_back">Mouse back</string>
+    <string name="control_special_mouse_forward">Mouse forward</string>
+    <string name="control_special_virtual_mouse">Virtual mouse</string>
+    <string name="control_special_game_keyboard">On-screen keyboard</string>
+    <string name="control_special_voice">Voice typing</string>
+    <string name="control_special_system_keyboard">System keyboard</string>
+    <string name="control_special_menu">Control center</string>
+    <string name="control_special_toggle_controls">Hide controls</string>
+
     <!-- Voice typing, in game -->
     <string name="voice_listening">Listening…</string>
     <string name="voice_hint">Say it — the words go wherever the cursor is.</string>

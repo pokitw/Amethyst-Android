@@ -7,7 +7,6 @@ import android.view.ViewGroup;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
-import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 
 @SuppressLint("ViewConstructor")
 public class ControlSubButton extends ControlButton {
@@ -89,8 +88,4 @@ public class ControlSubButton extends ControlButton {
         // Else the button is forced into place
     }
 
-    @Override
-    public void loadEditValues(EditControlSideDialog editControlPopup) {
-        editControlPopup.loadSubButtonValues(getProperties(), parentDrawer.drawerData.orientation);
-    }
 }

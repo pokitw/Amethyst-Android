@@ -40,7 +40,19 @@ public final class ControlGlyphs {
      * @return a drawable resource, or 0 when the button should keep showing its name
      */
     public static int glyphFor(ControlData data) {
-        int keycode = soleKeycode(data);
+        return glyphForKeycode(soleKeycode(data));
+    }
+
+    /**
+     * The icon for one key or action on its own.
+     *
+     * Split out from {@link #glyphFor} so the control editor can show the same icon beside a key
+     * while it is being chosen as the button will wear once it is. One table, two readers.
+     *
+     * @param keycode a GLFW key, or one of {@link ControlData}'s negative action constants
+     * @return a drawable resource, or 0 where there is no icon for it
+     */
+    public static int glyphForKeycode(int keycode) {
         switch (keycode) {
             case GLFW_KEY_W: return R.drawable.ic_ctrl_up;
             case GLFW_KEY_S: return R.drawable.ic_ctrl_down;

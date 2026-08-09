@@ -20,7 +20,6 @@ import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
 import net.kdt.pojavlaunch.customcontrols.gamepad.GamepadJoystick;
-import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 
 import org.lwjgl.glfw.CallbackBridge;
 
@@ -128,11 +127,6 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
 
     @Override
     public void sendKeyPresses(boolean isDown) {/*STUB since non swipeable*/ }
-
-    @Override
-    public void loadEditValues(EditControlSideDialog editControlPopup) {
-        editControlPopup.loadJoystickValues(mControlData);
-    }
 
     private int getDirectionInt(int angle, int intensity) {
         if (intensity == 0) return DIRECTION_NONE;

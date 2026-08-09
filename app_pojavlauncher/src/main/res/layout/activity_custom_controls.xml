@@ -28,6 +28,17 @@
 	</net.kdt.pojavlaunch.customcontrols.ControlLayout>
 
 	<!--
+		The control editor's panel. Stretched over the layout so it can put itself on whichever side
+		the control being edited is not, and GONE while closed: a control layout is a thing you drag
+		buttons around on, so a view left visible and empty would swallow every drag.
+	-->
+	<androidx.compose.ui.platform.ComposeView
+		android:id="@+id/control_editor"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:visibility="gone" />
+
+	<!--
 		Never shown here — the editor cannot record — but the control center host takes both views,
 		and handing it a real one costs less than making its contract optional.
 	-->

@@ -1,8 +1,6 @@
 package net.kdt.pojavlaunch.customcontrols;
 
 import static android.content.Context.INPUT_METHOD_SERVICE;
-import static net.kdt.pojavlaunch.Tools.currentDisplayMetrics;
-
 import static org.lwjgl.glfw.CallbackBridge.isGrabbing;
 
 import android.annotation.SuppressLint;
@@ -35,10 +33,9 @@ import net.kdt.pojavlaunch.customcontrols.buttons.ControlDrawer;
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlInterface;
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlJoystick;
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlSubButton;
-import net.kdt.pojavlaunch.customcontrols.handleview.ActionRow;
 import net.kdt.pojavlaunch.customcontrols.handleview.ControlHandleView;
-import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,10 +54,9 @@ public class ControlLayout extends FrameLayout {
 	private boolean mIsModified;
 	private boolean mControlVisible = false;
 
-	private EditControlSideDialog mControlDialog = null;
+	private ControlEditorHost mControlEditor = null;
 	private ControlHandleView mHandleView;
 	private ControlButtonMenuListener mMenuListener;
-	public ActionRow mActionRow = null;
 	public String mLayoutFileName;
 
 	public ControlLayout(Context ctx) {
@@ -88,11 +84,6 @@ public class ControlLayout extends FrameLayout {
 		if(controlLayout != null) {
 			sanitizedModified = LayoutSanitizer.sanitizeLayout(controlLayout);
 		}
-		if(mActionRow == null){
-			mActionRow = new ActionRow(getContext());
-			addView(mActionRow);
-		}
-
 		removeAllButtons();
 		if(mLayout != null) {
 			mLayout.mControlDataList = null;
@@ -304,47 +295,39 @@ public class ControlLayout extends FrameLayout {
     @Override
     public void onViewRemoved(View child) {
         super.onViewRemoved(child);
-        if(child instanceof ControlInterface && mControlDialog != null){
-			mControlDialog.disappearColor();
-            mControlDialog.disappear(false);
+        // The control being edited has just been taken off screen, so the panel is now editing
+        // something that no longer exists.
+        if(child instanceof ControlInterface && mControlEditor != null){
+            mControlEditor.close();
         }
     }
 
     /**
-	 * Load the layout if needed, and pass down the burden of filling values
-	 * to the button at hand.
+	 * The editor panel, which the hosting activity owns because it is Compose and this is not.
+	 *
+	 * Set once, before anything can be edited. Without it the layout is still perfectly usable —
+	 * buttons drag and snap — there is simply nothing to edit them with, which is what the null
+	 * checks are for rather than an assumption that it is always there.
 	 */
+	public void setEditorHost(ControlEditorHost editorHost){
+		mControlEditor = editorHost;
+	}
+
+	/** Open the editor on one control, and put the resize handles around it. */
 	public void editControlButton(ControlInterface button){
-		if(mControlDialog == null){
-			// When the panel is null, it needs to inflate first.
-			// So inflate it, then process it on the next frame
-			mControlDialog = new EditControlSideDialog(getContext(), this);
-			post(() -> editControlButton(button));
-			return;
-		}
-
-		mControlDialog.internalChanges = true;
-		mControlDialog.setCurrentlyEditedButton(button);
-
-		mControlDialog.appear(button.getControlView().getX() + button.getControlView().getWidth()/2f < currentDisplayMetrics.widthPixels/2f);
-		button.loadEditValues(mControlDialog);
-
-		mControlDialog.internalChanges = false;
-
-		mControlDialog.disappearColor();
+		if(mControlEditor == null) return;
+		mControlEditor.open(button);
 
 		if(mHandleView == null){
 			mHandleView = new ControlHandleView(getContext());
 			addView(mHandleView);
 		}
 		mHandleView.setControlButton(button);
-
-		//mHandleView.show();
 	}
 
 	/** Swap the panel if the button position requires it */
 	public void adaptPanelPosition(){
-		if(mControlDialog != null) mControlDialog.adaptPanelPosition();
+		if(mControlEditor != null) mControlEditor.reposition();
 	}
 
 
@@ -408,15 +391,14 @@ public class ControlLayout extends FrameLayout {
 	@SuppressLint("ClickableViewAccessibility")
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
-		if (mModifiable && event.getActionMasked() != MotionEvent.ACTION_UP || mControlDialog == null)
+		if (mModifiable && event.getActionMasked() != MotionEvent.ACTION_UP || mControlEditor == null)
 			return true;
 
 		InputMethodManager imm = (InputMethodManager) getContext().getSystemService(INPUT_METHOD_SERVICE);
 
 		// When the input window cannot be hidden, it returns false
 		if(!imm.hideSoftInputFromWindow(getWindowToken(), 0)){
-			if(mControlDialog.disappearLayer()){
-				mActionRow.setFollowedButton(null);
+			if(mControlEditor.dismissLayer() && mHandleView != null){
 				mHandleView.hide();
 			}
 		}
@@ -428,12 +410,7 @@ public class ControlLayout extends FrameLayout {
 
 		// When the input window cannot be hidden, it returns false
 		imm.hideSoftInputFromWindow(getWindowToken(), 0);
-		if(mControlDialog != null) {
-			mControlDialog.disappearColor();
-			mControlDialog.disappear(true);
-		}
-
-		if(mActionRow != null) mActionRow.setFollowedButton(null);
+		if(mControlEditor != null) mControlEditor.close();
 		if(mHandleView != null) mHandleView.hide();
 	}
 

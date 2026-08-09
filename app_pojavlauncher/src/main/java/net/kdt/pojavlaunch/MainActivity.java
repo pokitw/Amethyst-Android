@@ -75,6 +75,7 @@ import net.kdt.pojavlaunch.recorder.GameRecorder;
 import net.kdt.pojavlaunch.recorder.RecorderPreferences;
 import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
+import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 import net.kdt.pojavlaunch.ui.game.GameKeyboardHost;
@@ -112,6 +113,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private DrawerLayout drawerLayout;
     private View mDrawerPullButton;
     private ControlCenterHost mControlCenter;
+    private ControlEditorHost mControlEditor;
     private GameKeyboardHost mGameKeyboard;
     private VoiceInputHost mVoiceInput;
     private GyroControl mGyroControl = null;
@@ -333,6 +335,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                 findViewById(R.id.control_center),
                 findViewById(R.id.control_center_pill),
                 this);
+        mControlEditor = new ControlEditorHost(findViewById(R.id.control_editor), mControlLayout);
+        mControlLayout.setEditorHost(mControlEditor);
         mGameKeyboard = new GameKeyboardHost(findViewById(R.id.game_keyboard));
         mVoiceInput = new VoiceInputHost(findViewById(R.id.voice_overlay), new VoiceInput(this),
                 new LwjglCharSender(), this);
@@ -757,7 +761,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         }
         if(isInEditor) {
             if(event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-                if(event.getAction() == KeyEvent.ACTION_DOWN) mControlLayout.askToExit(this);
+                if(event.getAction() != KeyEvent.ACTION_DOWN) return true;
+                // One layer at a time — the key picker, then the panel — before back means
+                // "leave the editor", which is the order someone deep in a button expects.
+                if(mControlEditor != null && mControlEditor.isOpen()) mControlEditor.dismissLayer();
+                else mControlLayout.askToExit(this);
                 return true;
             }
             return super.dispatchKeyEvent(event);

@@ -21,7 +21,6 @@ import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
-import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 
 import org.lwjgl.glfw.CallbackBridge;
 
@@ -57,11 +56,6 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
     }
 
     void sendKeyPresses(boolean isDown);
-
-    /**
-     * Load the values and hide non useful forms
-     */
-    void loadEditValues(EditControlSideDialog editControlDialog);
 
     @Override
     default void onGrabState(boolean isGrabbing) {
@@ -401,8 +395,9 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
     @Override
     default boolean onLongClick(View v) {
         if (getControlLayoutParent().getModifiable()) {
+            // The editor panel carries duplicate, delete and add-sub-button itself now, so the
+            // floating strip of unlabelled icons that used to appear beside the button is gone.
             getControlLayoutParent().editControlButton(this);
-            getControlLayoutParent().mActionRow.setFollowedButton(this);
         }
 
         return true;

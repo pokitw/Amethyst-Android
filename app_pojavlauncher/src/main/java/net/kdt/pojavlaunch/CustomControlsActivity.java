@@ -10,6 +10,7 @@ import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
+import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.io.IOException;
 public class CustomControlsActivity extends BaseActivity implements EditorExitable, ControlCenterCallbacks {
 	private ControlLayout mControlLayout;
 	private ControlCenterHost mControlCenter;
+	private ControlEditorHost mControlEditor;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +45,8 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 				findViewById(R.id.control_center_pill),
 				this);
 		mControlCenter.setEditorMode(true);
+		mControlEditor = new ControlEditorHost(findViewById(R.id.control_editor), mControlLayout);
+		mControlLayout.setEditorHost(mControlEditor);
 
 		View pullButton = findViewById(R.id.drawer_button);
 		pullButton.setOnClickListener(v -> mControlCenter.open());
@@ -65,6 +69,12 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	public void onBackPressed() {
 		if(mControlCenter.isOpen()) {
 			mControlCenter.close();
+			return;
+		}
+		// Back closes one layer of the editor at a time — the key picker, then the panel — before
+		// it means "leave", which is the order someone deep in a button's settings expects.
+		if(mControlEditor.isOpen()) {
+			mControlEditor.dismissLayer();
 			return;
 		}
 		mControlLayout.askToExit(this);

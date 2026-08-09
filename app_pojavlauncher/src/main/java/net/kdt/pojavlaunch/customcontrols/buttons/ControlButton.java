@@ -28,7 +28,6 @@ import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlGlyphs;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
-import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -198,10 +197,6 @@ public class ControlButton extends TextView implements ControlInterface {
             canvas.drawRoundRect(0, 0, getWidth(), getHeight(), mComputedRadius, mComputedRadius, mRectPaint);
     }
 
-
-    public void loadEditValues(EditControlSideDialog editControlPopup){
-        editControlPopup.loadValues(getProperties());
-    }
 
     /** Add another instance of the ControlButton to the parent layout */
     public void cloneButton(){

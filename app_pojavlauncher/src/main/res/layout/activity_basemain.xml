@@ -83,6 +83,17 @@
 		</net.kdt.pojavlaunch.customcontrols.ControlLayout>
 
 		<!--
+			The control editor's panel. Stretched over the layout so it can put itself on whichever
+			side the control being edited is not, and GONE while closed: a control layout is a thing
+			you drag buttons around on, so a view left visible and empty would swallow every drag.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/control_editor"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:visibility="gone"/>
+
+		<!--
 			The live recording pill. Sized to its content and offset clear of the pull tab, so it
 			covers as little of the game as possible; it is GONE unless a recording is running.
 			Nothing inside it is interactive, so touches fall through to the game below.
