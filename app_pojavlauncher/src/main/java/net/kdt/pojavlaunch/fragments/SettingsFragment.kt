@@ -18,6 +18,7 @@ import fr.spse.gamepad_remapper.Remapper
 import net.kdt.pojavlaunch.Architecture
 import net.kdt.pojavlaunch.CustomControlsActivity
 import net.kdt.pojavlaunch.LauncherActivity
+import net.kdt.pojavlaunch.ModsActivity
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.contracts.OpenDocumentWithExtension
@@ -28,6 +29,7 @@ import net.kdt.pojavlaunch.recorder.RecordingsActivity
 import net.kdt.pojavlaunch.ui.home.currentAccount
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
 import net.kdt.pojavlaunch.ui.home.currentProfileLabel
+import net.kdt.pojavlaunch.ui.mods.modsDirectory
 import net.kdt.pojavlaunch.ui.settings.SettingsActions
 import net.kdt.pojavlaunch.ui.settings.SettingsEnvironment
 import net.kdt.pojavlaunch.ui.settings.SettingsRoute
@@ -119,6 +121,13 @@ class SettingsFragment : Fragment() {
         val free = runCatching {
             Formatter.formatShortFileSize(context, currentGameDirectory().usableSpace)
         }.getOrNull().orEmpty()
+        // Counted by name rather than by opening every jar: this runs on the main thread in
+        // onResume, and the row only needs the two numbers.
+        val mods = runCatching {
+            modsDirectory().listFiles()?.filter {
+                it.isFile && (it.name.endsWith(".jar") || it.name.endsWith(".jar.disabled"))
+            }.orEmpty()
+        }.getOrDefault(emptyList())
         val launcher = activity as? LauncherActivity
         // The header says who is signed in and what they are about to play, which is what the
         // launcher's old account bar used to occupy the top of this screen to say half of.
@@ -131,6 +140,8 @@ class SettingsFragment : Fragment() {
             maxMemoryMb = maxMemory,
             gyroAvailable = Tools.deviceSupportsGyro(context),
             voiceAvailable = VoiceInput.isAvailable(context),
+            modCount = mods.size,
+            modsEnabled = mods.count { !it.name.endsWith(".disabled") },
             notificationPermission = launcher?.checkForNotificationPermission() ?: true,
             microphonePermission = launcher?.checkForMicrophonePermission() ?: true,
             accountName = account?.username,
@@ -176,6 +187,9 @@ class SettingsFragment : Fragment() {
                     requireActivity(), LauncherPreferenceRendererSettingsFragment::class.java,
                     "RENDERER_SETTINGS", null
                 )
+            },
+            onMods = {
+                startActivity(Intent(requireContext(), ModsActivity::class.java))
             },
             onRecordings = {
                 startActivity(Intent(requireContext(), RecordingsActivity::class.java))

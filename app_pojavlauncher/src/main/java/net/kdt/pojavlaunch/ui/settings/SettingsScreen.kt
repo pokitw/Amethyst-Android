@@ -90,6 +90,7 @@ class SettingsActions(
     val onRuntimeManager: () -> Unit = {},
     val onRendererTuning: () -> Unit = {},
     val onRecordings: () -> Unit = {},
+    val onMods: () -> Unit = {},
     val onGameFiles: () -> Unit = {},
     val onNotificationPermission: () -> Unit = {},
     val onMicrophonePermission: () -> Unit = {},
@@ -108,6 +109,9 @@ class SettingsEnvironment(
     val gyroAvailable: Boolean = true,
     /** Whether anything on this device can transcribe speech at all. */
     val voiceAvailable: Boolean = true,
+    /** How many jars are in the profile's mods folder, and how many of them are switched on. */
+    val modCount: Int = 0,
+    val modsEnabled: Int = 0,
     val notificationPermission: Boolean = true,
     val microphonePermission: Boolean = true,
     /** Who is signed in, and what they are about to play — the header says both. */
@@ -1110,6 +1114,16 @@ private fun GameFilesScreen(
     ) {
         Spacer(Modifier.height(16.dp))
         SettingsCard {
+            NavRow(
+                title = stringResource(R.string.mods_title),
+                description = stringResource(R.string.mods_settings_description),
+                value = if (environment.modCount == 0) stringResource(R.string.mods_settings_none)
+                else stringResource(
+                    R.string.mods_settings_count, environment.modCount, environment.modsEnabled
+                ),
+                iconRes = R.drawable.ic_x_install,
+                onClick = actions.onMods
+            )
             NavRow(
                 title = stringResource(R.string.mcl_button_open_directory),
                 description = stringResource(R.string.settings_summary_files, environment.freeSpace),

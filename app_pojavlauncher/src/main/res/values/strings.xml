@@ -657,6 +657,30 @@
     <string name="control_keyboard_hint">Tap a key to send it. Hold to keep it down.</string>
     <string name="control_keyboard_close">Close keyboard</string>
 
+    <!-- Mods -->
+    <string name="mods_title">Mods</string>
+    <string name="mods_add">Add a mod</string>
+    <string name="mods_added">%1$s added</string>
+    <string name="mods_add_failed">That file could not be added to the mods folder.</string>
+    <string name="mods_toggle_failed">That mod could not be renamed, so it is unchanged.</string>
+    <string name="mods_delete_failed">That mod could not be deleted.</string>
+    <string name="mods_remove">Delete</string>
+    <string name="mods_loading">Reading the mods folder…</string>
+    <string name="mods_summary">%1$d installed · %2$d on</string>
+    <string name="mods_empty_title">No mods yet</string>
+    <string name="mods_empty_body">Add a .jar and it goes straight into this profile\'s mods folder. Make sure the profile is running a mod loader first.</string>
+    <string name="mods_delete_title">Delete %1$s?</string>
+    <string name="mods_delete_message">The file is removed from the mods folder. Turning a mod off instead keeps it, so you can put it back.</string>
+    <string name="mods_delete_confirm">Delete</string>
+    <string name="mods_loader_fabric">FABRIC</string>
+    <string name="mods_loader_quilt">QUILT</string>
+    <string name="mods_loader_forge">FORGE</string>
+    <string name="mods_loader_neoforge">NEOFORGE</string>
+    <string name="mods_loader_unknown">MOD</string>
+    <string name="mods_settings_description">Add a .jar, or turn one off without deleting it</string>
+    <string name="mods_settings_count">%1$d installed · %2$d on</string>
+    <string name="mods_settings_none">None installed</string>
+
     <!-- Control editor -->
     <string name="control_editor_close">Close</string>
     <string name="control_editor_name_hint">Name</string>

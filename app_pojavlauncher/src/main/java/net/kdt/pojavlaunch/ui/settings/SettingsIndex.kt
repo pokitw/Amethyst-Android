@@ -322,6 +322,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "folder storage worlds saves resource packs mods open"
     ),
     SettingEntry(
+        R.string.mods_title, SettingsRoute.FILES,
+        R.string.mods_settings_description, 0,
+        "mod jar fabric forge quilt neoforge install add disable", suggested = true
+    ),
+    SettingEntry(
         R.string.preference_download_source_title, SettingsRoute.FILES,
         R.string.preference_download_source_description, R.string.settings_section_downloads,
         "mirror bmclapi china download server"

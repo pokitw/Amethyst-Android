@@ -391,6 +391,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | --- | --- | --- |
 | Launcher home | **Compose** | `ui/home/`, hosted by `MainMenuFragment.kt` |
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
+| Mods | **Compose** | `ui/mods/`, `ModsActivity.kt` |
 | Profile / account pickers on home | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
 | Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
@@ -480,6 +481,14 @@ re-litigated. The reasoning lives in the commit that made the change.
   needs a different refresh call and getting one wrong is invisible until a slider does nothing.
   This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
   `colorselector` package with it.
+- **Mods** (`ui/mods/`) — the profile's `mods/` folder as a screen, reached from Settings → Game
+  files. Adding one is a file picker; the jar is copied in, never a name collision overwritten.
+  Each jar is opened once and read for what it says about itself, and **the four metadata formats
+  are tried most-specific first** — a Quilt jar also ships `fabric.mod.json` and a NeoForge jar
+  also ships `mods.toml`, so the obvious order misreports both. A jar that cannot be parsed still
+  lists under its file name, because the game will still try to load it. Turning a mod off
+  **renames it to `.jar.disabled`** rather than deleting it, which is what bisecting a crash
+  actually needs. Nothing here touches the network: this is the folder, not a store.
 - **Sign-in** — one screen, not two. Microsoft carries the gradient and offline is quieter beneath
   it, because they are not equal choices: offline cannot join a server. The username is asked for
   in place, validated as it is typed. Microsoft still hands off to `MicrosoftLoginFragment`, and an
@@ -550,9 +559,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
    start. Compilation proves nothing about attach-time contracts.
 8. **Design first, build once.** Publishing an interactive mockup and getting a reaction before
    writing Kotlin has been worth far more than the time it costs.
-9. **A private Kotlin property still emits its JVM accessors.** `private var editorMode` and a
-   public `fun setEditorMode(Boolean)` on the same class are a "platform declaration clash". When
-   a Kotlin class is called from Java, name its state and its methods apart.
+9. **A private Kotlin property still emits its JVM accessors**, and `private set` does not stop
+   it. `var opacity by mutableStateOf(...) private set` and `fun setOpacity(Float)` on the same
+   class are a "platform declaration clash" — nothing to do with Java calling it, the two just
+   compile to the same JVM signature. A state holder that mirrors fields and writes them back
+   needs its mutators named apart from its properties: `applyOpacity`, not `setOpacity`. This
+   has now cost two build cycles, in `ControlCenterHost` and again in `ControlEditorState`.
 10. **A wrapper composable must pass the scope on.** A helper taking
     `content: @Composable () -> Unit` and placing it inside a `Row` gives its callers no
     `RowScope`, so every `Modifier.weight(1f)` inside them fails to resolve. Take
@@ -648,6 +660,9 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 4. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
    gallery with a preview, since a control layout is a picture, not a filename.
 5. Recording segmentation for multi-hour sessions.
+6. Mod search — `SearchModFragment` and its CurseForge/Modrinth flow are still the old XML, and
+   the one remaining `VersionSelectorDialog` caller. Installing *from* the internet and managing
+   what is installed should meet in `ui/mods/`.
 
 **Later**
 6. Shared-element transition from the version card into the version sheet.
