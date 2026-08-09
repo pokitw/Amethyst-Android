@@ -96,7 +96,8 @@ class SettingsActions(
     val onMicrophonePermission: () -> Unit = {},
     val onShareLog: () -> Unit = {},
     val onWiki: () -> Unit = {},
-    val onDiscord: () -> Unit = {}
+    val onDiscord: () -> Unit = {},
+    val onReplayWelcome: () -> Unit = {}
 )
 
 /** Facts the screens show but cannot work out for themselves. */
@@ -1221,6 +1222,14 @@ private fun AboutScreen(
 
         SectionLabel(stringResource(R.string.settings_section_help))
         SettingsCard {
+            // The welcome is where the features that are not obvious get named, and it otherwise
+            // runs exactly once — so someone who was already using the launcher when one landed
+            // has no way to be told about it. This is that way.
+            NavRow(
+                title = stringResource(R.string.settings_replay_welcome_title),
+                description = stringResource(R.string.settings_replay_welcome_description),
+                onClick = actions.onReplayWelcome
+            )
             NavRow(title = stringResource(R.string.mcl_tab_wiki), onClick = actions.onWiki)
             NavRow(title = stringResource(R.string.mcl_button_discord), onClick = actions.onDiscord)
             NavRow(title = stringResource(R.string.main_share_logs), onClick = actions.onShareLog)

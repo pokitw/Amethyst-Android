@@ -25,6 +25,12 @@ class OnboardingPage(
  * Ordered by how much a player would care, which is why the recorder is first: it is the only
  * thing here another launcher cannot simply add, because a screen recorder physically cannot
  * leave the on-screen buttons out of the picture.
+ *
+ * **One page per feature, and a feature has to be one you would not otherwise find.** The controls
+ * editor is not here even though it was rewritten, because you meet it the moment you long press a
+ * button and it explains itself; the comparison table carries it instead. Text input is one page
+ * and not two for the opposite reason — the keyboard and dictation are two answers to the same
+ * problem, which is that typing in landscape with both thumbs occupied is miserable.
  */
 fun onboardingPages(): List<OnboardingPage> = listOf(
     OnboardingPage(
@@ -40,9 +46,22 @@ fun onboardingPages(): List<OnboardingPage> = listOf(
         noteRes = R.string.onboarding_record_note
     ),
     OnboardingPage(
-        titleRes = R.string.onboarding_design_title,
-        bodyRes = R.string.onboarding_design_body,
-        iconRes = R.drawable.ic_x_sparkle
+        titleRes = R.string.onboarding_gyro_title,
+        bodyRes = R.string.onboarding_gyro_body,
+        iconRes = R.drawable.ic_x_motion,
+        noteRes = R.string.onboarding_gyro_note
+    ),
+    OnboardingPage(
+        titleRes = R.string.onboarding_chat_title,
+        bodyRes = R.string.onboarding_chat_body,
+        iconRes = R.drawable.ic_x_voice,
+        noteRes = R.string.onboarding_chat_note
+    ),
+    OnboardingPage(
+        titleRes = R.string.onboarding_files_title,
+        bodyRes = R.string.onboarding_files_body,
+        iconRes = R.drawable.ic_x_files,
+        noteRes = R.string.onboarding_files_note
     ),
     OnboardingPage(
         titleRes = R.string.onboarding_crash_title,
@@ -50,10 +69,9 @@ fun onboardingPages(): List<OnboardingPage> = listOf(
         iconRes = R.drawable.ic_x_diagnosis
     ),
     OnboardingPage(
-        titleRes = R.string.onboarding_keyboard_title,
-        bodyRes = R.string.onboarding_keyboard_body,
-        iconRes = R.drawable.ic_x_keyboard,
-        noteRes = R.string.onboarding_keyboard_note
+        titleRes = R.string.onboarding_design_title,
+        bodyRes = R.string.onboarding_design_body,
+        iconRes = R.drawable.ic_x_sparkle
     )
 )
 
@@ -79,8 +97,14 @@ class ComparisonRow(
 fun comparisonRows(): List<ComparisonRow> = listOf(
     ComparisonRow(R.string.onboarding_row_play, Support.YES, Support.YES),
     ComparisonRow(R.string.onboarding_row_record, Support.NO, Support.YES),
-    ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
+    // Upstream has gyro aiming; what it does not have is one that moves smoothly. "Part" is the
+    // honest mark for a thing that exists and steps, and the footnote says what it is measured
+    // against — marking it absent would be the kind of overclaim that makes a table worthless.
+    ComparisonRow(R.string.onboarding_row_gyro, Support.PARTIAL, Support.YES),
+    ComparisonRow(R.string.onboarding_row_voice, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_keyboard, Support.NO, Support.YES),
+    ComparisonRow(R.string.onboarding_row_files, Support.NO, Support.YES),
+    ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_search, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_controls, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.NO),

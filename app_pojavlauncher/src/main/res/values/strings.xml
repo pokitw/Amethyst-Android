@@ -628,14 +628,22 @@
     <string name="onboarding_record_note">Not available on the Zink renderer, and a clip stops before 4 GB — around 40 minutes at 1080p60.</string>
 
     <string name="onboarding_design_title">Rebuilt, screen by screen</string>
-    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker and the in-game menu were redrawn from scratch — designed around what you actually do, and built to work one-handed.</string>
+    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker, the control editor and the in-game menu were redrawn from scratch — designed around what you actually do, and built to work one-handed. Settings has a search, so you never have to remember which screen a setting was on.</string>
 
     <string name="onboarding_crash_title">Crashes explained in English</string>
     <string name="onboarding_crash_body">When the game dies, the log gets read for you and the cause is named — a missing mod dependency, not enough memory, the wrong Java version — with the line it concluded from.</string>
 
-    <string name="onboarding_keyboard_title">A keyboard you can hold</string>
-    <string name="onboarding_keyboard_body">A real on-screen keyboard instead of a list of keycodes. Hold a key down to keep it there, so F3 + G finally works, and type straight into chat.</string>
-    <string name="onboarding_keyboard_note">US layout, landscape only.</string>
+    <string name="onboarding_gyro_title">Aim by moving your phone</string>
+    <string name="onboarding_gyro_body">Turn by tilting, the way a mouse turns — no threshold to push through and no stutter at slow speeds. At 100% it is one to one with the view, and it still works with the phone tilted back or lying flat.</string>
+    <string name="onboarding_gyro_note">Needs a gyroscope. It stays off until you turn it on in Settings → Controls.</string>
+
+    <string name="onboarding_chat_title">Say it instead of typing it</string>
+    <string name="onboarding_chat_body">Hold the chat button and talk — the words appear as you speak, and letting go sends them. Or use a real on-screen keyboard rather than a list of keycodes, where holding a key keeps it down, so F3 + G finally works.</string>
+    <string name="onboarding_chat_note">Keyboard is US layout, landscape only. Dictation is your device\'s own speech recogniser, and it cannot open chat for you.</string>
+
+    <string name="onboarding_files_title">Everything the game has, in one place</string>
+    <string name="onboarding_files_body">Worlds, mods, resource packs, shaders and screenshots on one screen. One button takes any file and works out for itself where it belongs, and a mod can be switched off without deleting it.</string>
+    <string name="onboarding_files_note">This is your game folder, not a store. Nothing on this screen downloads anything.</string>
 
     <string name="onboarding_compare_title">Amethyst, and Amethyst X</string>
     <string name="onboarding_compare_body">What this fork adds, and the two places it is behind.</string>
@@ -648,6 +656,9 @@
     <string name="onboarding_row_play">Plays Minecraft: Java Edition</string>
     <string name="onboarding_row_record">Built-in gameplay recorder</string>
     <string name="onboarding_row_crash">Crash cause explained</string>
+    <string name="onboarding_row_gyro">Smooth gyro aiming</string>
+    <string name="onboarding_row_voice">Voice typing in chat</string>
+    <string name="onboarding_row_files">Worlds and mods in the app</string>
     <string name="onboarding_row_keyboard">On-screen keyboard</string>
     <string name="onboarding_row_search">Searchable settings</string>
     <string name="onboarding_row_controls">Redesigned controls</string>
@@ -817,6 +828,8 @@
     <string name="settings_section_app">APP</string>
     <string name="settings_section_permissions">PERMISSIONS</string>
     <string name="settings_section_help">HELP</string>
+    <string name="settings_replay_welcome_title">Show the welcome again</string>
+    <string name="settings_replay_welcome_description">The tour of what this launcher does, and what it does not</string>
     <string name="settings_advanced">Advanced</string>
     <string name="settings_advanced_count">%1$d settings</string>
     <string name="settings_renderer_title">Renderer</string>

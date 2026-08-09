@@ -27,14 +27,20 @@ class OnboardingActivity : BaseActivity() {
     /** BaseActivity hides the system bars for the game's benefit; a page you read wants them. */
     override fun setFullscreen(): Boolean = false
 
+    /** True when Settings asked for the welcome again, rather than this being someone's first run. */
+    private val replay by lazy { intent?.getBooleanExtra(EXTRA_REPLAY, false) == true }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // Back must not drop the user out of the app before the launcher has ever started. Skip is
-        // right there and goes to the same place, so this is a dead end rather than a trap.
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {}
-        })
+        // right there and goes to the same place, so this is a dead end rather than a trap. On a
+        // replay there *is* somewhere to go back to, so the trap would be the callback.
+        if (!replay) {
+            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {}
+            })
+        }
 
         setContent {
             AmethystXTheme {
@@ -61,7 +67,15 @@ class OnboardingActivity : BaseActivity() {
         LauncherPreferences.DEFAULT_PREF.edit()
             .putBoolean(LauncherPreferences.PREF_KEY_ONBOARDING_DONE, true)
             .apply()
-        startActivity(Intent(this, LauncherActivity::class.java))
+        // On a replay the launcher is already running behind this, and starting a second one is
+        // precisely the double-listener problem the paragraph above describes — the same one, from
+        // the other direction.
+        if (!replay) startActivity(Intent(this, LauncherActivity::class.java))
         finish()
+    }
+
+    companion object {
+        /** Set by Settings when the welcome is being shown again rather than for the first time. */
+        const val EXTRA_REPLAY = "replay"
     }
 }

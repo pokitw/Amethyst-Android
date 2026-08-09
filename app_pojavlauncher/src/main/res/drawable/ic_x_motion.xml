@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        Gyro aiming: the gyroscope's gimbal — a ring, one more turned inside it, and the mass at
+        the centre. One inner ring rather than the two a real gimbal has: at 24dp the second one
+        closes the gaps between the strokes and the whole thing turns into a blot.
+    -->
+    <path
+        android:pathData="M12,2.8A9.2,9.2 0,1 1,11.99 2.8Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M19.97,7.4A3.7,9.2 60,0 1,4.03 16.6A3.7,9.2 60,0 1,19.97 7.4Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M12,10.4A1.6,1.6 0,1 1,12 13.6A1.6,1.6 0,1 1,12 10.4Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

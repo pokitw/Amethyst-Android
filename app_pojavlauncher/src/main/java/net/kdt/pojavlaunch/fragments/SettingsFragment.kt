@@ -18,6 +18,7 @@ import fr.spse.gamepad_remapper.Remapper
 import net.kdt.pojavlaunch.Architecture
 import net.kdt.pojavlaunch.CustomControlsActivity
 import net.kdt.pojavlaunch.LauncherActivity
+import net.kdt.pojavlaunch.OnboardingActivity
 import net.kdt.pojavlaunch.ContentActivity
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.Tools
@@ -204,7 +205,24 @@ class SettingsFragment : Fragment() {
             },
             onShareLog = { Tools.shareLog(requireContext()) },
             onWiki = { Tools.openURL(requireActivity(), Tools.URL_HOME) },
-            onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) }
+            onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) },
+            onReplayWelcome = ::replayWelcome
+        )
+    }
+
+    /**
+     * Show the welcome again.
+     *
+     * The done flag is deliberately left set. Clearing it would put someone back through the flow
+     * on their *next* cold start as well, which is a setting nobody asked for; and
+     * [OnboardingActivity] writes the flag itself on the way out, so it is already true when this
+     * one ends. The activity is started plainly rather than through `TestStorageActivity`, since
+     * storage has clearly been sorted out by the time anyone is reading Settings.
+     */
+    private fun replayWelcome() {
+        startActivity(
+            Intent(requireContext(), OnboardingActivity::class.java)
+                .putExtra(OnboardingActivity.EXTRA_REPLAY, true)
         )
     }
 

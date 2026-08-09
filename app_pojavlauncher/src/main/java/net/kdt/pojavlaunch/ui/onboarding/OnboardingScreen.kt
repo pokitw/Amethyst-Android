@@ -66,8 +66,9 @@ import net.kdt.pojavlaunch.ui.theme.SlotWell
 /**
  * The first thing anyone sees.
  *
- * Five pages — what this is, the feature the fork exists for, what was rebuilt, the crash screen
- * and the keyboard — then an honest side-by-side against the launcher it forked from. It runs once, before the launcher itself is
+ * Seven pages — what this is, the feature the fork exists for, aiming by motion, talking into chat,
+ * the game folder, the crash screen and what else was rebuilt — then an honest side-by-side against
+ * the launcher it forked from. It runs once, before the launcher itself is
  * built, so it deliberately does nothing but talk — no account, no download, no launch. Everything
  * that needs the launcher's own wiring waits until the home screen, which is where this ends.
  *

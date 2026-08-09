@@ -365,6 +365,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "permission microphone mic allow record"
     ),
     SettingEntry(
+        R.string.settings_replay_welcome_title, SettingsRoute.ABOUT,
+        R.string.settings_replay_welcome_description, R.string.settings_section_help,
+        "welcome onboarding intro tour what is new features again"
+    ),
+    SettingEntry(
         R.string.mcl_tab_wiki, SettingsRoute.ABOUT, 0, R.string.settings_section_help,
         "help documentation guide website"
     ),

@@ -389,6 +389,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 
 | Surface | State | Notes |
 | --- | --- | --- |
+| Onboarding | **Compose** | `ui/onboarding/`, `OnboardingActivity.kt`; runs once, before the launcher is built |
 | Launcher home | **Compose** | `ui/home/`, hosted by `MainMenuFragment.kt` |
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
 | Game files (worlds, mods, packs, shaders, screenshots) | **Compose** | `ui/content/`, `ContentActivity.kt` |
@@ -423,6 +424,19 @@ while it is open — so `setChromeHidden` takes the two decisions separately.
 This section is a ledger, not a diary: each entry keeps only the decision that would otherwise be
 re-litigated. The reasoning lives in the commit that made the change.
 
+- **Onboarding** (`ui/onboarding/`) — story pages, then an honest side-by-side against upstream.
+  Two rules decide what goes in it, and both exist to stop it growing a page per commit.
+  **A page is one feature you would not otherwise find.** The control editor was rewritten and has
+  no page, because you meet it the first time you long press a button; the comparison table carries
+  it. **Two answers to one problem are one page** — the on-screen keyboard and dictation share
+  "Say it instead of typing it", because they are both about typing in landscape with both thumbs
+  busy.
+  The comparison table is the reason the flow exists: someone arriving from Amethyst is owed an
+  answer to "why this one". It is **only trustworthy because it loses rows** — the skin editor and
+  the download size are there on purpose, and gyro aiming is marked `Part` for upstream rather than
+  absent, because upstream *has* one, it just steps. A table where the fork wins every line is an
+  advert, and nobody believes an advert.
+  **Adding a feature means adding its row**, whether or not it earns a page.
 - **Settings** — five destinations grouped by intent, each carrying a live summary of its own
   state. The renderer moved in, tagged `THIS PROFILE`, and **stays stored per profile**. Screens
   are written out as the lists of settings they are, not generated from a spec, so they can be
