@@ -404,6 +404,12 @@ public class ControlButton extends TextView implements ControlInterface {
                 mControlLayout.notifyVoice(isDown);
                 break;
 
+            // On the press, not the release: the frame you meant is the one that was on screen
+            // when your thumb landed, and a capture armed on the way up is a frame or two late.
+            case ControlData.SPECIALBTN_SCREENSHOT:
+                if (isDown) mControlLayout.notifyScreenshot();
+                break;
+
             default:
                 Toast.makeText(getContext(), R.string.error_key_unsupported, Toast.LENGTH_LONG).show();
                 break;

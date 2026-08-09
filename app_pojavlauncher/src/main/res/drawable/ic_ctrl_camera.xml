@@ -1,0 +1,24 @@
+<!--
+    An on-screen control glyph. Solid shapes rather than the 1.8dp strokes of the ic_x_* set:
+    these are drawn thumb-sized over gameplay, where a hairline vanishes against a bright sky.
+    White so the caller tints, like every other icon here.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        Body with the lens punched out of it, so the ring reads as a lens rather than as a dot
+        floating on a slab. evenOdd is what makes the hole a hole; the same trick the mic's
+        cradle uses.
+    -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M9.3,3.4 H14.7 L16.2,5.8 H20.2 A2.2,2.2 0,0 1,22.4 8 V18.4 A2.2,2.2 0,0 1,20.2 20.6 H3.8 A2.2,2.2 0,0 1,1.6 18.4 V8 A2.2,2.2 0,0 1,3.8 5.8 H7.8 Z M12,8.8 A4.4,4.4 0,1 0,12 17.6 A4.4,4.4 0,1 0,12 8.8 Z" />
+    <!-- The lens itself, a filled disc inside the hole, so the glyph is not a ring on its own. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,10.8 A2.4,2.4 0,1 1,12 15.6 A2.4,2.4 0,1 1,12 10.8 Z" />
+</vector>

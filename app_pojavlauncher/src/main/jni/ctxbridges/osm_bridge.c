@@ -5,6 +5,7 @@
 #include <string.h>
 #include <environ/environ.h>
 #include "osm_bridge.h"
+#include "gl_screenshot.h"
 #define TAG __FILE_NAME__
 #include <log.h>
 
@@ -121,6 +122,14 @@ void osm_swap_buffers() {
 
     osm_apply_current_ll();
     glFinish_p(); // this will force osmesa to write the last rendered image into the buffer
+
+    // The only moment the frame exists in memory: after the glFinish above put it there and
+    // before the buffer goes back to the compositor. There is no EGL surface on this bridge for
+    // the recorder to hook, but there is a finished frame right here, which is why a screenshot
+    // works on this renderer and a recording does not.
+    if(currentBundle->nativeSurface != NULL && !currentBundle->disable_rendering)
+        gl_screenshot_frame_cpu(currentBundle->buffer.bits, currentBundle->buffer.width,
+                                currentBundle->buffer.height, currentBundle->buffer.stride);
 
     if(currentBundle->nativeSurface != NULL && !currentBundle->disable_rendering)
         if(ANativeWindow_unlockAndPost(currentBundle->nativeSurface) != 0)

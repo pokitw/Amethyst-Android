@@ -140,6 +140,23 @@
 			android:visibility="gone"/>
 
 		<!--
+			The word that a screenshot was taken. Nothing else on screen changes when one is, so
+			without this the only way to find out whether the button worked is to leave the game.
+
+			Top-anchored and sized to its content: the bottom belongs to the keyboard and the
+			dictation overlay, and both thumbs. The margin drops it clear of the recording pill so
+			the two stack rather than overlap while a recording is running. GONE unless it is
+			saying something, like everything else over this surface, and it takes no touches.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/screenshot_toast"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="top|center_horizontal"
+			android:layout_marginTop="44dp"
+			android:visibility="gone"/>
+
+		<!--
 			The control center itself. Stretched over the game, so it stays GONE while closed:
 			visible it would sit in front of every touch the game is waiting for.
 		-->

@@ -76,6 +76,7 @@ data class RecordingUiState(
  */
 interface ControlCenterCallbacks {
     fun onToggleRecording()
+    fun onScreenshot()
     fun onCustomControls()
     fun onSendKeycode()
     fun onQuickSettings()
@@ -175,6 +176,11 @@ private fun Sheet(
                     EditorActions(callbacks)
                 } else {
                     RecordingCard(recording, callbacks::onToggleRecording)
+                    // Directly under recording rather than as a fifth tile in the hotbar: the two
+                    // are the same thing at two lengths, and a row of five tiles reads as a
+                    // drawer of settings rather than as the two ways of capturing what you see.
+                    Spacer(Modifier.height(10.dp))
+                    ScreenshotRow(callbacks::onScreenshot)
                     Spacer(Modifier.height(12.dp))
                     GameActions(callbacks)
                     ForceClose(callbacks::onForceClose)
@@ -277,6 +283,50 @@ private fun RecordingCard(state: RecordingUiState, onToggle: () -> Unit) {
                 stringResource(R.string.control_center_stop),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.White
+            )
+        }
+    }
+}
+
+/**
+ * A still, for when a video is more than you wanted.
+ *
+ * Quiet on purpose. The gradient above it is the sheet's one bold element and this sits directly
+ * underneath, so it borrows the grouping without competing for it — the same relationship a
+ * secondary action has with a primary one everywhere else in the launcher.
+ */
+@Composable
+private fun ScreenshotRow(onScreenshot: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(onClick = onScreenshot)
+            .padding(horizontal = 15.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SlotWell {
+            Icon(
+                painterResource(R.drawable.ic_x_camera),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(21.dp)
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.control_center_screenshot),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                stringResource(R.string.control_center_screenshot_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

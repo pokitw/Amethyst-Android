@@ -79,6 +79,7 @@ import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 import net.kdt.pojavlaunch.ui.game.GameKeyboardHost;
+import net.kdt.pojavlaunch.ui.game.ScreenshotHost;
 import net.kdt.pojavlaunch.ui.game.VoiceInputHost;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
@@ -116,6 +117,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private ControlEditorHost mControlEditor;
     private GameKeyboardHost mGameKeyboard;
     private VoiceInputHost mVoiceInput;
+    private ScreenshotHost mScreenshot;
     private GyroControl mGyroControl = null;
     private ControlLayout mControlLayout;
     private HotbarView mHotbarView;
@@ -340,6 +342,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mGameKeyboard = new GameKeyboardHost(findViewById(R.id.game_keyboard));
         mVoiceInput = new VoiceInputHost(findViewById(R.id.voice_overlay), new VoiceInput(this),
                 new LwjglCharSender(), this);
+        mScreenshot = new ScreenshotHost(findViewById(R.id.screenshot_toast));
     }
 
     @Override
@@ -397,6 +400,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         if(mControlCenter != null) mControlCenter.release();
         if(mGameKeyboard != null) mGameKeyboard.release();
         if(mVoiceInput != null) mVoiceInput.release();
+        if(mScreenshot != null) mScreenshot.release();
         ContextExecutor.clearActivity();
     }
 
@@ -877,6 +881,18 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mVoiceInput.onShortcut(down);
     }
 
+    /**
+     * A screenshot from a button, with the control center left alone.
+     *
+     * Nothing is closed and nothing is opened: the sheet is not up when a control button is
+     * pressed, and the point of binding one is that a picture costs a single tap and does not
+     * take the game away from you while it is happening.
+     */
+    @Override
+    public void onClickedScreenshot() {
+        mScreenshot.take();
+    }
+
     /* Voice typing's two questions about the rest of the game. */
 
     @Override
@@ -901,6 +917,16 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     /* Control center actions. Every one of these already existed; only the way in has changed. */
 
     @Override public void onToggleRecording() { mControlCenter.close(); toggleRecording(); }
+
+    /**
+     * Armed before the sheet is told to close, not after.
+     *
+     * The sheet is a Compose overlay above the game surface and was never in the frame the
+     * renderer draws, so waiting for it to go would only cost the 300ms of its exit animation and
+     * capture a later moment than the one that was asked for.
+     */
+    @Override public void onScreenshot() { mScreenshot.take(); mControlCenter.close(); }
+
     @Override public void onCustomControls() { mControlCenter.close(); openCustomControls(); }
     @Override public void onSendKeycode() { mControlCenter.close(); mGameKeyboard.open(); }
     @Override public void onQuickSettings() { mControlCenter.close(); openQuickSettings(); }

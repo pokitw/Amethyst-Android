@@ -34,4 +34,7 @@ public interface ControlButtonMenuListener {
      * @param down true when the hold has been recognised, false when the finger comes off
      */
     void onVoiceShortcut(boolean down);
+
+    /** Capture the frame being presented. Raised on the press only, so it is not a frame late. */
+    void onClickedScreenshot();
 }

@@ -39,14 +39,19 @@ public class ControlData {
      * The launcher's own on-screen keyboard, straight from a button.
      *
      * Distinct from {@link #SPECIALBTN_KEYBOARD}, which raises the system IME and which every
-     * layout ever shared already depends on. New values are only ever APPENDED: the editor's
-     * spinner converts between position and keycode by arithmetic over the reversed name list,
-     * and the keycode itself is what gets written into saved layout JSON, so inserting one in the
-     * middle would silently re-point every button anyone has ever saved.
+     * layout ever shared already depends on.
+     *
+     * New values are only ever APPENDED, and the reason is the on-disk format: the raw negative
+     * integer is what gets written into saved layout JSON and what {@code LayoutConverter} copies
+     * through unmigrated, so inserting one in the middle would silently re-point every button
+     * anyone has ever saved. Keeping the array in {@code -(index + 1)} order costs nothing and is
+     * what makes it auditable.
      */
     public static final int SPECIALBTN_GAMEKEYBOARD = -12;
     /** Speak, and the words are typed into whatever text field the game has open. */
     public static final int SPECIALBTN_VOICE = -13;
+    /** A picture of the frame the game is presenting, with none of the controls in it. */
+    public static final int SPECIALBTN_SCREENSHOT = -14;
 
     private static ControlData[] SPECIAL_BUTTONS;
     private static List<String> SPECIAL_BUTTON_NAME_ARRAY;
@@ -187,6 +192,7 @@ public class ControlData {
                     // Appended, never inserted. See SPECIALBTN_GAMEKEYBOARD.
                     new ControlData("KEYS", new int[]{SPECIALBTN_GAMEKEYBOARD}, "${margin}", "${margin}"),
                     new ControlData("VOICE", new int[]{SPECIALBTN_VOICE}, "${margin}", "${margin}"),
+                    new ControlData("SNAP", new int[]{SPECIALBTN_SCREENSHOT}, "${margin}", "${margin}"),
             };
         }
 

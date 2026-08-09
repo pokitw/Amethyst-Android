@@ -460,6 +460,26 @@ re-litigated. The reasoning lives in the commit that made the change.
   on releasing them. Every row's weights add up to `ROW_UNITS`; that is what
   `scripts/check_keyboard.py` checks, along with the keycode range and that no key the old dialog
   offered was lost.
+- **In-game screenshots** (`jni/ctxbridges/gl_screenshot.c` + `screenshot/GameScreenshot.java` +
+  `ui/game/ScreenshotHost.kt`) — a picture of the frame the renderer is about to present, taken at
+  the same seam as the recorder, so the on-screen controls are not in it.
+  Four decisions hold it up. It reads through **a context of its own that shares the game's**,
+  never the game's own: `glReadPixels` implicitly reads the pixel pack buffer, the pack alignment
+  and row length and the read framebuffer binding, and restoring those is *not* symmetric between
+  ES 2 and ES 3 — `GL_FRAMEBUFFER_BINDING` and `GL_DRAW_FRAMEBUFFER_BINDING` are the same number
+  while `GL_READ_FRAMEBUFFER_BINDING` is a different one, and getting that wrong spoils the game's
+  rendering from then on rather than merely the picture. A fresh context has all of it at the
+  defaults by construction. **Both bridges are covered**, unlike recording: OSMesa has no EGL
+  surface but it does have a finished CPU frame between `ANativeWindow_lock` and
+  `unlockAndPost`, which is the whole of the zink path. The wait is a plain **`glFinish`**, not the
+  recorder's fence — the recorder runs every frame and cannot stall the CPU, this runs once and
+  the simpler, stronger guarantee is the right trade. And the **native side hands over one shape
+  of buffer** — tightly packed, top-down, opaque RGBA — so `Bitmap.copyPixelsFromBuffer` takes it
+  with nothing said about strides, row order or alpha, and there is no second place for those to
+  be got wrong.
+  It gets **no comparison-table row**, which is the one deliberate exception to the rule above.
+  Upstream can bind F2 exactly as this can, so every honest mark would be a tie, and a table row
+  that says nothing is worse than no row — the table is only worth reading because it is edited.
 - **Control-center actions straight from a button** — `SPECIALBTN_GAMEKEYBOARD` (-12) opens the
   keyboard without the sheet. Special keycodes are **appended, never inserted**: the editor's
   spinner converts position ↔ keycode by arithmetic over the *reversed* name list, and the
@@ -659,6 +679,17 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 ## 17. Known limitations
 
 - `vulkan_zink` cannot be recorded — it renders through OSMesa, which has no EGL surface to hook.
+  It **can** be screenshotted: OSMesa draws into a CPU buffer that is sitting in memory at the
+  moment the frame is presented, so there is something to copy even though there is nothing to
+  blit.
+- **The launcher's screenshot is not the only one.** Minecraft's own F2 writes into the same
+  folder, from its own framebuffer, and so has never had the controls in it either. What this adds
+  is that it does not go through the game: no keybind to know or to lose to a modpack, one tap on a
+  button or in the control center, and it says so on screen instead of in the chat log. Anyone
+  weighing up whether it earns its place should weigh it against that, not against nothing.
+- A screenshot **costs a `glFinish` and a full readback** on the frame it is taken, so the game
+  hitches for one frame. That is the price of not touching any of the game's GL state, and it is
+  paid once per picture rather than every frame like the recorder.
 - Recordings are capped below 4 GB (MP4 32-bit offsets). At 1080p60/12 Mbps that is roughly 40
   minutes. Automatic segmentation into `part1.mp4`, `part2.mp4` … is designed but not built.
 - Echo cancellation on the microphone path is requested but unverified on speakers.

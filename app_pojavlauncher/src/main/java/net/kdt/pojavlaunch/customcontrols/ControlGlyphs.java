@@ -81,6 +81,7 @@ public final class ControlGlyphs {
             case ControlData.SPECIALBTN_SCROLLDOWN: return R.drawable.ic_ctrl_down;
             case ControlData.SPECIALBTN_GAMEKEYBOARD: return R.drawable.ic_ctrl_board;
             case ControlData.SPECIALBTN_VOICE: return R.drawable.ic_ctrl_mic;
+            case ControlData.SPECIALBTN_SCREENSHOT: return R.drawable.ic_ctrl_camera;
 
             default: return 0;
         }

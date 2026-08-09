@@ -85,6 +85,7 @@ private val SPECIAL_ACTIONS: List<SpecialAction> by lazy {
         ControlData.SPECIALBTN_VIRTUALMOUSE to R.string.control_special_virtual_mouse,
         ControlData.SPECIALBTN_GAMEKEYBOARD to R.string.control_special_game_keyboard,
         ControlData.SPECIALBTN_VOICE to R.string.control_special_voice,
+        ControlData.SPECIALBTN_SCREENSHOT to R.string.control_special_screenshot,
         ControlData.SPECIALBTN_KEYBOARD to R.string.control_special_system_keyboard,
         ControlData.SPECIALBTN_MENU to R.string.control_special_menu,
         ControlData.SPECIALBTN_TOGGLECTRL to R.string.control_special_toggle_controls

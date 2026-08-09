@@ -450,6 +450,10 @@ public class ControlLayout extends FrameLayout {
 		if(mMenuListener != null) mMenuListener.onVoiceShortcut(down);
 	}
 
+	public void notifyScreenshot() {
+		if(mMenuListener != null) mMenuListener.onClickedScreenshot();
+	}
+
 	/** Cached getter for perf purposes */
 	public MinecraftGLSurface getGameSurface(){
 		if(mGameSurface == null){
