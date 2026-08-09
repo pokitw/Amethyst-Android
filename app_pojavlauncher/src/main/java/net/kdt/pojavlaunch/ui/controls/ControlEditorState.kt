@@ -112,7 +112,7 @@ class ControlEditorState(val button: ControlInterface) {
     )
         private set
 
-    fun setName(value: String) {
+    fun applyName(value: String) {
         name = value
         data.name = value
         // Through setProperties rather than setText: the label and the action glyph are chosen
@@ -127,7 +127,7 @@ class ControlEditorState(val button: ControlInterface) {
      * the key it used to send is a button nobody has named, so binding a key names it — which is
      * what makes adding a control a single decision instead of two.
      */
-    fun setKey(slot: Int, keycode: Int) {
+    fun bindKey(slot: Int, keycode: Int) {
         if (slot !in 0 until MAX_KEYS) return
         val previous = keys.getOrElse(slot) { NO_KEY }
         val updated = keys.toMutableList()
@@ -139,7 +139,7 @@ class ControlEditorState(val button: ControlInterface) {
         data.keycodes = IntArray(MAX_KEYS) { updated[it] }
 
         if (slot == 0 && keycode != NO_KEY && nameEditable && isUnnamed(previous)) {
-            setName(keyDisplayName(keycode))
+            applyName(keyDisplayName(keycode))
         } else {
             button.setProperties(data, false)
         }
@@ -150,7 +150,7 @@ class ControlEditorState(val button: ControlInterface) {
         name.isEmpty() || name == DEFAULT_NAME ||
                 (previousKey != NO_KEY && name == keyDisplayName(previousKey))
 
-    fun setSize(newWidth: Float, newHeight: Float) {
+    fun applySize(newWidth: Float, newHeight: Float) {
         // Joysticks are round, so the two are one number however it was reached.
         val square = kind == ControlKind.JOYSTICK
         val w = newWidth.coerceIn(MIN_SIZE, MAX_SIZE)
@@ -162,7 +162,7 @@ class ControlEditorState(val button: ControlInterface) {
         button.updateProperties()
     }
 
-    fun setOpacity(value: Float) {
+    fun applyOpacity(value: Float) {
         opacity = value
         data.opacity = value
         // Straight onto the view: this runs on every frame of a drag, and going through
@@ -170,31 +170,31 @@ class ControlEditorState(val button: ControlInterface) {
         button.controlView.alpha = value
     }
 
-    fun setCornerRadius(value: Float) {
+    fun applyCornerRadius(value: Float) {
         cornerRadius = value
         data.cornerRadius = value
         button.setBackground()
     }
 
-    fun setStrokeWidth(value: Float) {
+    fun applyStrokeWidth(value: Float) {
         strokeWidth = value
         data.strokeWidth = value
         button.setBackground()
     }
 
-    fun setFillColor(color: Int) {
+    fun applyFillColor(color: Int) {
         fillColor = color
         data.bgColor = color
         button.setBackground()
     }
 
-    fun setStrokeColor(color: Int) {
+    fun applyStrokeColor(color: Int) {
         strokeColor = color
         data.strokeColor = color
         button.setBackground()
     }
 
-    fun setToggle(value: Boolean) {
+    fun applyToggle(value: Boolean) {
         isToggle = value
         data.isToggle = value
         // The toggle overlay is tinted differently from the press flash, and that colour is
@@ -202,37 +202,37 @@ class ControlEditorState(val button: ControlInterface) {
         button.setProperties(data, false)
     }
 
-    fun setSwipeable(value: Boolean) {
+    fun applySwipeable(value: Boolean) {
         isSwipeable = value
         data.isSwipeable = value
     }
 
-    fun setPassThrough(value: Boolean) {
+    fun applyPassThrough(value: Boolean) {
         passThrough = value
         data.passThruEnabled = value
     }
 
-    fun setShowInGame(value: Boolean) {
+    fun applyShowInGame(value: Boolean) {
         showInGame = value
         data.displayInGame = value
     }
 
-    fun setShowInMenu(value: Boolean) {
+    fun applyShowInMenu(value: Boolean) {
         showInMenu = value
         data.displayInMenu = value
     }
 
-    fun setForwardLock(value: Boolean) {
+    fun applyForwardLock(value: Boolean) {
         forwardLock = value
         (data as? ControlJoystickData)?.forwardLock = value
     }
 
-    fun setAbsoluteTracking(value: Boolean) {
+    fun applyAbsoluteTracking(value: Boolean) {
         absoluteTracking = value
         (data as? ControlJoystickData)?.absolute = value
     }
 
-    fun setDrawerOrientation(value: ControlDrawerData.Orientation) {
+    fun applyDrawerOrientation(value: ControlDrawerData.Orientation) {
         drawerOrientation = value
         val drawer = button as? ControlDrawer ?: return
         drawer.drawerData.orientation = value

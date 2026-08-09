@@ -130,14 +130,14 @@ fun ControlEditorPanel(
                             value = state.width,
                             range = ControlEditorState.MIN_SIZE..ControlEditorState.MAX_SIZE,
                             format = { "${it.roundToInt()} px" }
-                        ) { state.setSize(it, state.height) }
+                        ) { state.applySize(it, state.height) }
                         if (state.kind != ControlKind.JOYSTICK) {
                             LiveSlider(
                                 title = stringResource(R.string.control_editor_height),
                                 value = state.height,
                                 range = ControlEditorState.MIN_SIZE..ControlEditorState.MAX_SIZE,
                                 format = { "${it.roundToInt()} px" }
-                            ) { state.setSize(state.width, it) }
+                            ) { state.applySize(state.width, it) }
                         }
                     }
                 }
@@ -149,7 +149,7 @@ fun ControlEditorPanel(
                         value = state.opacity,
                         range = 0f..1f,
                         format = { "${(it * 100).roundToInt()}%" },
-                        onValueChange = state::setOpacity
+                        onValueChange = state::applyOpacity
                     )
                     if (state.cornerEditable) {
                         LiveSlider(
@@ -157,7 +157,7 @@ fun ControlEditorPanel(
                             value = state.cornerRadius,
                             range = 0f..100f,
                             format = { "${it.roundToInt()}%" },
-                            onValueChange = state::setCornerRadius
+                            onValueChange = state::applyCornerRadius
                         )
                     }
                     LiveSlider(
@@ -165,19 +165,19 @@ fun ControlEditorPanel(
                         value = state.strokeWidth,
                         range = 0f..10f,
                         format = { String.format(Locale.getDefault(), "%.1f dp", it) },
-                        onValueChange = state::setStrokeWidth
+                        onValueChange = state::applyStrokeWidth
                     )
                     ColorField(
                         title = stringResource(R.string.control_editor_fill),
                         color = state.fillColor,
                         alphaEnabled = true,
-                        onColor = state::setFillColor
+                        onColor = state::applyFillColor
                     )
                     ColorField(
                         title = stringResource(R.string.control_editor_border_colour),
                         color = state.strokeColor,
                         alphaEnabled = false,
-                        onColor = state::setStrokeColor
+                        onColor = state::applyStrokeColor
                     )
                 }
 
@@ -188,19 +188,19 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_toggle),
                             stringResource(R.string.control_editor_toggle_description),
                             state.isToggle,
-                            state::setToggle
+                            state::applyToggle
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_swipe),
                             stringResource(R.string.control_editor_swipe_description),
                             state.isSwipeable,
-                            state::setSwipeable
+                            state::applySwipeable
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_passthrough),
                             stringResource(R.string.control_editor_passthrough_description),
                             state.passThrough,
-                            state::setPassThrough
+                            state::applyPassThrough
                         )
                     }
                 }
@@ -212,13 +212,13 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_forward_lock),
                             stringResource(R.string.control_editor_forward_lock_description),
                             state.forwardLock,
-                            state::setForwardLock
+                            state::applyForwardLock
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_absolute),
                             stringResource(R.string.control_editor_absolute_description),
                             state.absoluteTracking,
-                            state::setAbsoluteTracking
+                            state::applyAbsoluteTracking
                         )
                     }
                 }
@@ -230,13 +230,13 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_show_game),
                             stringResource(R.string.control_editor_show_game_description),
                             state.showInGame,
-                            state::setShowInGame
+                            state::applyShowInGame
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_show_menu),
                             stringResource(R.string.control_editor_show_menu_description),
                             state.showInMenu,
-                            state::setShowInMenu
+                            state::applyShowInMenu
                         )
                     }
                 }
@@ -270,7 +270,7 @@ private fun PanelHeader(state: ControlEditorState, onClose: () -> Unit) {
                 }
                 BasicTextField(
                     value = state.name,
-                    onValueChange = state::setName,
+                    onValueChange = state::applyName,
                     singleLine = true,
                     textStyle = LocalTextStyle.current.merge(
                         MaterialTheme.typography.titleMedium.copy(color = colors.onSurface)
@@ -624,7 +624,7 @@ private fun OrientationRow(state: ControlEditorState) {
                                     if (selected) colors.primary.copy(alpha = 0.16f)
                                     else colors.surfaceContainerHigh
                                 )
-                                .clickable { state.setDrawerOrientation(orientation) }
+                                .clickable { state.applyDrawerOrientation(orientation) }
                                 .padding(vertical = 9.dp)
                         )
                     }

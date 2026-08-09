@@ -115,11 +115,11 @@ class ControlEditorHost(
                             slot = slot,
                             current = editingNow?.keys?.getOrNull(slot) ?: NO_KEY,
                             onPick = { keycode ->
-                                editingNow?.setKey(slot, keycode)
+                                editingNow?.bindKey(slot, keycode)
                                 pickingSlot = -1
                             },
                             onClear = {
-                                editingNow?.setKey(slot, NO_KEY)
+                                editingNow?.bindKey(slot, NO_KEY)
                                 pickingSlot = -1
                             },
                             onDismiss = { pickingSlot = -1 }
