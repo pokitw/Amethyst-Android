@@ -867,11 +867,20 @@ private fun ControlsScreen(
                     stringResource(R.string.preference_voice_autosend_description),
                     store.bool("voiceAutoSend", false)
                 ) { store.put("voiceAutoSend", it) }
+                val holdChat = store.bool("voiceHoldChat", false)
                 SwitchRow(
                     stringResource(R.string.preference_voice_hold_chat_title),
                     stringResource(R.string.preference_voice_hold_chat_description),
-                    store.bool("voiceHoldChat", false)
+                    holdChat
                 ) { store.put("voiceHoldChat", it) }
+                // Only under its parent: on its own it describes a gesture that does nothing.
+                if (holdChat) {
+                    SwitchRow(
+                        stringResource(R.string.preference_voice_hold_send_title),
+                        stringResource(R.string.preference_voice_hold_send_description),
+                        store.bool("voiceHoldSend", true)
+                    ) { store.put("voiceHoldSend", it) }
+                }
             }
         }
 

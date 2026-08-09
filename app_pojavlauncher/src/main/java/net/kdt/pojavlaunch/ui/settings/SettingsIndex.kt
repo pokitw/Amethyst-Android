@@ -183,6 +183,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "voice speech dictation hold chat shortcut push to talk"
     ),
     SettingEntry(
+        R.string.preference_voice_hold_send_title, SettingsRoute.CONTROLS,
+        R.string.preference_voice_hold_send_description, R.string.settings_section_voice,
+        "voice dictation release send enter chat hold"
+    ),
+    SettingEntry(
         R.string.mcl_setting_title_mousescale, SettingsRoute.CONTROLS,
         R.string.mcl_setting_subtitle_mousescale, R.string.settings_section_mouse,
         "cursor size pointer"

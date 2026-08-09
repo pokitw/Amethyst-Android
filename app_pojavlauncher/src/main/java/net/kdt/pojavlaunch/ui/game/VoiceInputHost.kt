@@ -31,6 +31,14 @@ import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
  * stays listening, which is what a long sentence wants; holding the button listens only while it
  * is held, which is what a two-word reply wants. They are told apart by how long the finger stayed
  * down — which is why the button hands over both edges rather than deciding for itself.
+ *
+ * <b>The held chat key is its own thing.</b> Holding a chat button opens chat and dictates for as
+ * long as it is held, and letting go sends the line. That reads as one gesture and has to behave
+ * like one, which takes two things the ordinary voice button does not need. The recogniser's own
+ * idea of when a sentence ended is overruled while the finger is down — it decides on a pause,
+ * and pausing to think is not the same as letting go — so a session that finalises early is
+ * restarted and its text carried forward. And the Enter is fired by the release, never by the
+ * recogniser, because the player's finger is the thing that means "done".
  */
 class VoiceInputHost(
     private val view: ComposeView,
@@ -67,6 +75,19 @@ class VoiceInputHost(
     private var pressedAt = 0L
     /** Whether the press currently under a finger is the one that started this session. */
     private var startedByThisPress = false
+
+    /* Held-chat-key state. All four are meaningless outside a hold session. */
+
+    /** True from the moment a held chat key starts dictating until that dictation is over. */
+    private var holdSession = false
+    /** Whether the finger is still on the chat button. */
+    private var holdHeld = false
+    /** Whether letting go should also press Enter, which is the option that makes it one gesture. */
+    private var holdSends = false
+    /** Text from earlier segments of this hold, kept because each restart begins from nothing. */
+    private var carried = ""
+    /** How many times the recogniser has been restarted under one finger. */
+    private var segments = 0
 
     private val hideMessage = Runnable { if (!voice.isListening()) clearOverlay() }
 
@@ -111,9 +132,23 @@ class VoiceInputHost(
         if (down) {
             // Guarded, unlike the voice button: a session already running was started some other
             // way, and restarting the overlay under it would throw away the words on screen.
-            if (!voice.isListening()) start()
-        } else if (voice.isListening()) {
+            if (voice.isListening()) return
+            holdSends = LauncherPreferences.PREF_VOICE_HOLD_SEND
+            holdHeld = true
+            carried = ""
+            segments = 0
+            holdSession = true
+            if (!start(sustained = true)) endHold(0, send = false)
+            return
+        }
+        holdHeld = false
+        if (voice.isListening()) {
+            // The final transcript is still to come. endHold runs when it arrives, so the Enter
+            // lands after the last word rather than in the middle of it.
             finish()
+        } else if (holdSession) {
+            // Already finished listening and waiting for exactly this.
+            endHold(0, send = true)
         }
     }
 
@@ -130,8 +165,10 @@ class VoiceInputHost(
     fun cancel() {
         // Undone before the recogniser is stopped, not after: VoiceInput reports the stop
         // synchronously, and a callback that found text still tracked here would take it for the
-        // transcript and press Enter on the sentence being thrown away.
+        // transcript and press Enter on the sentence being thrown away. Forgetting the hold does
+        // the same job for the release's Enter.
         typer.clear()
+        forgetHold()
         if (voice.isListening()) voice.cancel()
         clearOverlay()
     }
@@ -139,6 +176,7 @@ class VoiceInputHost(
     /** Stop listening for a reason that is not the player's decision, keeping what was typed. */
     fun dismiss() {
         typer.forget()
+        forgetHold()
         if (voice.isListening()) voice.cancel()
         clearOverlay()
     }
@@ -146,6 +184,7 @@ class VoiceInputHost(
     /** For an activity going away: drop the service binding along with everything else. */
     fun release() {
         handler.removeCallbacksAndMessages(null)
+        forgetHold()
         voice.setListener(null)
         voice.release()
         typer.forget()
@@ -155,7 +194,7 @@ class VoiceInputHost(
 
     /* ------------------------------------------------------------------ internals */
 
-    private fun start(): Boolean {
+    private fun start(sustained: Boolean = false): Boolean {
         val blocked = gate.voiceBlockedReason()
         if (blocked != 0) {
             showMessage(blocked)
@@ -169,7 +208,7 @@ class VoiceInputHost(
         handler.removeCallbacks(hideMessage)
         state = VoiceUiState(listening = true)
         view.visibility = View.VISIBLE
-        voice.start(null)
+        voice.start(null, sustained)
         return voice.isListening()
     }
 
@@ -203,25 +242,90 @@ class VoiceInputHost(
     /* ------------------------------------------------------------------ recogniser callbacks */
 
     override fun onVoiceStarted() {
-        state = state.copy(listening = true, text = "", level = 0f, messageRes = 0)
+        // Restarted mid-hold, `carried` is what is already in the chat box, so the overlay keeps
+        // showing it rather than blinking empty between segments.
+        state = state.copy(listening = true, text = carried, level = 0f, messageRes = 0)
         view.visibility = View.VISIBLE
     }
 
     override fun onVoiceText(text: String, isFinal: Boolean) {
-        state = state.copy(text = text, messageRes = 0)
+        // Prefixed with what earlier segments of this hold produced, so a dictation broken into
+        // several recogniser sessions still reads and types as one sentence.
+        val whole = carried + text
+        state = state.copy(text = whole, messageRes = 0)
         // With live typing off, a guess only updates the overlay; the final transcript still goes
         // through the same call, which then types it in one go because nothing preceded it.
         if (!isFinal && !LauncherPreferences.PREF_VOICE_LIVE_TYPING) return
 
-        typer.set(text)
+        typer.set(whole)
         if (!isFinal) return
+        // Under a held key the send is the release's decision, not this one's, and the text has to
+        // stay tracked in case another segment follows.
+        if (holdSession) return
 
         val typed = typer.typed()
         typer.forget()
         if (typed.isNotEmpty() && LauncherPreferences.PREF_VOICE_AUTO_SEND) sender.sendEnter()
     }
 
+    /**
+     * A recogniser session ended while a chat key was — or was until a moment ago — held down.
+     *
+     * The interesting case is the one where the finger is still down: the recogniser has decided
+     * on a silence that the player has not, so the session is started again and its text carried
+     * forward. Bounded, because a recogniser that fails instantly would otherwise be restarted
+     * forever, and because a restart is not free — some devices chime, and the gap between
+     * sessions is deaf.
+     */
+    private fun onHoldSegmentEnded(errorRes: Int) {
+        if (errorRes != 0) {
+            endHold(errorRes, send = false)
+            return
+        }
+        if (!holdHeld) {
+            endHold(0, send = holdSends)
+            return
+        }
+        if (segments >= MAX_HOLD_SEGMENTS) {
+            // Out of restarts with the finger still down. Ending here would send a line the player
+            // has not finished, so the release still gets the last word.
+            endHold(0, send = false)
+            return
+        }
+        segments++
+        carried = typer.typed()
+        if (carried.isNotEmpty() && !carried.endsWith(" ")) carried += " "
+        voice.start(null, true)
+        if (!voice.isListening()) endHold(0, send = holdSends)
+    }
+
+    private fun endHold(errorRes: Int, send: Boolean) {
+        val typed = typer.typed()
+        typer.forget()
+        forgetHold()
+        if (send && typed.isNotEmpty()) sender.sendEnter()
+        if (errorRes != 0) showMessage(errorRes) else clearOverlay()
+    }
+
+    /**
+     * Drop every trace of a held dictation.
+     *
+     * Called before anything that stops the recogniser out of band, because [VoiceInput] reports
+     * that stop synchronously: a hold left standing would route the callback back through
+     * [onHoldSegmentEnded] and could press Enter on a line that has just been abandoned.
+     */
+    private fun forgetHold() {
+        holdSession = false
+        holdHeld = false
+        carried = ""
+        segments = 0
+    }
+
     override fun onVoiceStopped(errorRes: Int) {
+        if (holdSession) {
+            onHoldSegmentEnded(errorRes)
+            return
+        }
         // An error does not take the words back. Text the player watched appear should not vanish
         // because the recogniser gave up on the sentence — it is right there to edit, and undoing
         // it for them is the more startling of the two behaviours. Only [cancel] undoes anything.
@@ -243,6 +347,11 @@ class VoiceInputHost(
     private companion object {
         /** Past this a press is a hold, so the release ends the dictation rather than ignoring it. */
         const val HOLD_MS = 350L
+        /**
+         * How many times one held key may restart the recogniser. Twelve segments is minutes of
+         * talking; past that something is wrong rather than long-winded.
+         */
+        const val MAX_HOLD_SEGMENTS = 12
         /** How long an error stays up. Long enough to read, short enough not to sit over the game. */
         const val MESSAGE_MS = 2800L
         const val EXIT_MS = 260L

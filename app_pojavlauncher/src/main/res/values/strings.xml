@@ -680,6 +680,8 @@
     <string name="preference_voice_autosend_description">Press Enter as soon as the last word has been typed.</string>
     <string name="preference_voice_hold_chat_title">Hold chat to dictate</string>
     <string name="preference_voice_hold_chat_description">Holding a button bound to T or / opens chat and starts listening. Tapping it still just opens chat.</string>
+    <string name="preference_voice_hold_send_title">Release to send</string>
+    <string name="preference_voice_hold_send_description">Letting go of the chat button stops listening and sends the message, so a whole line is one press. Off, it leaves the words in chat for you to send.</string>
     <string name="preference_voice_unavailable">This device has no speech recognition, so voice typing has nothing to run on.</string>
 
     <!-- Settings -->

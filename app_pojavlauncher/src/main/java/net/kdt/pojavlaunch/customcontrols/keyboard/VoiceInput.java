@@ -122,6 +122,19 @@ public class VoiceInput {
      * @param language a BCP-47 tag, or null for the device's own language
      */
     public void start(@Nullable String language) {
+        start(language, false);
+    }
+
+    /**
+     * Begin listening.
+     *
+     * @param language  a BCP-47 tag, or null for the device's own language
+     * @param sustained true when a finger is holding a button down for the length of the
+     *                  dictation. The recogniser is then asked to wait far longer before deciding
+     *                  a pause was the end of the sentence, because the player has already said
+     *                  when it ends — they are still holding the button.
+     */
+    public void start(@Nullable String language, boolean sustained) {
         if (mListening) return;
         if (!isAvailable(mContext)) {
             fireStopped(net.kdt.pojavlaunch.R.string.voice_error_unavailable);
@@ -134,7 +147,7 @@ public class VoiceInput {
             }
             mListening = true;
             fireStarted();
-            mRecognizer.startListening(buildIntent(language));
+            mRecognizer.startListening(buildIntent(language, sustained));
             armWatchdog(SILENCE_MS);
         } catch (Throwable t) {
             mListening = false;
@@ -182,7 +195,16 @@ public class VoiceInput {
         }
     }
 
-    private Intent buildIntent(@Nullable String language) {
+    /**
+     * How long a silence has to last before a held dictation is treated as finished.
+     *
+     * A hint, not a guarantee: recognisers are free to ignore it and Google's caps it well below
+     * whatever is asked for. That is exactly why the caller must still handle a session ending
+     * early rather than trusting this to hold the line.
+     */
+    private static final long SUSTAINED_SILENCE_MS = 10000L;
+
+    private Intent buildIntent(@Nullable String language, boolean sustained) {
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                 RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -197,6 +219,13 @@ public class VoiceInput {
         // recognition is a preference, not a requirement, and it is ignored where unsupported.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        }
+        if (sustained) {
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                    SUSTAINED_SILENCE_MS);
+            intent.putExtra(
+                    RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                    SUSTAINED_SILENCE_MS);
         }
         return intent;
     }

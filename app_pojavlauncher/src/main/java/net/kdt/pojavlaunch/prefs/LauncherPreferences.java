@@ -86,6 +86,7 @@ public class LauncherPreferences {
     public static boolean PREF_VOICE_LIVE_TYPING = true;
     public static boolean PREF_VOICE_AUTO_SEND = false;
     public static boolean PREF_VOICE_HOLD_CHAT = false;
+    public static boolean PREF_VOICE_HOLD_SEND = true;
 
 
     public static void loadPreferences(Context ctx) {
@@ -134,6 +135,7 @@ public class LauncherPreferences {
         PREF_VOICE_LIVE_TYPING = DEFAULT_PREF.getBoolean("voiceLiveTyping", true);
         PREF_VOICE_AUTO_SEND = DEFAULT_PREF.getBoolean("voiceAutoSend", false);
         PREF_VOICE_HOLD_CHAT = DEFAULT_PREF.getBoolean("voiceHoldChat", false);
+        PREF_VOICE_HOLD_SEND = DEFAULT_PREF.getBoolean("voiceHoldSend", true);
 
         // User may have deleted their default control
         String userDefCtrl = DEFAULT_PREF.getString("defaultCtrl", Tools.CTRLDEF_FILE);
