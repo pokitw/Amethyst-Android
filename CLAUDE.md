@@ -510,6 +510,20 @@ re-litigated. The reasoning lives in the commit that made the change.
   It gets **no comparison-table row**, which is the one deliberate exception to the rule above.
   Upstream can bind F2 exactly as this can, so every honest mark would be a tie, and a table row
   that says nothing is worse than no row — the table is only worth reading because it is edited.
+- **Gallery export** (`media/GalleryExport.java`) — everything the launcher writes lives under
+  `Android/data`, which the media scanner does not index and, from Android 10, cannot be made to:
+  that directory is outside the media store's scope. So a screenshot or a clip that is only there
+  is one no gallery, no chat app and no share sheet will ever see. A copy goes to an "Amethyst X"
+  album in Pictures or Movies, through the media store on Android 10 and up (no permission, no
+  scanner) and through the public directory plus a scan below it, which is what the
+  `maxSdkVersion="28"` storage permission in the manifest is for.
+  It is a **copy, not a move**, and that is the decision: the game's screenshots folder is where
+  Minecraft's own F2 writes too, and both Game files and the recordings gallery read those folders
+  directly, so moving the file out would empty two screens the player already uses. The cost is a
+  second copy, which the setting says in as many words rather than leaving to be discovered.
+  A video is written **pending** and only revealed once every byte is there, so a half-copied clip
+  is never offered up for playing, and the copy runs on its own thread after the player has been
+  told the recording is saved — gigabytes must not be what stands between them and the game.
 - **Control-center actions straight from a button** — `SPECIALBTN_GAMEKEYBOARD` (-12) opens the
   keyboard without the sheet. Special keycodes are **appended, never inserted**: the editor's
   spinner converts position ↔ keycode by arithmetic over the *reversed* name list, and the
@@ -720,6 +734,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - The floating shutter **starts** where the default control layout has room, so a custom layout
   can have one on top of a button until it is dragged off it. It is dragged with a long press,
   which is a gesture nothing announces except the hint on the row that turned it on.
+- The gallery copy **doubles the space** a screenshot or a clip takes, and a 40-minute recording
+  is gigabytes. It is skipped, with a log line and nothing else, when the volume does not have
+  room for it — a gallery copy is a convenience and is not worth filling a phone for.
+- Below Android 10 the gallery copy needs `WRITE_EXTERNAL_STORAGE`, which nothing in the launcher
+  asks for at runtime. Where it has not been granted the copy is skipped silently; the file is
+  still written to the game folder, which is where both in-app galleries read it from.
 - Screenshot settings are read **when the game process starts**, like every other in-game setting
   here, so changing the shutter's size takes effect at the next launch rather than at once. The
   format is read per picture and the dragged position is written as it happens, since neither

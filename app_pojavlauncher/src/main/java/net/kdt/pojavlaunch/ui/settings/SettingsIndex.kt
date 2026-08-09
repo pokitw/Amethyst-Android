@@ -315,6 +315,12 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "audio quality kbps"
     ),
     SettingEntry(
+        R.string.preference_gallery_export_title, SettingsRoute.RECORDING,
+        R.string.preference_gallery_export_description, 0,
+        "gallery photos album share export dcim pictures movies visible find screenshots recordings",
+        suggested = true
+    ),
+    SettingEntry(
         R.string.preference_screenshot_format_title, SettingsRoute.RECORDING,
         R.string.preference_screenshot_format_description, R.string.settings_section_screenshots,
         "screenshot picture png jpeg jpg format size lossless", suggested = true

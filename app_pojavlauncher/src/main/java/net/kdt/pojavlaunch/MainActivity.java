@@ -71,6 +71,7 @@ import net.kdt.pojavlaunch.customcontrols.mouse.Touchpad;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
+import net.kdt.pojavlaunch.media.GalleryExport;
 import net.kdt.pojavlaunch.recorder.GameRecorder;
 import net.kdt.pojavlaunch.recorder.RecorderPreferences;
 import net.kdt.pojavlaunch.recorder.RecorderService;
@@ -670,6 +671,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     refreshRecordingState();
                     RecorderService.release(MainActivity.this);
                     Toast.makeText(MainActivity.this, getString(R.string.control_recording_saved, output.getAbsolutePath()), Toast.LENGTH_LONG).show();
+                    // On its own thread, and after the player has been told the clip is saved: a
+                    // clip can be gigabytes and the copy must not be what stands between them and
+                    // the game coming back.
+                    GalleryExport.publishVideoLater(MainActivity.this, output);
                 }
 
                 @Override

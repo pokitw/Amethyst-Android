@@ -11,6 +11,7 @@ import androidx.annotation.Nullable;
 
 import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.Tools;
+import net.kdt.pojavlaunch.media.GalleryExport;
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
 
 import java.io.File;
@@ -90,6 +91,7 @@ public final class GameScreenshot {
             callback.onScreenshotFailed(R.string.screenshot_failed);
             return;
         }
+        final Context application = context.getApplicationContext();
         busy = true;
         // Its own thread rather than a pool: this happens a few times an hour at most, and it
         // blocks on the render thread and then on a PNG encode, neither of which belongs anywhere
@@ -99,7 +101,7 @@ public final class GameScreenshot {
             public void run() {
                 File saved = null;
                 try {
-                    saved = capture(directory, settings);
+                    saved = capture(application, directory, settings);
                 } catch (Throwable t) {
                     Log.e(TAG, "The screenshot could not be taken", t);
                 }
@@ -117,7 +119,7 @@ public final class GameScreenshot {
     }
 
     @Nullable
-    private static File capture(@NonNull File directory,
+    private static File capture(@NonNull Context context, @NonNull File directory,
                                 @NonNull ScreenshotPreferences settings) {
         if (!directory.exists() && !directory.mkdirs()) {
             Log.e(TAG, "Could not create " + directory);
@@ -132,7 +134,7 @@ public final class GameScreenshot {
                 Log.e(TAG, "The renderer did not hand over a frame");
                 return null;
             }
-            return write(directory, settings, pixels, info[0], info[1]);
+            return write(context, directory, settings, pixels, info[0], info[1]);
         } finally {
             // Always, including after a timeout: this is the only thing that frees the native
             // buffer and lets the next screenshot be asked for.
@@ -141,7 +143,8 @@ public final class GameScreenshot {
     }
 
     @Nullable
-    private static File write(@NonNull File directory, @NonNull ScreenshotPreferences settings,
+    private static File write(@NonNull Context context, @NonNull File directory,
+                              @NonNull ScreenshotPreferences settings,
                               @NonNull ByteBuffer pixels, int width, int height) {
         if (width <= 0 || height <= 0) return null;
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
@@ -165,6 +168,10 @@ public final class GameScreenshot {
                 target.delete();
                 return null;
             }
+            // Already off the main thread, and a screenshot is a couple of megabytes, so the copy
+            // happens here rather than on a thread of its own. Failing to reach the gallery does
+            // not fail the screenshot: the file the player asked for is written either way.
+            GalleryExport.publishImage(context, target);
             return target;
         } catch (Throwable t) {
             Log.e(TAG, "Could not write the screenshot", t);

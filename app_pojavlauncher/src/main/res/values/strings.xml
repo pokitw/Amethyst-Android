@@ -144,6 +144,9 @@
     <string name="preference_recorder_audio_description">Needs Android 10 and a one-off capture permission</string>
     <string name="preference_recorder_audio_bitrate_title">Audio bitrate</string>
 
+    <string name="preference_gallery_export_title">Show in your gallery</string>
+    <string name="preference_gallery_export_description">Screenshots and recordings are copied to an Amethyst X album so your gallery and share sheet can see them. The originals stay in the game folder, so each one takes room twice.</string>
+
     <string name="preference_screenshot_format_title">Image format</string>
     <string name="preference_screenshot_format_description">PNG keeps every pixel and is what the game itself writes. JPEG is a fraction of the size.</string>
     <string name="preference_screenshot_format_png">PNG</string>

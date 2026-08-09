@@ -1046,6 +1046,13 @@ private fun RecordingScreen(
                 iconRes = R.drawable.ic_x_recordings,
                 onClick = actions.onRecordings
             )
+            // Above the video and screenshot sections rather than inside either, because it is
+            // the one setting here that governs both.
+            SwitchRow(
+                stringResource(R.string.preference_gallery_export_title),
+                stringResource(R.string.preference_gallery_export_description),
+                store.bool("galleryExport", true)
+            ) { store.put("galleryExport", it) }
         }
 
         SectionLabel(stringResource(R.string.settings_section_video))
