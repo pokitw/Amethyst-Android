@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        Two four-point stars, the large one off-centre. Stands for the redesign: the same app,
+        newly cut. Drawn as strokes so it sits in the same family as the rest of ic_x_*.
+    -->
+    <path
+        android:pathData="M10,3L11.9,8.1L17,10L11.9,11.9L10,17L8.1,11.9L3,10L8.1,8.1Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M17.5,14.5L18.4,16.6L20.5,17.5L18.4,18.4L17.5,20.5L16.6,18.4L14.5,17.5L16.6,16.6Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+</vector>

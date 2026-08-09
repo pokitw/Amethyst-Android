@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        A shield with a check inside it: the crash screen that reads the log and names the cause.
+        The same silhouette as the isolation badge, so the two read as one idea.
+    -->
+    <path
+        android:pathData="M12,3L19,6V11C19,15.4 16,19.4 12,20.5C8,19.4 5,15.4 5,11V6Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M9.2,11.6L11.1,13.5L14.7,9.7"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+</vector>

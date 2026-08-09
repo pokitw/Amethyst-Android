@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        The on-screen keyboard: an outline board with a key row and a space bar. Outline, unlike
+        ic_ctrl_keyboard, because that family is filled for drawing over live gameplay.
+    -->
+    <path
+        android:pathData="M4,6H20A2,2 0,0 1,22 8V16A2,2 0,0 1,20 18H4A2,2 0,0 1,2 16V8A2,2 0,0 1,4 6Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M6,10H6.01M10,10H10.01M14,10H14.01M18,10H18.01"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M8,14H16"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+</vector>
