@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        Amethyst X icon set: 24dp grid, 1.8 stroke, round joins, tinting left to the caller.
+
+        The shutter button rather than the camera — a ring around a disc, which is what the thing
+        it turns on actually looks like. ic_x_camera stays for taking one now, so the two rows of
+        the capture group are told apart by their icons as well as their words.
+    -->
+    <path
+        android:pathData="M12,2.9A9.1,9.1 0,1 1,11.99 2.9Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M12,7.6A4.4,4.4 0,1 1,12 16.4A4.4,4.4 0,1 1,12 7.6Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

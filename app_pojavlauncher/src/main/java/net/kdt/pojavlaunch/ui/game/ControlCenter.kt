@@ -78,7 +78,12 @@ data class RecordingUiState(
  */
 interface ControlCenterCallbacks {
     fun onToggleRecording()
+
+    /** Take one now, of whatever the game is presenting behind this sheet. */
     fun onScreenshot()
+
+    /** Show or hide the shutter that floats over the running game. */
+    fun onToggleShutter()
     fun onCustomControls()
     fun onSendKeycode()
     fun onQuickSettings()
@@ -184,7 +189,11 @@ private fun Sheet(
                     // are the same thing at two lengths, and a row of five tiles reads as a
                     // drawer of settings rather than as the two ways of capturing what you see.
                     Spacer(Modifier.height(10.dp))
-                    ScreenshotRow(shutterOn, callbacks::onScreenshot)
+                    ScreenshotRows(
+                        shutterOn,
+                        callbacks::onScreenshot,
+                        callbacks::onToggleShutter
+                    )
                     Spacer(Modifier.height(12.dp))
                     GameActions(callbacks)
                     ForceClose(callbacks::onForceClose)
@@ -293,32 +302,77 @@ private fun RecordingCard(state: RecordingUiState, onToggle: () -> Unit) {
 }
 
 /**
- * A still, for when a video is more than you wanted.
+ * Stills, for when a video is more than you wanted. Two rows sharing one surface.
  *
- * <b>It puts a shutter on screen rather than taking the picture itself.</b> Taking it from here
- * would photograph the moment this sheet is covering, which is the one moment you cannot see —
- * so what the row does is hand you a shutter over the running game and get out of the way. It
- * reads as a switch for exactly that reason: the sheet is where things are turned on, the game is
- * where they happen, and recording directly above it works the same way.
+ * <b>Both ways, because they answer different questions.</b> The first takes the picture now,
+ * which is what you want when the thing worth keeping is already on screen and you only came in
+ * here to say so. The second puts a shutter over the running game, which is what you want when
+ * you need to see the shot before taking it — this sheet is covering the very thing being
+ * photographed, and no arrangement of it will ever fix that.
  *
  * Quiet on purpose. The gradient above is the sheet's one bold element and this sits directly
  * underneath, so it borrows the grouping without competing for it.
  */
 @Composable
-private fun ScreenshotRow(on: Boolean, onToggle: () -> Unit) {
+private fun ScreenshotRows(
+    shutterOn: Boolean,
+    onScreenshot: () -> Unit,
+    onToggleShutter: () -> Unit
+) {
     val colors = MaterialTheme.colorScheme
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(colors.surfaceContainerLow)
-            .clickable(onClick = onToggle)
+    ) {
+        CaptureRow(
+            iconRes = R.drawable.ic_x_camera,
+            title = stringResource(R.string.control_center_screenshot),
+            hint = stringResource(R.string.control_center_screenshot_hint),
+            onClick = onScreenshot
+        )
+        CaptureRow(
+            iconRes = R.drawable.ic_x_shutter,
+            title = stringResource(R.string.control_center_shutter),
+            hint = stringResource(
+                if (shutterOn) R.string.control_center_shutter_hint_on
+                else R.string.control_center_shutter_hint
+            ),
+            onClick = onToggleShutter
+        ) {
+            Switch(
+                checked = shutterOn,
+                onCheckedChange = { onToggleShutter() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Amethyst20,
+                    checkedTrackColor = colors.primary
+                )
+            )
+        }
+    }
+}
+
+/** One row of the capture group: a slot well, two lines, and whatever control it needs. */
+@Composable
+private fun CaptureRow(
+    iconRes: Int,
+    title: String,
+    hint: String,
+    onClick: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 15.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SlotWell {
             Icon(
-                painterResource(R.drawable.ic_x_camera),
+                painterResource(iconRes),
                 contentDescription = null,
                 tint = colors.primary,
                 modifier = Modifier.size(21.dp)
@@ -326,34 +380,19 @@ private fun ScreenshotRow(on: Boolean, onToggle: () -> Unit) {
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
             Text(
-                stringResource(
-                    if (on) R.string.control_center_screenshot_hide
-                    else R.string.control_center_screenshot
-                ),
-                style = MaterialTheme.typography.titleSmall,
-                color = colors.onSurface
-            )
-            Text(
-                stringResource(
-                    if (on) R.string.control_center_screenshot_hint_on
-                    else R.string.control_center_screenshot_hint
-                ),
+                hint,
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.width(12.dp))
-        Switch(
-            checked = on,
-            onCheckedChange = { onToggle() },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Amethyst20,
-                checkedTrackColor = colors.primary
-            )
-        )
+        if (trailing != null) {
+            Spacer(Modifier.width(12.dp))
+            trailing()
+        }
     }
 }
 

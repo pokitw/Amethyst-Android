@@ -1135,14 +1135,6 @@ private fun RecordingScreen(
                 store.bool("screenshotShutterAtStart", false)
             ) { store.put("screenshotShutterAtStart", it) }
             ChoiceRow(
-                title = stringResource(R.string.preference_screenshot_shutter_side_title),
-                description = stringResource(R.string.preference_screenshot_shutter_side_description),
-                names = stringArrayResource(R.array.screenshot_shutter_side_names).toList(),
-                values = stringArrayResource(R.array.screenshot_shutter_side_values).toList(),
-                selected = store.string("screenshotShutterSide", "right"),
-                onSelect = { store.put("screenshotShutterSide", it) }
-            )
-            ChoiceRow(
                 title = stringResource(R.string.preference_screenshot_shutter_size_title),
                 names = stringArrayResource(R.array.screenshot_shutter_size_names).toList(),
                 values = stringArrayResource(R.array.screenshot_shutter_size_values).toList(),

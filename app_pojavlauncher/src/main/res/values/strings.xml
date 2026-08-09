@@ -152,10 +152,6 @@
     <string name="preference_screenshot_quality_description">Higher looks better and takes more room. Below about 80 the sky starts to band.</string>
     <string name="preference_screenshot_shutter_start_title">Show the shutter from the start</string>
     <string name="preference_screenshot_shutter_start_description">It is on screen as soon as the game is, rather than switched on from the control center each time</string>
-    <string name="preference_screenshot_shutter_side_title">Which side</string>
-    <string name="preference_screenshot_shutter_side_description">Move it if your control layout already uses that edge</string>
-    <string name="preference_screenshot_shutter_side_right">Right</string>
-    <string name="preference_screenshot_shutter_side_left">Left</string>
     <string name="preference_screenshot_shutter_size_title">Size</string>
     <string name="preference_screenshot_shutter_size_small">Small</string>
     <string name="preference_screenshot_shutter_size_medium">Medium</string>
@@ -630,10 +626,11 @@
     <string name="control_center_size">%1$s of %2$s</string>
     <string name="control_center_summary">%1$s · %2$d fps · %3$s</string>
     <string name="control_center_no_audio">no audio</string>
-    <string name="control_center_screenshot">Screenshot button</string>
-    <string name="control_center_screenshot_hint">A shutter on screen, so you can see the shot</string>
-    <string name="control_center_screenshot_hide">Screenshot button</string>
-    <string name="control_center_screenshot_hint_on">Showing. Tap the shutter to take one</string>
+    <string name="control_center_screenshot">Take a screenshot</string>
+    <string name="control_center_screenshot_hint">Just the game — none of the buttons</string>
+    <string name="control_center_shutter">Shutter button</string>
+    <string name="control_center_shutter_hint">Put one on screen, so you can see the shot</string>
+    <string name="control_center_shutter_hint_on">On screen. Hold it to move it anywhere</string>
     <string name="control_center_tile_controls">Controls</string>
     <string name="control_center_tile_keycode">Keyboard</string>
     <string name="control_center_add_drawer">Add drawer</string>

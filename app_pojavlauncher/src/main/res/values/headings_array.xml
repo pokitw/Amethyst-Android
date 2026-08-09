@@ -75,15 +75,6 @@
         <item>jpeg</item>
     </string-array>
 
-    <string-array name="screenshot_shutter_side_names">
-        <item>@string/preference_screenshot_shutter_side_right</item>
-        <item>@string/preference_screenshot_shutter_side_left</item>
-    </string-array>
-    <string-array name="screenshot_shutter_side_values">
-        <item>right</item>
-        <item>left</item>
-    </string-array>
-
     <string-array name="screenshot_shutter_size_names">
         <item>@string/preference_screenshot_shutter_size_small</item>
         <item>@string/preference_screenshot_shutter_size_medium</item>

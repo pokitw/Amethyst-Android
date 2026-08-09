@@ -331,15 +331,9 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "screenshot shutter button show always start camera"
     ),
     SettingEntry(
-        R.string.preference_screenshot_shutter_side_title, SettingsRoute.RECORDING,
-        R.string.preference_screenshot_shutter_side_description,
-        R.string.settings_section_shutter,
-        "screenshot shutter left right side edge position move left handed"
-    ),
-    SettingEntry(
         R.string.preference_screenshot_shutter_size_title, SettingsRoute.RECORDING,
         0, R.string.settings_section_shutter,
-        "screenshot shutter size bigger smaller thumb"
+        "screenshot shutter size bigger smaller thumb left right side move position"
     ),
 
     // ----------------------------------------------------------------- Game files

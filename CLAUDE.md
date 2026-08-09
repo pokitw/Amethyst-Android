@@ -477,12 +477,28 @@ re-litigated. The reasoning lives in the commit that made the change.
   of buffer** — tightly packed, top-down, opaque RGBA — so `Bitmap.copyPixelsFromBuffer` takes it
   with nothing said about strides, row order or alpha, and there is no second place for those to
   be got wrong.
-  **The control center does not take the picture; it hands over a shutter.** Capturing from inside
-  the sheet photographs the one moment the player cannot see, because the sheet is over it — so
-  the row is a switch, and what it switches on is a round shutter floating over the running game.
-  It sits on the right edge, 40dp above centre: that edge is the only part the default layout
-  leaves alone, and dead centre lands on the sneak button on a short screen. It is `wrap_content`
-  for the §12.9 reason, which is also why it cannot simply be dragged anywhere.
+  **The control center offers both, because they answer different questions.** Taking one from
+  the sheet is right when what is worth keeping is already on screen; a shutter floating over the
+  running game is right when you need to see the shot first, and no arrangement of a bottom sheet
+  will ever fix that it covers the thing being photographed.
+  **The shutter is dragged with a long press, and remembers where it was left.** A long press
+  rather than a plain drag because it is jabbed at mid-fight and a drag threshold would send it
+  wandering; it is also what everything else here uses for a second meaning. Three things make it
+  work. The view stays `wrap_content` and is moved by **translation** (§12.9 — a `match_parent`
+  one would swallow every touch the game is waiting for), which is why the *view*, not the
+  composition, owns the position. The offset applied is **the pointer's position minus where it
+  took hold**, added to the current translation, never a delta between consecutive positions:
+  moving a view moves its own coordinate space, so the naive delta reads zero from the second
+  event on and the button sticks. And the release is **guarded by a timestamp**, because
+  `clickable` fires on the release whatever came before it and a long press to move would
+  otherwise also take a picture on the way out.
+  Position is stored as **fractions in a preferences file of its own**, written only by the game
+  process: the two processes each cache the default preferences and rewrite the whole file on
+  apply, so a position saved in game could be thrown away by the launcher saving something else.
+  Fractions rather than pixels because the surface changes size. The drag is clamped to the
+  parent, so it can never be put somewhere it cannot be grabbed back from — which is why there is
+  no "reset position" anywhere, and why the "which side" setting it briefly had was deleted rather
+  than kept.
   A bound control button remains the better answer for anyone who wants one permanently; the
   shutter is that without a trip to the editor.
   Its settings sit on the **recording** screen, now called "Recording and screenshots", because
@@ -701,14 +717,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   is that it does not go through the game: no keybind to know or to lose to a modpack, one tap on a
   button or in the control center, and it says so on screen instead of in the chat log. Anyone
   weighing up whether it earns its place should weigh it against that, not against nothing.
-- The floating shutter is placed for **the default control layout**, and a layout that puts its
-  own buttons on that edge will have one underneath it. Settings move it to the other side and
-  resize it, it can be switched off from the same row that turned it on, and a bound screenshot
-  button goes wherever its author drags it — which is the answer for anyone whose layout is
-  nothing like the default.
+- The floating shutter **starts** where the default control layout has room, so a custom layout
+  can have one on top of a button until it is dragged off it. It is dragged with a long press,
+  which is a gesture nothing announces except the hint on the row that turned it on.
 - Screenshot settings are read **when the game process starts**, like every other in-game setting
-  here, so changing the shutter's side or size takes effect at the next launch rather than at
-  once. The format is read per picture, since that costs nothing.
+  here, so changing the shutter's size takes effect at the next launch rather than at once. The
+  format is read per picture and the dragged position is written as it happens, since neither
+  costs anything.
 - A screenshot **costs a `glFinish` and a full readback** on the frame it is taken, so the game
   hitches for one frame. That is the price of not touching any of the game's GL state, and it is
   paid once per picture rather than every frame like the recorder.

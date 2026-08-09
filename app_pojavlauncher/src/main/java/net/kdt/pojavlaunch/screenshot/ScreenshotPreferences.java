@@ -22,14 +22,30 @@ public final class ScreenshotPreferences {
     public static final String KEY_FORMAT = "screenshotFormat";
     public static final String KEY_QUALITY = "screenshotQuality";
     public static final String KEY_SHUTTER_AT_START = "screenshotShutterAtStart";
-    public static final String KEY_SHUTTER_SIDE = "screenshotShutterSide";
     public static final String KEY_SHUTTER_SIZE = "screenshotShutterSize";
+
+    /**
+     * Where the player dragged the shutter to, as a fraction of the space it can occupy.
+     *
+     * <b>In a file of its own, and written only by the game process.</b> The two processes each
+     * cache the default preferences in memory and rewrite the whole file when they apply a key, so
+     * a position saved in game could be thrown away by the launcher applying an unrelated setting
+     * from a map that predates it. Nothing in the launcher touches this file, so the two never
+     * fight over it.
+     *
+     * Fractions rather than pixels because the surface changes size — rotation, the resolution
+     * scaler, a foldable — and a pixel offset saved on one is meaningless on the next.
+     */
+    public static final String SHUTTER_PREFS = "screenshot_shutter";
+    public static final String KEY_SHUTTER_X = "x";
+    public static final String KEY_SHUTTER_Y = "y";
+
+    /** Hard against the right edge, above centre — clear of the default layout's sneak button. */
+    public static final float DEFAULT_SHUTTER_X = 1f;
+    public static final float DEFAULT_SHUTTER_Y = 0.34f;
 
     public static final String FORMAT_PNG = "png";
     public static final String FORMAT_JPEG = "jpeg";
-
-    public static final String SIDE_RIGHT = "right";
-    public static final String SIDE_LEFT = "left";
 
     public static final String SIZE_SMALL = "small";
     public static final String SIZE_MEDIUM = "medium";
@@ -47,15 +63,13 @@ public final class ScreenshotPreferences {
     public final String format;
     public final int quality;
     public final boolean shutterAtStart;
-    public final String shutterSide;
     public final String shutterSize;
 
     private ScreenshotPreferences(String format, int quality, boolean shutterAtStart,
-                                  String shutterSide, String shutterSize) {
+                                  String shutterSize) {
         this.format = format;
         this.quality = quality;
         this.shutterAtStart = shutterAtStart;
-        this.shutterSide = shutterSide;
         this.shutterSize = shutterSize;
     }
 
@@ -66,8 +80,39 @@ public final class ScreenshotPreferences {
                 readString(preferences, KEY_FORMAT, DEFAULT_FORMAT),
                 clamp(readInt(preferences, KEY_QUALITY, DEFAULT_QUALITY), 40, 100),
                 preferences.getBoolean(KEY_SHUTTER_AT_START, false),
-                readString(preferences, KEY_SHUTTER_SIDE, SIDE_RIGHT),
                 readString(preferences, KEY_SHUTTER_SIZE, SIZE_MEDIUM));
+    }
+
+    /** Where the shutter was left, as fractions in 0..1. Game process only — see {@link #SHUTTER_PREFS}. */
+    @NonNull
+    public static float[] loadShutterPosition(@NonNull Context context) {
+        try {
+            SharedPreferences prefs =
+                    context.getSharedPreferences(SHUTTER_PREFS, Context.MODE_PRIVATE);
+            return new float[]{
+                    clamp01(prefs.getFloat(KEY_SHUTTER_X, DEFAULT_SHUTTER_X)),
+                    clamp01(prefs.getFloat(KEY_SHUTTER_Y, DEFAULT_SHUTTER_Y))
+            };
+        } catch (Throwable ignored) {
+            return new float[]{DEFAULT_SHUTTER_X, DEFAULT_SHUTTER_Y};
+        }
+    }
+
+    /** Remember where it was dragged to. Game process only. */
+    public static void saveShutterPosition(@NonNull Context context, float x, float y) {
+        try {
+            context.getSharedPreferences(SHUTTER_PREFS, Context.MODE_PRIVATE).edit()
+                    .putFloat(KEY_SHUTTER_X, clamp01(x))
+                    .putFloat(KEY_SHUTTER_Y, clamp01(y))
+                    .apply();
+        } catch (Throwable ignored) {
+            // A position that could not be stored is not worth interrupting a game over.
+        }
+    }
+
+    private static float clamp01(float value) {
+        if (Float.isNaN(value)) return 0f;
+        return value < 0f ? 0f : (value > 1f ? 1f : value);
     }
 
     public boolean isJpeg() {
@@ -85,10 +130,6 @@ public final class ScreenshotPreferences {
 
     public String extension() {
         return isJpeg() ? ".jpg" : ".png";
-    }
-
-    public boolean shutterOnLeft() {
-        return SIDE_LEFT.equals(shutterSide);
     }
 
     /**

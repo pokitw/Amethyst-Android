@@ -921,16 +921,29 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override public void onToggleRecording() { mControlCenter.close(); toggleRecording(); }
 
     /**
-     * Puts the shutter on screen rather than taking the picture.
+     * Take one now, before the sheet is told to close.
      *
-     * Taking it from in here would photograph the moment the sheet is covering, which is the one
-     * moment the player cannot see. So the sheet hands over a shutter and gets out of the way.
+     * The sheet is a Compose overlay above the game surface and was never in the frame the
+     * renderer draws, so the picture is clean either way; going first only means the moment
+     * captured is the one that was tapped rather than 300ms of exit animation later.
      */
     @Override
     public void onScreenshot() {
+        mScreenshot.take();
+        mControlCenter.close();
+    }
+
+    /**
+     * Hand over the shutter and get out of the way.
+     *
+     * The sheet stays open, because this is a switch and the answer to flipping a switch is
+     * seeing it flip. The shutter is behind the scrim until the sheet is dismissed, which is the
+     * moment it becomes useful anyway.
+     */
+    @Override
+    public void onToggleShutter() {
         mScreenshot.toggleShutter();
         mControlCenter.applyShutterOn(mScreenshot.isShutterVisible());
-        mControlCenter.close();
     }
 
     @Override public void onCustomControls() { mControlCenter.close(); openCustomControls(); }

@@ -131,6 +131,7 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	@Override public void onToggleRecording() {}
 	// There is no game rendering behind this activity, so there is no frame to take a picture of.
 	@Override public void onScreenshot() {}
+	@Override public void onToggleShutter() {}
 	@Override public void onCustomControls() {}
 	@Override public void onSendKeycode() {}
 	@Override public void onQuickSettings() {}

@@ -2,6 +2,7 @@ package net.kdt.pojavlaunch.ui.game
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -11,13 +12,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -44,7 +46,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -126,21 +133,92 @@ class ScreenshotHost(
         shutterView.setViewCompositionStrategy(
             ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
         )
-        // Which edge it hangs off is a layout property, not something the composition can decide:
-        // the view is wrap_content so that the rest of the screen still receives touches, and a
-        // wrap_content view cannot move itself within a parent it does not fill.
+        // Anchored to the top left and then moved with a translation, rather than hung off an
+        // edge with a gravity. Where it sits is the player's, so it is a position rather than a
+        // side, and translation moves a view without asking the parent to lay out again.
         (shutterView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            params.gravity = Gravity.CENTER_VERTICAL or
-                    (if (settings.shutterOnLeft()) Gravity.START else Gravity.END)
+            params.gravity = Gravity.TOP or Gravity.START
             shutterView.layoutParams = params
         }
+        // A rotation or a resolution change resizes the parent under it, and a translation that
+        // was inside the old bounds can be outside the new ones.
+        shutterView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place() }
         shutterView.setContent {
             AmethystXTheme {
-                Shutter(shutter, settings.shutterDiameterDp().dp, settings.shutterOnLeft(),
-                    ::take) { applyShutter(false) }
+                Shutter(
+                    visible = shutter,
+                    diameter = settings.shutterDiameterDp().dp,
+                    onCapture = ::take,
+                    onGrab = ::onGrab,
+                    onMove = ::onMove,
+                    onDrop = ::onDrop,
+                    onClose = { applyShutter(false) }
+                )
             }
         }
         if (settings.shutterAtStart) applyShutter(true)
+    }
+
+    /* ------------------------------------------------------------------ dragging */
+
+    /**
+     * Where it was left last time, as fractions of the room it has to move in.
+     *
+     * Initialised here rather than in the init block above, because Kotlin runs initialisers in
+     * declaration order and anything assigned up there would be overwritten by these. Everything
+     * that reads them is posted or driven by a layout pass, so both have landed by then.
+     */
+    private val startPosition = ScreenshotPreferences.loadShutterPosition(shutterView.context)
+    private var fractionX = startPosition[0]
+    private var fractionY = startPosition[1]
+    private var dragging = false
+
+    /**
+     * Put the shutter where the fractions say, within what the parent currently allows.
+     *
+     * Skipped mid-drag: the finger is the authority then, and recomputing from fractions that are
+     * only written on release would drag the button back out from under it.
+     */
+    private fun place() {
+        if (dragging) return
+        val parent = shutterView.parent as? View ?: return
+        val freeX = (parent.width - shutterView.width).coerceAtLeast(0)
+        val freeY = (parent.height - shutterView.height).coerceAtLeast(0)
+        shutterView.translationX = freeX * fractionX
+        shutterView.translationY = freeY * fractionY
+    }
+
+    private fun onGrab() {
+        dragging = true
+    }
+
+    /**
+     * Move by what the finger has moved since it grabbed.
+     *
+     * The offset arriving here is the pointer's position within the view minus where it took hold,
+     * and it is added to the translation rather than assigned. That matters: moving the view moves
+     * its own coordinate space, so a naive delta between consecutive local positions reads zero
+     * from the second event onwards and the button sticks. Measuring against the grab point
+     * instead is self-correcting — once the view has caught up, the offset is zero again.
+     */
+    private fun onMove(dx: Float, dy: Float) {
+        val parent = shutterView.parent as? View ?: return
+        val freeX = (parent.width - shutterView.width).toFloat().coerceAtLeast(0f)
+        val freeY = (parent.height - shutterView.height).toFloat().coerceAtLeast(0f)
+        // Clamped to the parent, so it can never be pushed somewhere it cannot be grabbed back
+        // from. That is also why there is no "reset position" anywhere: it cannot get lost.
+        shutterView.translationX = (shutterView.translationX + dx).coerceIn(0f, freeX)
+        shutterView.translationY = (shutterView.translationY + dy).coerceIn(0f, freeY)
+    }
+
+    private fun onDrop() {
+        dragging = false
+        val parent = shutterView.parent as? View ?: return
+        val freeX = (parent.width - shutterView.width).toFloat()
+        val freeY = (parent.height - shutterView.height).toFloat()
+        fractionX = if (freeX > 0f) shutterView.translationX / freeX else 0f
+        fractionY = if (freeY > 0f) shutterView.translationY / freeY else 0f
+        ScreenshotPreferences.saveShutterPosition(shutterView.context, fractionX, fractionY)
     }
 
     /** Whether the floating shutter is on screen, so the control center can say so. */
@@ -156,6 +234,9 @@ class ScreenshotHost(
         shutter = visible
         if (visible) {
             shutterView.visibility = View.VISIBLE
+            // Posted, because a view that has been GONE has no measured size to place against
+            // until the next layout pass has run.
+            shutterView.post { place() }
         } else {
             // Held for the exit animation, then out of the way of the game's touches.
             handler.postDelayed({ if (!shutter) shutterView.visibility = View.GONE }, EXIT_MS)
@@ -205,6 +286,9 @@ class ScreenshotHost(
 /** What the card is saying: a heading, the filename when there is one, and whether it went well. */
 private class ScreenshotMessage(val titleRes: Int, val detail: String?, val ok: Boolean)
 
+/** How long after a drag a release still counts as the end of that drag rather than a tap. */
+private const val DRAG_CLICK_GUARD_MS = 300L
+
 /**
  * The shutter, floating over the running game.
  *
@@ -222,23 +306,24 @@ private class ScreenshotMessage(val titleRes: Int, val detail: String?, val ok: 
 private fun Shutter(
     visible: Boolean,
     diameter: Dp,
-    onLeft: Boolean,
     onCapture: () -> Unit,
+    onGrab: () -> Unit,
+    onMove: (Float, Float) -> Unit,
+    onDrop: () -> Unit,
     onClose: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    // Slides out of the edge it lives on, so it reads as having come from there rather than
-    // across the screen the player is trying to look at.
-    val fromEdge: (Int) -> Int = { if (onLeft) -it else it }
     AnimatedVisibility(
         visible = visible,
-        enter = slideInHorizontally(tween(240, easing = FastOutSlowInEasing), fromEdge) +
+        enter = scaleIn(tween(220, easing = FastOutSlowInEasing), initialScale = 0.7f) +
                 fadeIn(tween(180)),
-        exit = slideOutHorizontally(tween(200, easing = FastOutSlowInEasing), fromEdge) +
-                fadeOut(tween(180))
+        exit = scaleOut(tween(180, easing = FastOutSlowInEasing), targetScale = 0.7f) +
+                fadeOut(tween(160))
     ) {
         Column(
-            Modifier.padding(start = if (onLeft) 10.dp else 0.dp, end = if (onLeft) 0.dp else 10.dp),
+            // Padding all round rather than against one edge: it can be dropped anywhere now, so
+            // there is no edge it belongs to.
+            Modifier.padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
@@ -260,25 +345,80 @@ private fun Shutter(
 
             val interaction = remember { MutableInteractionSource() }
             val pressed by interaction.collectIsPressedAsState()
+            var held by remember { mutableStateOf(false) }
             val inner by animateFloatAsState(
                 targetValue = if (pressed) 0.74f else 1f,
                 animationSpec = tween(140, easing = FastOutSlowInEasing),
                 label = "shutterPress"
             )
+            // Lifts while it is being carried, so it is obvious the thing under the finger is now
+            // moving rather than about to fire.
+            val lift by animateFloatAsState(
+                targetValue = if (held) 1.12f else 1f,
+                animationSpec = tween(140, easing = FastOutSlowInEasing),
+                label = "shutterLift"
+            )
+            val haptics = LocalHapticFeedback.current
+            // When the drag last did anything.
+            //
+            // `clickable` fires on the release whatever came before it — there is no time limit on
+            // a tap — so a long press to move the shutter would also take a picture on the way
+            // out. Any release within a moment of dragging is the end of a drag, not a tap.
+            var lastDrag by remember { mutableStateOf(0L) }
             Box(
                 Modifier
                     .size(diameter)
+                    .scale(lift)
                     .clip(CircleShape)
                     // Faintly filled rather than transparent, so the ring still reads against a
                     // bright sky — the same problem the filled control glyphs exist for.
                     .background(colors.scrim.copy(alpha = 0.35f))
-                    .border(2.5.dp, colors.onSurface.copy(alpha = 0.9f), CircleShape)
+                    .border(
+                        2.5.dp,
+                        if (held) colors.primary else colors.onSurface.copy(alpha = 0.9f),
+                        CircleShape
+                    )
                     .clickable(
                         interactionSource = interaction,
                         indication = null,
-                        onClick = onCapture,
+                        onClick = {
+                            if (SystemClock.uptimeMillis() - lastDrag > DRAG_CLICK_GUARD_MS) {
+                                onCapture()
+                            }
+                        },
                         onClickLabel = stringResource(R.string.control_center_screenshot)
-                    ),
+                    )
+                    // Move on a long press, not on a plain drag. A shutter is jabbed at during a
+                    // fight and a drag threshold would send it wandering; a long press is also
+                    // what everything else in the launcher uses for a second meaning.
+                    .pointerInput(Unit) {
+                        var grab = Offset.Zero
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                grab = it
+                                held = true
+                                lastDrag = SystemClock.uptimeMillis()
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onGrab()
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                lastDrag = SystemClock.uptimeMillis()
+                                val offset = change.position - grab
+                                onMove(offset.x, offset.y)
+                            },
+                            onDragEnd = {
+                                held = false
+                                lastDrag = SystemClock.uptimeMillis()
+                                onDrop()
+                            },
+                            onDragCancel = {
+                                held = false
+                                lastDrag = SystemClock.uptimeMillis()
+                                onDrop()
+                            }
+                        )
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 // The disc keeps its share of whatever diameter was chosen, so the ring stays a
