@@ -3,6 +3,7 @@ package net.kdt.pojavlaunch.fragments
 import android.content.Intent
 import android.os.Bundle
 import android.text.format.Formatter
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +16,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import fr.spse.gamepad_remapper.Remapper
 import net.kdt.pojavlaunch.Architecture
 import net.kdt.pojavlaunch.CustomControlsActivity
@@ -287,35 +292,52 @@ class SettingsFragment : Fragment() {
      */
     private fun importTurnipDriver(uri: android.net.Uri) {
         val context = requireContext().applicationContext
-        Thread {
-            val driver = runCatching {
-                context.contentResolver.openInputStream(uri).use { stream ->
-                    if (stream == null) throw java.io.IOException("No stream for $uri")
-                    TurnipDrivers.importZip(context, stream)
-                }
-            }.getOrNull()
-            activity?.runOnUiThread {
-                if (driver == null) {
-                    toast(getString(R.string.settings_turnip_import_failed))
-                } else {
-                    SettingsStore(requireContext())
-                        .put("turnipDriver", TurnipDrivers.importedChoice(driver.folder))
-                    environment = readEnvironment()
-                    toast(getString(R.string.settings_turnip_imported, driver.name))
-                }
+        // Copying a driver takes as long as it takes, and Settings can be left while it runs, so
+        // everything the completion needs is captured now: the application context outlives the
+        // fragment, and requireContext() from a detached one throws. This is the icon cache's
+        // lesson in a different shape, which is that work started on a background thread has to
+        // assume its owner is gone by the time it lands.
+        val failedMessage = context.getString(R.string.settings_turnip_import_failed)
+        lifecycleScope.launch {
+            val driver = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri).use { stream ->
+                        if (stream == null) throw java.io.IOException("No stream for $uri")
+                        TurnipDrivers.importZip(context, stream)
+                    }
+                }.onFailure { Log.w(TAG, "Could not import a driver", it) }.getOrNull()
             }
-        }.start()
+            // lifecycleScope already cancels with the view, so reaching here means the fragment
+            // is alive; isAdded is the belt to that braces, because getString still needs one.
+            if (!isAdded) return@launch
+            if (driver == null) {
+                toast(failedMessage)
+            } else {
+                SettingsStore(context)
+                    .put("turnipDriver", TurnipDrivers.importedChoice(driver.folder))
+                environment = readEnvironment()
+                toast(getString(R.string.settings_turnip_imported, driver.name))
+            }
+        }
     }
 
     private fun deleteTurnipDriver(value: String) {
         val folder = value.removePrefix("imported:")
-        TurnipDrivers.delete(requireContext(), folder)
-        val store = SettingsStore(requireContext())
-        // A choice pointing at a folder that is gone would fall back to the bundled driver at
-        // launch anyway, but the launcher is the right process to make that true in the file.
+        val context = requireContext().applicationContext
+        val store = SettingsStore(context)
+        // The preference is written first and on this thread, so a launch that happens during
+        // the delete cannot read a choice pointing at a folder that is on its way out. Resolving
+        // it would fall back to the bundled driver anyway, but the launcher is the right process
+        // to make that true in the file rather than leaving it to be inferred.
         if (store.string("turnipDriver", "bundled") == value) store.put("turnipDriver", "bundled")
-        environment = readEnvironment()
-        toast(getString(R.string.settings_turnip_deleted))
+        lifecycleScope.launch {
+            // Off the main thread: this is a recursive delete of a directory holding a Vulkan
+            // driver, which is megabytes, and it was running on the thread drawing the screen.
+            withContext(Dispatchers.IO) { TurnipDrivers.delete(context, folder) }
+            if (!isAdded) return@launch
+            environment = readEnvironment()
+            toast(getString(R.string.settings_turnip_deleted))
+        }
     }
 
     /**
