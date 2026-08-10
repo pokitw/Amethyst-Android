@@ -80,13 +80,19 @@ public class AsyncAssetManager {
                     Tools.copyAssetFile(ctx, "default.json", Tools.CTRLMAP_PATH, false);
                 }
 
-                // The Bedrock-style joystick layout, beside the default rather than instead of
-                // it. Copied once and never refreshed (copyAssetFile skips a file that exists):
-                // a layout is a user file the moment it lands, the editor writes back to this
-                // exact path, and an update that stamped over someone's rearranged buttons would
-                // be the layout equivalent of the skin writing into the file. If it is ever
-                // redesigned it ships under a new name, the way default.json ships new_default.
-                Tools.copyAssetFile(ctx, "Bedrock.json", Tools.CTRLMAP_PATH, false);
+                // The Bedrock-style joystick layout, beside the default rather than instead of it,
+                // and on exactly the terms default.json gets above. A layout is a user file the
+                // moment it lands, because the editor writes back to this exact path, so a
+                // corrected one arrives as new_Bedrock.json rather than stamping over someone's
+                // rearranged buttons. It has to arrive somehow: Android/data is unbrowsable from
+                // Android 11, so a shipped layout that is wrong on disk is one nobody can delete.
+                try (InputStream is = ctx.getAssets().open("Bedrock.json")) {
+                    String bedrockSha1 = new String(org.apache.commons.codec.binary.Hex.encodeHex(org.apache.commons.codec.digest.DigestUtils.sha1(is)));
+                    if (!Tools.compareSHA1(new File(Tools.CTRLMAP_PATH + "/Bedrock.json"), bedrockSha1)) {
+                        Tools.copyAssetFile(ctx, "Bedrock.json", Tools.CTRLMAP_PATH, "new_Bedrock.json", false);
+                    } else if (!new File(Tools.CTRLMAP_PATH + "/new_Bedrock.json").exists())
+                        Tools.copyAssetFile(ctx, "Bedrock.json", Tools.CTRLMAP_PATH, false);
+                }
 
                 Tools.copyAssetFile(ctx, "launcher_profiles.json", Tools.DIR_GAME_NEW, false);
                 Tools.copyAssetFile(ctx,"resolv.conf",Tools.DIR_DATA, false);

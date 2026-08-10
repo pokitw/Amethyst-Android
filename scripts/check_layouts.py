@@ -95,6 +95,16 @@ for name in LAYOUTS:
               for c in menu_visible),
           "%s: no keyboard survives the ungrabbed state, so chat opens and cannot be typed into"
           % name)
+    # A pointer is the third thing a GUI needs, and the one the first draft of Bedrock.json left
+    # out. SPECIALBTN_VIRTUALMOUSE on a control button is the only route to MainActivity.toggleMouse
+    # in the whole launcher, so a layout without one cannot summon the cursor and, worse, cannot
+    # dismiss it either: with "virtual mouse at start" on, the touchpad comes up at surface-ready
+    # and stays up for the session, and while it is up InGUIEventProcessor skips the tap-to-position
+    # path that would otherwise have made menus usable without it.
+    check(any(-5 in c.get("keycodes", []) for c in menu_visible),
+          "%s: no virtual-mouse toggle survives the ungrabbed state; it is the only thing that can "
+          "turn the touchpad on or off, and a GUI with no pointer is a GUI that cannot be worked"
+          % name)
     for control in controls:
         keys = [k for k in control.get("keycodes", []) if k != 0]
         for key in keys:

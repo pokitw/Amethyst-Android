@@ -649,9 +649,22 @@ re-litigated. The reasoning lives in the commit that made the change.
   GUI ungrabs the cursor, ungrabbed hides the in-game controls, and with the pull tab gone a
   layout that kept nothing visible would strand the player in the chat box it had just opened.
   The adversarial review caught exactly that in the first draft, and `check_layouts.py` now
-  asserts it for every shipped layout. And it is **copied out once and never refreshed**: a
+  asserts it for every shipped layout.
+  **The ungrabbed state needs a pointer as much as it needs a way out**, which the first draft
+  missed and a user found: three buttons is what a GUI shows, and none of the three was a cursor.
+  `SPECIALBTN_VIRTUALMOUSE` on a control button is the only route to `MainActivity.toggleMouse`
+  anywhere in the launcher, so a layout without one cannot summon the touchpad, and with "virtual
+  mouse at start" on it cannot dismiss the one that came up at surface-ready either. That is the
+  worse half: while the touchpad is displayed `InGUIEventProcessor` skips `sendTouchCoordinates`,
+  so it also takes away the tap-to-position path that had been making menus work without it. The
+  Mouse button is top-right, and being a virtual-mouse button it is `isHideable = false`, so it is
+  the one control this layout always draws. `check_layouts.py` asserts the third clause now.
+  And it is **copied out once and never refreshed**: a
   layout is a user file the moment it lands (the editor writes back to that exact path), so a
-  redesign ships under a new name, the way `default.json` ships `new_default.json`.
+  correction arrives as `new_Bedrock.json` rather than stamping over rearranged buttons, on the
+  same terms `default.json` ships `new_default.json`. It has to arrive somehow, because
+  `Android/data` is unbrowsable from Android 11 and a shipped layout that is wrong on disk is one
+  nobody can delete by hand.
   The joystick is `absolute` — fixed in place with the knob tracking the finger, which is how the
   Bedrock stick behaves; the floating stick that re-centres under every touch is the other value.
   Selected from the editor's Select-default dialog, which lists `controlmap/` and now finds it.
@@ -902,9 +915,17 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   the action cluster can reach the joystick. Inherent to this many controls at that size, and
   both layouts are editable. The 250% end of the scale slider is outside what any shipped layout
   survives on a phone.
-- `Bedrock.json` is copied into `controlmap/` once and never refreshed, because the editor writes
-  back to that exact path and an update would stamp over rearranged buttons. A redesign would
-  ship under a new name.
+- `Bedrock.json` is never stamped over in `controlmap/`, because the editor writes back to that
+  exact path and an update would take away rearranged buttons. A corrected copy lands beside it as
+  `new_Bedrock.json`, so anyone who launched the game before the fix has **two Bedrock entries in
+  the layout picker** and has to pick the new one. That is the same deal `default.json` makes, and
+  the alternative is either overwriting a user's file or shipping a fix that never reaches them.
+- **A layout with nothing on screen looks broken even when it is working.** Every GUI ungrabs the
+  cursor, and the ungrabbed state draws only the `displayInMenu` controls, so a sparse layout at
+  the title screen shows a handful of buttons and nothing else. The pull tab, which would normally
+  hint at more, hides itself whenever a layout carries its own menu button. Nothing is wrong and it
+  reads as a failed load; `check_layouts.py` now enforces a floor of menu, keyboard and mouse, but
+  the floor is a minimum and not a design.
 - A pack that ships with the launcher **cannot be removed**, only switched away from. It lives in
   assets, so it costs nothing and is always intact, but the picker will always list all eleven.
 - The shipped packs' interiors are **flat by necessity**, not by taste. Ore speckle, plank grain
