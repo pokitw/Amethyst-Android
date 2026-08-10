@@ -148,6 +148,16 @@
             android:process=":launcher"/>
 
         <!--
+            The skin editor. Launcher process, and nothing to do with the game: a skin is applied
+            to a Mojang profile over the network, not written into the game folder.
+        -->
+        <activity
+            android:name=".SkinActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:label="@string/skin_title"
+            android:process=":launcher"/>
+
+        <!--
             The Modrinth browser. Launcher process like Game files, which it installs into and is
             reached from; it has nothing to do with the game process.
         -->

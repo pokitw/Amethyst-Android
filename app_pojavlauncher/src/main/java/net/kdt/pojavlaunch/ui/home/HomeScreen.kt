@@ -70,6 +70,7 @@ class HomeActions(
     val onSettings: () -> Unit = {},
     val onControls: () -> Unit = {},
     val onRecordings: () -> Unit = {},
+    val onSkins: () -> Unit = {},
     val onInstall: () -> Unit = {},
     val onInstallWithArguments: () -> Unit = {},
     val onFiles: () -> Unit = {},
@@ -336,6 +337,15 @@ private fun ManageSection(recordingCount: Int, actions: HomeActions) {
                     onClick = actions.onFiles
                 )
             }
+            // Full width rather than a fifth square in a ragged row. Skins are the one thing
+            // here that is entirely a picture, so the tile that opens them has room to be one.
+            Tile(
+                R.drawable.ic_x_skin,
+                stringResource(R.string.skin_home_tile),
+                stringResource(R.string.skin_home_tile_sub),
+                Modifier.fillMaxWidth(),
+                onClick = actions.onSkins
+            )
         }
     }
 }

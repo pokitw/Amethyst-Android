@@ -128,6 +128,7 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // Adreno; what it declined (their issue 224) is letting you import a newer one. On any
     // other GPU neither side offers anything, which is the row's honest scope.
     ComparisonRow(R.string.onboarding_row_turnip, Support.PARTIAL, Support.YES),
-    ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.NO),
+    // Was NO/NO for as long as this table has existed, which is what made it worth building.
+    ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )

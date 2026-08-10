@@ -407,7 +407,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
 | Profile editor · type picker · MC version picker | **Compose** | `ui/profile/`, hosted by `ProfileEditorFragment.kt` and `ProfileTypeSelectFragment.kt` |
 | Crash screen | **Compose** | `diagnosis/`, hosted by `ExitActivity.kt` |
-| Skin editor | Not built | Designed, §18.1 |
+| Skin editor | **Compose** | `ui/skin/`, `SkinActivity.kt` |
 | Mod browser (Modrinth) | **Compose** | `ui/mods/`, `ModBrowserActivity.kt` |
 | Modpack search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
 | Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
@@ -781,6 +781,46 @@ re-litigated. The reasoning lives in the commit that made the change.
   text, and "Open on Modrinth" is the honest way to the whole page. Gallery pictures are fetched
   bounded and downsampled to the strip they sit in, and a page fetch that outlives its page is
   dropped by id rather than landing on whichever mod was opened next.
+- **Skin editor** (`ui/skin/` + `skin/SkinUpload.java`) — make a skin, look at it on a model,
+  put it on your account. Asked for by someone who could not reach their skin folder, which is
+  not laziness: everything the launcher writes is under `Android/data`, and from Android 11 that
+  cannot be browsed at all, so a skin there is a skin nothing can pick up. The launcher is the
+  only thing that can see that folder, so it has to be the thing that offers them.
+  **The UV table is stated once** (`SkinModel.kt`) and everything reads it. The atlas is a layout
+  Mojang chose, not a derivable one: top and bottom faces sit above the sides, the four sides run
+  right, front, left, back, the arms and legs moved in 1.8, and there is a whole second set of
+  rectangles for the outer layer at two arm widths. Encoded twice, the two copies drift and a leg
+  ends up wearing a sleeve. `scripts/check_skin_uv.py` checks it against independently written
+  ground truth, plus bounds, overlap and the slim probe.
+  **The preview is software, and that is not a compromise.** The game owns the only GL surface
+  (§12.4), so a launcher-side model must not need one. Under an orthographic projection every
+  face lands as a parallelogram, which is exactly what a 2x3 affine matrix draws, so each face is
+  one `drawImage` through a matrix and there is no per-pixel work in Kotlin at all. Faces are
+  culled by the sign of the projected basis and painter-sorted by box depth, which is correct
+  because the parts are convex and do not interpenetrate. Verified by reimplementing the same
+  maths in Python and looking at the render: a mirrored limb or an inside-out head is invisible
+  in source and obvious in a picture.
+  **You paint a face, never the atlas.** The raw sheet has the head's top wedged above its sides
+  and the left arm in a bottom corner; nobody can paint while looking at it. So the canvas is one
+  rectangle blown up with a grid and a checkerboard behind it, because a skin is full of
+  deliberate transparency and a flat backdrop makes "erased" and "painted the backdrop colour"
+  identical. The model beside it updates on every stroke, which is the thing that makes a phone
+  editor usable at all.
+  **Undo is a diff, not a snapshot.** Twenty snapshots of a 64 by 64 image is a third of a
+  megabyte held live; a stroke touches tens of pixels. The whole drag is one step, because
+  undoing a stroke a pixel at a time is not undo. **The fill is bounded to the face**, since the
+  atlas is one image and an unbounded fill of a transparent area runs straight out of the head
+  and repaints the entire skin.
+  **The palette is fixed and there is no colour wheel.** A wheel on a phone is a fiddly control
+  that gets you a colour you did not mean, and skins are made of skin, cloth and hair, which is a
+  small knowable set. The eyedropper covers the rest: any colour already in the skin, including
+  one that arrived in an imported picture, is one tap away.
+  **Slim is stored in the pixels**, not in a preference, because it has to survive being handed
+  to Mojang and read back on another device, and the pixels are the only thing that travels.
+  **Applying is Mojang's business and the screen says so.** A server asks Mojang what a player
+  looks like, so an offline account has nothing to ask about, which is exactly what the community
+  thread concluded before this was built. The editor still works for them and the screen explains
+  why that is all it can do, rather than appearing to work.
 - **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
   because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
   flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and
@@ -1028,6 +1068,21 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   phone, and the fallback to the system driver is what makes trying one safe.
 - A driver import is a **copy into internal storage**, so it spends real megabytes, and an
   import with the same name replaces the previous one rather than piling up beside it.
+- A skin can only be **applied** to a Microsoft account. Mojang's profile is the only thing a
+  server reads a skin from, so an offline account has nowhere to put one. It can still be made,
+  kept and previewed here, and the gallery says why in a sentence rather than failing at the
+  moment of applying.
+- The editor paints **one face at a time** and has no cross-face tools: no gradient, no
+  selection, no copy between parts beyond mirroring a face. That is the trade for a canvas big
+  enough to hit a pixel on a phone.
+- Slimness is **guessed from the pixels**, because the PNG has no flag for it: a slim arm leaves
+  the last two columns of its strip empty. A hand-made skin that paints there anyway reads as
+  classic, and switching the setting rewrites those columns to make the guess true.
+- The preview is **orthographic and unlit beyond flat face shading**. It is a good likeness of
+  the inventory model and not of the game: no cape, no held item, no animation.
+- **Nothing is preloaded.** The thread asked for skins to come with it, and shipping a library
+  of them is a licensing question about other people's artwork rather than an engineering one.
+  Importing a PNG is one tap, which is the honest version of the same thing.
 - The mod browser is **Modrinth only**. CurseForge needs an API key, and the one this repo has is
   a build config value for the modpack search; adding a second index is a bigger question than
   making the first one work.
@@ -1076,18 +1131,7 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 ## 18. Roadmap
 
 **Now**
-1. **Skin editor.** Designed, not built. The shape it should take:
-   - `ui/skin/SkinModel.kt` — the 64×64 texture plus the **UV table** saying which rect is which
-     face of which body part. Everything else reads that one table, so the atlas layout (including
-     the 1.8+ second layer and the 3px slim-arm variant) is stated once.
-   - `SkinCanvasScreen.kt` — paint one *face* at a time zoomed with a grid, not the raw atlas;
-     pencil / eraser / fill / eyedropper, and an undo stack of whole-pixel diffs.
-   - `SkinPreview.kt` — a software-projected cube model, drawn on a Compose `Canvas`. No GL: the
-     game owns the only GL surface (§12.4) and a launcher-side preview must not need one.
-   - `SkinStore.kt` — skins as PNGs under the game directory, listed as a gallery.
-   - Applying goes through `PUT api.minecraftservices.com/minecraft/profile/skins` with the
-     account's existing `accessToken`, the same `Bearer` pattern `MicrosoftBackgroundLogin` uses.
-     Offline accounts save locally and the screen says why that is all it can do (§17).
+1. Nothing outstanding from the previous list; see the ledger in §14.
 
 **Next**
 2. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
@@ -1148,6 +1192,12 @@ Before pushing:
 - **Run `sh scripts/modrinthsim/run.sh`** if the Modrinth client changed. It compiles the shipped
   `ModrinthMods` and `ModInstall` against stubs at source 8 and drives them with fixtures, which
   is the only check available: the API is not reachable from the build container.
+- **Run `python3 scripts/check_skin_uv.py`** if the skin atlas table changed. It checks the
+  UV rectangles against independently written ground truth, at both arm widths, plus bounds,
+  overlap and the columns the slim guess reads. A wrong rectangle is a leg wearing a sleeve
+  and is invisible until someone opens the editor on a real skin.
+- **Run `sh scripts/optionssim/run.sh`** if the options.txt merge changed, and
+  **`sh scripts/devicesim/run.sh`** if the device tiering changed.
 - **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser

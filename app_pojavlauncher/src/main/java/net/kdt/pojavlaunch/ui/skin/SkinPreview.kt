@@ -17,7 +17,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
@@ -247,6 +246,3 @@ private fun shadeFilter(shade: Float): androidx.compose.ui.graphics.ColorFilter?
         )
     }
 }
-
-/** Clamp helper kept local so the preview has no dependency beyond Compose. */
-private fun clamp(value: Float, low: Float, high: Float) = max(low, min(high, value))

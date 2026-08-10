@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- A tipped bucket with a drop: the drop is the whole difference from a plain container. -->
+    <path
+        android:pathData="M11.4,3.4L19.4,11.4A1.4,1.4 0,0 1,19.4 13.4L13.4,19.4A1.4,1.4 0,0 1,11.4 19.4L5.4,13.4A1.4,1.4 0,0 1,5.4 11.4L11.4,5.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M5,12.4H19.8"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M20.6,16.2C21.6,17.6 22,18.4 22,19.1A1.4,1.4 0,0 1,19.2 19.1C19.2,18.4 19.6,17.6 20.6,16.2Z"
+        android:fillColor="#FFFFFF"/>
+</vector>
