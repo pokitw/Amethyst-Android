@@ -27,6 +27,17 @@ public class ModIconCache {
     File cachePath;
     private final List<WeakReference<ImageReceiver>> mCancelledReceivers = new ArrayList<>();
     public ModIconCache() {
+        // Loading one icon is a CYCLE of pool tasks, not a single task: a cache miss submits a
+        // download, and the download submits the read back again to deliver it. Both of those
+        // submissions happen ON a pool worker, so once the pool is shut down the default policy
+        // throws RejectedExecutionException on a background thread with nobody to catch it, and
+        // the app dies. Discarding is the correct answer instead: the only thing that shuts this
+        // pool down is its owner going away, and an icon nobody is waiting for is not worth an
+        // exception. The queue is unbounded, so this can never fire as backpressure.
+        cacheLoaderPool.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
+        // Core threads that time out, so a cache whose owner never calls shutdown still gives its
+        // ten threads back a second after the last icon lands.
+        cacheLoaderPool.allowCoreThreadTimeOut(true);
         cachePath = getImageCachePath();
         if(!cachePath.exists() && !cachePath.isFile() && Tools.DIR_CACHE.canWrite()) {
             if(!cachePath.mkdirs())
@@ -49,14 +60,21 @@ public class ModIconCache {
     }
 
     /**
-     * Stop the loader threads.
+     * Stop taking new work and let what is running finish.
      *
-     * The pool keeps ten core threads, and core threads do not time out, so a cache belonging to
-     * something that is opened and closed again leaks all ten each time. An owner that lives as
-     * long as the process does not need this; one that does not, does.
+     * <b>shutdown, deliberately not shutdownNow.</b> The interrupting version was the first
+     * version of this method and it was wrong twice over. It interrupts a worker that may be
+     * partway through writing the cache file, which can leave a truncated JPEG that decodes to a
+     * garbled icon and stays that way; and it makes the in-flight tasks' own resubmissions fail
+     * on a background thread. The plain shutdown lets the download in progress land, and the
+     * discard policy set in the constructor is what makes the resubmissions harmless.
+     *
+     * Not required for correctness any more, since the pool's threads now time out on their own.
+     * It is kept because an owner that knows it is finished should say so rather than leave ten
+     * threads to notice on their own a second later.
      */
     public void shutdown() {
-        cacheLoaderPool.shutdownNow();
+        cacheLoaderPool.shutdown();
     }
 
     /**
