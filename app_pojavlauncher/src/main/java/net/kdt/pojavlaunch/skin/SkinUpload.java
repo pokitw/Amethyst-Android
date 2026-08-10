@@ -26,10 +26,16 @@ import java.net.URL;
  * account and show it in the editor, and it must say plainly that this is all it can do rather
  * than appearing to work.
  *
- * The request is the documented one: {@code PUT /minecraft/profile/skins} to
+ * The request is the documented one: {@code POST /minecraft/profile/skins} to
  * {@code api.minecraftservices.com}, multipart, with the account's existing Minecraft access
  * token as a bearer. That is the same token the launch path already puts on the command line, so
  * nothing new is stored and nothing new is asked of the player.
+ *
+ * <b>POST, and not PUT.</b> This shipped as a PUT and every upload came back 405 Method Not
+ * Allowed, because PUT is the neighbouring endpoint's method: capes are
+ * {@code PUT /minecraft/profile/capes/active}, skins are a POST. The two sit next to each other
+ * in every description of this API and they do not agree, which is exactly the kind of detail
+ * worth a sentence here so it is not "corrected" back later.
  *
  * <b>Failures are told apart</b>, because they mean different things to the person holding the
  * phone: a 401 is a session that needs signing in again, a 429 is Mojang asking for a pause, and
@@ -102,7 +108,7 @@ public final class SkinUpload {
             connection.setReadTimeout(TIMEOUT_MS);
             // Order matters: setDoOutput promotes a GET to POST, so the method is set after it.
             connection.setDoOutput(true);
-            connection.setRequestMethod("PUT");
+            connection.setRequestMethod("POST");
             connection.setRequestProperty("Authorization", "Bearer " + accessToken);
             connection.setRequestProperty("Content-Type",
                     "multipart/form-data; boundary=" + boundary);
@@ -110,8 +116,12 @@ public final class SkinUpload {
             try (DataOutputStream out = new DataOutputStream(connection.getOutputStream())) {
                 writePart(out, boundary, "variant", slim ? "slim" : "classic");
                 out.writeBytes("--" + boundary + "\r\n");
-                out.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\""
-                        + skin.getName() + "\"\r\n");
+                // A constant name rather than the file's own. DataOutputStream.writeBytes puts
+                // the low byte of every char on the wire, so a name outside ASCII would go out
+                // mangled, and a quotation mark in one would end the header early. The player's
+                // name for their skin is theirs and is not something Mojang needs.
+                out.writeBytes("Content-Disposition: form-data; name=\"file\"; "
+                        + "filename=\"skin.png\"\r\n");
                 out.writeBytes("Content-Type: image/png\r\n\r\n");
                 try (InputStream in = new FileInputStream(skin)) {
                     byte[] buffer = new byte[8192];

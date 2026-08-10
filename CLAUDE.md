@@ -1012,6 +1012,16 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     survey, it is a confirmation.** `scripts/check_settings_calls.py` now reproduces Kotlin's own
     "No value passed for parameter" against every call site of every shared settings row.
 
+19. **Skin upload is a POST; the cape endpoint next to it is the PUT.** Every attempt came
+    back 405 Method Not Allowed, which is a precise thing to be told: the path exists and the
+    method is wrong, or it would have been a 404. `POST /minecraft/profile/skins` uploads a skin,
+    `PUT /minecraft/profile/capes/active` selects a cape, and the two sit beside each other in
+    every description of that API. **What actually found it was the error surfacing added an hour
+    earlier**: the first version printed "Mojang would not accept that skin" and threw the
+    response away, and no amount of staring at that sentence would ever have produced the answer.
+    A remote failure that cannot be reproduced locally is worth the code that makes it explain
+    itself, and that code pays for itself the first time it runs.
+
 ---
 
 ## 17. Known limitations
