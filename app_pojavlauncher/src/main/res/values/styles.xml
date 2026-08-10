@@ -14,6 +14,16 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:statusBarColor">@color/background_status_bar</item>
         <item name="android:navigationBarColor">@color/background_app</item>
+        <!--
+            The ground the whole app sits on, and the one piece of it that was missing. The bars
+            above and below were already the amethyst-leaning near-black; the window itself was
+            not, so it fell through to AppCompat's neutral grey. Any screen that did not paint its
+            own background was therefore a different, colder colour than the launcher beside it,
+            which is exactly what the two newest ones did. Setting it here rather than screen by
+            screen also covers the frame before Compose has drawn anything, which is where a
+            mismatched window shows up as a flash on the way in.
+        -->
+        <item name="android:windowBackground">@color/background_app</item>
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.v14.Material</item>
 
         <!--
