@@ -157,8 +157,13 @@ fun currentAccount(context: Context): Account? {
 }
 
 private fun detectLoader(profile: MinecraftProfile): String? {
-    val haystack = ((profile.lastVersionId ?: "") + " " + (profile.icon ?: ""))
-        .lowercase(Locale.ROOT)
+    // The icon is a loader hint only while it is a name. Installers write "fabric" or "quilt"
+    // there, but a profile carrying a picture stores the whole PNG as a base64 data URI, and a
+    // five-letter needle in tens of kilobytes of base64 eventually finds itself. Same guard as
+    // ui/mods/ModTarget.kt, and it has to stay the same or the launch card and the mod browser
+    // will disagree about what the very same profile is.
+    val iconName = (profile.icon ?: "").takeIf { it.length <= 24 && !it.contains(':') } ?: ""
+    val haystack = ((profile.lastVersionId ?: "") + " " + iconName).lowercase(Locale.ROOT)
     return LOADERS.firstOrNull { (needle, _) -> haystack.contains(needle) }?.second
 }
 

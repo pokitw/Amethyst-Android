@@ -24,6 +24,7 @@ import net.kdt.pojavlaunch.ui.mods.ModTarget
 import net.kdt.pojavlaunch.ui.mods.ProjectPage
 import net.kdt.pojavlaunch.ui.mods.currentModTarget
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
+import java.util.Locale
 
 /**
  * Hosts the Modrinth browser.
@@ -218,8 +219,14 @@ class ModBrowserActivity : BaseActivity() {
                 // Matched on the project slug appearing in a file name, which is what Modrinth's
                 // own file names are built from. Deliberately loose: a false tick is a mod the
                 // player installs again over the top, and a missed one is a duplicate jar.
-                val slug = row.hit.slug
-                val present = slug.isNotEmpty() && names.any { it.lowercase().contains(slug) }
+                val slug = row.hit.slug.lowercase(Locale.getDefault())
+                // Both sides lowercased (a slug is lowercase on Modrinth, but nothing guarantees
+                // the copy we were handed is), and this screen's own half-written .part files
+                // skipped so an install in flight does not tick its own row.
+                val present = slug.isNotEmpty() && names.any {
+                    val name = it.lowercase(Locale.getDefault())
+                    !name.endsWith(".part") && name.contains(slug)
+                }
                 // Assigned, not or-ed in. The flag disables the install button, so a one-way flag
                 // meant a mod deleted in Game files stayed ticked and could never be reinstalled.
                 // A row mid-install keeps its own state; the folder has not caught up with it yet.
@@ -277,7 +284,13 @@ class ModBrowserActivity : BaseActivity() {
                 note = getString(R.string.mods_browse_no_loader_short)) }
             return
         }
-        if (row.installed || row.state == InstallState.DONE) {
+        // Only a DONE row is refused, and only because this screen put the jar there a moment
+        // ago. row.installed is a GUESS, a file name that happens to contain the project's slug,
+        // and a guess must never be a veto: a folder holding reeses-sodium-options ticks sodium,
+        // and a mod turned off in Game files keeps its name, so vetoing on it would make a real
+        // mod permanently uninstallable. Running the install again is cheap and self-correcting,
+        // because ModInstall skips a file whose hash already matches and writes nothing.
+        if (row.state == InstallState.DONE) {
             update(row) { it.copy(note = getString(R.string.mods_browse_already_installed)) }
             return
         }
@@ -292,17 +305,26 @@ class ModBrowserActivity : BaseActivity() {
         val loader = state.effectiveLoader
 
         lifecycleScope.launch {
+            // Two outcomes, told apart: no version that fits, or the request never landed.
+            // Reporting a rate limit as "no version fits this profile" sends someone to change
+            // their profile, which is the one thing that cannot help.
+            var reachedIndex = true
             val outcome = withContext(Dispatchers.IO) {
                 runCatching {
                     val files = ModrinthMods.versions(row.hit.projectId, mcVersion, loader)
+                    reachedIndex = ModrinthMods.lastFailure() == ModrinthMods.Failure.NONE
                     val best = ModrinthMods.best(files) ?: return@runCatching null
                     ModInstall.install(folder, best, mcVersion, loader)
+                }.onFailure {
+                    Log.w("ModBrowser", "Install of ${row.hit.title} threw", it)
                 }.getOrNull()
             }
             when {
                 outcome == null -> update(row) {
-                    it.copy(state = InstallState.FAILED,
-                        note = getString(R.string.mods_browse_no_version))
+                    it.copy(state = InstallState.FAILED, note = getString(
+                        if (reachedIndex) R.string.mods_browse_no_version
+                        else R.string.mods_browse_install_unreachable
+                    ))
                 }
                 // Complete, not merely ok: a mod whose required dependency did not arrive crashes
                 // the game on the next launch, and a green tick here is the one thing that would
@@ -386,6 +408,16 @@ class ModBrowserActivity : BaseActivity() {
 
     private fun installBestFromPage() {
         val page = state.page ?: return
+        // Order matters. "No version fits this profile" is only true once the versions have
+        // actually arrived; said while the request is still in flight it is a lie, and it is the
+        // most likely moment for someone to tap, because the header button is on screen before
+        // the list is.
+        if (!page.versionsKnown) {
+            updatePage(page.hit.projectId) {
+                it.copy(note = getString(R.string.mods_page_still_loading), noteIsError = false)
+            }
+            return
+        }
         val best = ModrinthMods.best(page.versions)
         if (best == null) {
             updatePage(page.hit.projectId) {
@@ -413,7 +445,14 @@ class ModBrowserActivity : BaseActivity() {
             }
             return
         }
-        if (page.installingVersion != null) return
+        // Answers rather than returning: an inert control that says nothing is exactly the bug
+        // this screen already shipped once.
+        if (page.installingVersion != null) {
+            updatePage(projectId) {
+                it.copy(note = getString(R.string.mods_page_one_at_a_time), noteIsError = false)
+            }
+            return
+        }
         updatePage(projectId) {
             it.copy(installingVersion = version.versionId, note = null, noteIsError = false)
         }

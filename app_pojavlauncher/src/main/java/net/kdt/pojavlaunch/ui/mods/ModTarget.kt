@@ -91,7 +91,13 @@ fun currentModTarget(): ModTarget {
         }
     }.getOrNull() ?: return ModTarget("", null, null, null, null)
     val versionId = profile.lastVersionId.orEmpty()
-    val haystack = (versionId + " " + profile.icon.orEmpty()).lowercase(Locale.ROOT)
+    // The icon counts as a loader hint only when it is a name. The Fabric and Quilt installers
+    // write "fabric" or "quilt" there, but a profile with a picture stores the whole PNG as a
+    // base64 data URI, and a five-letter needle in tens of kilobytes of base64 finds itself
+    // sooner or later. Reading a vanilla profile as Forge is the worse of the two errors: it
+    // puts a jar in a folder nothing will ever load, and reports that it worked.
+    val iconName = profile.icon.orEmpty().takeIf { it.length <= 24 && !it.contains(':') }.orEmpty()
+    val haystack = (versionId + " " + iconName).lowercase(Locale.ROOT)
     val loader = LOADERS.firstOrNull { (needle, _, _) -> haystack.contains(needle) }
     return ModTarget(
         name = profile.name.orEmpty().ifEmpty { versionId },

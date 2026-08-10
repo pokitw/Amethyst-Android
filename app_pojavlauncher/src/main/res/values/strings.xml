@@ -737,6 +737,9 @@
     <string name="mods_page_followers">%1$s followers</string>
     <string name="mods_page_failed">Could not load the full page. Check the connection and come back to it.</string>
     <string name="mods_page_installed">Installed %1$s.</string>
+    <string name="mods_page_still_loading">Still loading this mod\'s versions.</string>
+    <string name="mods_page_one_at_a_time">One version at a time. Wait for this one to finish.</string>
+    <string name="mods_browse_install_unreachable">Could not reach Modrinth to install that. Check the connection and try again.</string>
     <string name="mods_browse_filter_title">Only what this profile can run</string>
     <string name="mods_browse_filter_on">Showing mods for %1$s</string>
     <string name="mods_browse_filter_description">Showing every version and every loader. A mod that does not match this profile will not work.</string>
