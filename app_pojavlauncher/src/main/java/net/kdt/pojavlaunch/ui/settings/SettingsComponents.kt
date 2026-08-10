@@ -26,6 +26,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -293,6 +294,7 @@ private fun snap(raw: Float, min: Int, max: Int, step: Int): Int {
 }
 
 /** One of a fixed set of values, chosen in a dialog rather than a spinner glued to the row. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ChoiceRow(
     title: String,
@@ -301,6 +303,10 @@ fun ChoiceRow(
     values: List<String>,
     selected: String,
     badge: String? = null,
+    /** One line above the options naming a non-obvious gesture, the way every sheet does. */
+    hint: String? = null,
+    /** A secondary action on a long press of an option; the hint should say so. */
+    onLongPress: ((String) -> Unit)? = null,
     onSelect: (String) -> Unit
 ) {
     var open by remember { mutableStateOf(false) }
@@ -321,16 +327,32 @@ fun ChoiceRow(
             title = { Text(title, style = MaterialTheme.typography.titleMedium) },
             text = {
                 Column {
+                    if (hint != null) {
+                        Text(
+                            hint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp)
+                        )
+                    }
                     names.forEachIndexed { i, name ->
                         val isSelected = i < values.size && values[i] == selected
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    open = false
-                                    if (i < values.size) onSelect(values[i])
-                                }
+                                .combinedClickable(
+                                    onClick = {
+                                        open = false
+                                        if (i < values.size) onSelect(values[i])
+                                    },
+                                    onLongClick = if (onLongPress != null && i < values.size) {
+                                        {
+                                            open = false
+                                            onLongPress(values[i])
+                                        }
+                                    } else null
+                                )
                                 .padding(horizontal = 10.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {

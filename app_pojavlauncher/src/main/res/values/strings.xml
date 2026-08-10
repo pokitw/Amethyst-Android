@@ -397,6 +397,16 @@
 
     <string name="preference_vulkan_driver_system_title">Use system Vulkan driver</string>
     <string name="preference_vulkan_driver_system_description">Force the launcher to use the system Vulkan driver instead of Turnip on Adreno GPUs. Only affects Zink and mods that use Vulkan.</string>
+    <string name="settings_turnip_driver_title">Vulkan driver</string>
+    <string name="settings_turnip_driver_description">Which driver Zink renders through on this Adreno GPU. A driver that fails to load falls back to the system one.</string>
+    <string name="settings_turnip_driver_hint">Hold an imported driver to remove it.</string>
+    <string name="settings_turnip_system">System driver</string>
+    <string name="settings_turnip_bundled">Turnip, built in</string>
+    <string name="settings_turnip_import_title">Import a driver</string>
+    <string name="settings_turnip_import_description">Add a Turnip build from an adrenotools zip, the format driver releases on GitHub use.</string>
+    <string name="settings_turnip_imported">Imported %1$s and selected it.</string>
+    <string name="settings_turnip_import_failed">That file is not a usable driver zip.</string>
+    <string name="settings_turnip_deleted">Driver removed.</string>
 
     <string name="generic_install">Install</string>
     <string name="generic_apply">Apply</string>
@@ -693,6 +703,7 @@
     <string name="onboarding_row_textures">Button texture packs</string>
     <string name="onboarding_row_bedrock">Ready-made Bedrock layout</string>
     <string name="onboarding_row_sequence">Timed key sequences</string>
+    <string name="onboarding_row_turnip">Import Vulkan drivers</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_size">Smaller download</string>
 

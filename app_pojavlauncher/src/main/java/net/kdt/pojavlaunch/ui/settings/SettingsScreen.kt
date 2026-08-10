@@ -99,8 +99,15 @@ class SettingsActions(
     val onDiscord: () -> Unit = {},
     val onReplayWelcome: () -> Unit = {},
     val onImportTexturePack: () -> Unit = {},
-    val onExportTexturePack: () -> Unit = {}
+    val onExportTexturePack: () -> Unit = {},
+    val onImportTurnipDriver: () -> Unit = {},
+    /** Takes the driver's preference value; only imported drivers can be removed. */
+    val onDeleteTurnipDriver: (String) -> Unit = {}
 )
+
+/** One Vulkan driver the picker offers: the stored value and the name a player reads. */
+@Immutable
+class TurnipDriverOption(val value: String, val name: String)
 
 /** Facts the screens show but cannot work out for themselves. */
 @Immutable
@@ -124,6 +131,15 @@ class SettingsEnvironment(
     val modCount: Int = 0,
     val notificationPermission: Boolean = true,
     val microphonePermission: Boolean = true,
+    /**
+     * Whether the GPU is Adreno, which is the only place a Turnip driver means anything.
+     * On every other GPU the rows are absent rather than disabled: a control that can only
+     * ever make the game worse is not a control, and the thread that asked for this feature
+     * said the same about other chips in as many words.
+     */
+    val adreno: Boolean = false,
+    /** The Vulkan drivers the picker can offer: system, bundled, then the imports. */
+    val turnipDrivers: List<TurnipDriverOption> = emptyList(),
     /** Who is signed in, and what they are about to play — the header says both. */
     val accountName: String? = null,
     val accountFace: ImageBitmap? = null,
@@ -672,12 +688,15 @@ private fun PerformanceScreen(
     val defaultLabel = stringResource(R.string.global_default)
     // Named rather than counted, so the expander knows to open itself when search sends someone
     // to a row hiding inside it — and so the count can never drift from the list again.
-    val advanced = listOf(
+    val advanced = listOfNotNull(
         stringResource(R.string.preference_force_vsync_title),
         stringResource(R.string.preference_vsync_in_zink_title),
         stringResource(R.string.preference_sustained_performance_title),
         stringResource(R.string.mcl_setting_title_use_surface_view),
-        stringResource(R.string.preference_vulkan_driver_system_title),
+        // The driver rows exist only where a Turnip driver means anything, and the titles list
+        // has to agree with the rows or the expander's count drifts from its contents.
+        if (environment.adreno) stringResource(R.string.settings_turnip_driver_title) else null,
+        if (environment.adreno) stringResource(R.string.settings_turnip_import_title) else null,
         stringResource(R.string.preference_force_big_core_title),
         stringResource(R.string.preference_shader_dump_title),
         stringResource(R.string.mcl_setting_title_ignore_notch),
@@ -754,11 +773,29 @@ private fun PerformanceScreen(
                     stringResource(R.string.mcl_setting_subtitle_use_surface_view),
                     store.bool("alternate_surface", false)
                 ) { store.put("alternate_surface", it) }
-                SwitchRow(
-                    stringResource(R.string.preference_vulkan_driver_system_title),
-                    stringResource(R.string.preference_vulkan_driver_system_description),
-                    store.bool("zinkPreferSystemDriver", false)
-                ) { store.put("zinkPreferSystemDriver", it) }
+                if (environment.adreno) {
+                    ChoiceRow(
+                        title = stringResource(R.string.settings_turnip_driver_title),
+                        description = stringResource(R.string.settings_turnip_driver_description),
+                        names = environment.turnipDrivers.map { it.name },
+                        values = environment.turnipDrivers.map { it.value },
+                        selected = store.string("turnipDriver", "bundled"),
+                        hint = if (environment.turnipDrivers.size > 2) {
+                            stringResource(R.string.settings_turnip_driver_hint)
+                        } else null,
+                        onLongPress = { value ->
+                            // Only an import can be removed: the system driver and the bundled
+                            // Turnip are not files of ours to delete.
+                            if (value.startsWith("imported:")) actions.onDeleteTurnipDriver(value)
+                        },
+                        onSelect = { store.put("turnipDriver", it) }
+                    )
+                    NavRow(
+                        title = stringResource(R.string.settings_turnip_import_title),
+                        description = stringResource(R.string.settings_turnip_import_description),
+                        onClick = actions.onImportTurnipDriver
+                    )
+                }
                 SwitchRow(
                     stringResource(R.string.preference_force_big_core_title),
                     stringResource(R.string.preference_force_big_core_desc),

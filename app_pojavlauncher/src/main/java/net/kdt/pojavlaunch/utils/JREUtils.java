@@ -10,7 +10,6 @@ import static net.kdt.pojavlaunch.Tools.currentDisplayMetrics;
 import static net.kdt.pojavlaunch.Tools.shareLog;
 import static net.kdt.pojavlaunch.prefs.LauncherPreferences.PREF_DUMP_SHADERS;
 import static net.kdt.pojavlaunch.prefs.LauncherPreferences.PREF_VSYNC_IN_ZINK;
-import static net.kdt.pojavlaunch.prefs.LauncherPreferences.PREF_ZINK_PREFER_SYSTEM_DRIVER;
 
 import android.app.*;
 import android.content.*;
@@ -263,8 +262,20 @@ public class JREUtils {
             }
         }
 
-        if(info.isAdreno() && !PREF_ZINK_PREFER_SYSTEM_DRIVER) {
-            envMap.put("POJAV_LOAD_TURNIP", "1");
+        if(info.isAdreno()) {
+            // The choice is System, the bundled Turnip, or an imported one; resolve() turns a
+            // choice whose folder has been deleted into the bundled driver rather than a launch
+            // that fails. The native side falls back to the system libvulkan when whatever is
+            // named here does not load, so the worst a bad import can do is not be used.
+            TurnipDrivers.Resolved driver =
+                    TurnipDrivers.resolve(activity, LauncherPreferences.PREF_TURNIP_DRIVER);
+            if(driver.loadTurnip) {
+                envMap.put("POJAV_LOAD_TURNIP", "1");
+                if(driver.directory != null) {
+                    envMap.put("POJAV_TURNIP_DIR", driver.directory);
+                    envMap.put("POJAV_TURNIP_SONAME", driver.libraryName);
+                }
+            }
         }
 
         readCustomEnv(envMap); // Must be last so it overrides anything the user sets for obvious reasons.

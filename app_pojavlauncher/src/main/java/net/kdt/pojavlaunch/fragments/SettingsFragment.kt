@@ -40,6 +40,9 @@ import net.kdt.pojavlaunch.ui.content.ContentKind
 import net.kdt.pojavlaunch.ui.content.contentFolder
 import net.kdt.pojavlaunch.ui.settings.SettingsActions
 import net.kdt.pojavlaunch.ui.settings.SettingsEnvironment
+import net.kdt.pojavlaunch.ui.settings.TurnipDriverOption
+import net.kdt.pojavlaunch.utils.GLInfoUtils
+import net.kdt.pojavlaunch.utils.TurnipDrivers
 import net.kdt.pojavlaunch.ui.settings.SettingsRoute
 import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.settings.SettingsScreen
@@ -82,6 +85,12 @@ class SettingsFragment : Fragment() {
     private val texturePackLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) importTexturePack(uri)
+        }
+
+    /** Same reasoning as the texture packs: the zip filter varies by provider, the contents decide. */
+    private val turnipDriverLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) importTurnipDriver(uri)
         }
 
     /**
@@ -177,6 +186,16 @@ class SettingsFragment : Fragment() {
         // launcher's old account bar used to occupy the top of this screen to say half of.
         val account = runCatching { currentAccount(context) }.getOrNull()
         val profile = runCatching { currentProfileLabel(context) }.getOrNull()
+        // GLInfoUtils caches after its first query, so this is a field read on every resume but
+        // the first; the driver list is one directory listing plus a meta.json per import.
+        val adreno = runCatching { GLInfoUtils.getGlInfo().isAdreno }.getOrDefault(false)
+        val drivers = if (!adreno) emptyList() else buildList {
+            add(TurnipDriverOption("system", getString(R.string.settings_turnip_system)))
+            add(TurnipDriverOption("bundled", getString(R.string.settings_turnip_bundled)))
+            runCatching { TurnipDrivers.list(context) }.getOrDefault(emptyList()).forEach {
+                add(TurnipDriverOption(TurnipDrivers.importedChoice(it.folder), it.name))
+            }
+        }
         return SettingsEnvironment(
             versionName = version,
             freeSpace = free,
@@ -197,7 +216,9 @@ class SettingsFragment : Fragment() {
                 else -> R.string.settings_account_microsoft
             },
             profileTitle = profile?.first,
-            profileDetail = profile?.second?.let { " · $it" }.orEmpty()
+            profileDetail = profile?.second?.let { " · $it" }.orEmpty(),
+            adreno = adreno,
+            turnipDrivers = drivers
         )
     }
 
@@ -250,8 +271,51 @@ class SettingsFragment : Fragment() {
             onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) },
             onReplayWelcome = ::replayWelcome,
             onImportTexturePack = ::pickTexturePack,
-            onExportTexturePack = ::exportTexturePack
+            onExportTexturePack = ::exportTexturePack,
+            onImportTurnipDriver = {
+                runCatching { turnipDriverLauncher.launch(arrayOf("*/*")) }
+                    .onFailure { toast(getString(R.string.settings_turnip_import_failed)) }
+            },
+            onDeleteTurnipDriver = ::deleteTurnipDriver
         )
+    }
+
+    /**
+     * Unpack a chosen driver zip, then select it, exactly as the texture packs do: nobody imports
+     * a driver in order to keep playing on the old one. The copy and the ELF check run off the
+     * main thread; the toast and the environment refresh come back to it.
+     */
+    private fun importTurnipDriver(uri: android.net.Uri) {
+        val context = requireContext().applicationContext
+        Thread {
+            val driver = runCatching {
+                context.contentResolver.openInputStream(uri).use { stream ->
+                    if (stream == null) throw java.io.IOException("No stream for $uri")
+                    TurnipDrivers.importZip(context, stream)
+                }
+            }.getOrNull()
+            activity?.runOnUiThread {
+                if (driver == null) {
+                    toast(getString(R.string.settings_turnip_import_failed))
+                } else {
+                    SettingsStore(requireContext())
+                        .put("turnipDriver", TurnipDrivers.importedChoice(driver.folder))
+                    environment = readEnvironment()
+                    toast(getString(R.string.settings_turnip_imported, driver.name))
+                }
+            }
+        }.start()
+    }
+
+    private fun deleteTurnipDriver(value: String) {
+        val folder = value.removePrefix("imported:")
+        TurnipDrivers.delete(requireContext(), folder)
+        val store = SettingsStore(requireContext())
+        // A choice pointing at a folder that is gone would fall back to the bundled driver at
+        // launch anyway, but the launcher is the right process to make that true in the file.
+        if (store.string("turnipDriver", "bundled") == value) store.put("turnipDriver", "bundled")
+        environment = readEnvironment()
+        toast(getString(R.string.settings_turnip_deleted))
     }
 
     /**

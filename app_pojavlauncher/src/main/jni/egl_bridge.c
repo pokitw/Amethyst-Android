@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <assert.h>
 #include <dlfcn.h>
+#include <linux/limits.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -103,12 +104,25 @@ void* load_turnip_vulkan() {
     if(getenv("POJAV_LOAD_TURNIP") == NULL) return NULL;
     const char* native_dir = getenv("POJAV_NATIVEDIR");
     const char* cache_dir = getenv("TMPDIR");
-    if(!linker_ns_load(native_dir)) return NULL;
+    /* An imported driver lives in a folder of its own; the bundled one in the native dir. The
+     * namespace search path carries both because liblinkerhook.so always comes from the native
+     * dir even when the driver does not, and every failure below still falls through to the
+     * system libvulkan, so a broken import costs the custom driver and never the game. */
+    const char* driver_dir = getenv("POJAV_TURNIP_DIR");
+    const char* driver_soname = getenv("POJAV_TURNIP_SONAME");
+    if(driver_soname == NULL) driver_soname = "libvulkan_freedreno.so";
+    char search_path[PATH_MAX * 2 + 2];
+    if(driver_dir != NULL) {
+        snprintf(search_path, sizeof(search_path), "%s:%s", driver_dir, native_dir);
+    } else {
+        snprintf(search_path, sizeof(search_path), "%s", native_dir);
+    }
+    if(!linker_ns_load(search_path)) return NULL;
     void* linkerhook = linker_ns_dlopen("liblinkerhook.so", RTLD_LOCAL | RTLD_NOW);
     if(linkerhook == NULL) return NULL;
-    void* turnip_driver_handle = linker_ns_dlopen("libvulkan_freedreno.so", RTLD_LOCAL | RTLD_NOW);
+    void* turnip_driver_handle = linker_ns_dlopen(driver_soname, RTLD_LOCAL | RTLD_NOW);
     if(turnip_driver_handle == NULL) {
-        printf("AdrenoSupp: Failed to load Turnip!\n%s\n", dlerror());
+        printf("AdrenoSupp: Failed to load Turnip (%s)!\n%s\n", driver_soname, dlerror());
         dlclose(linkerhook);
         return NULL;
     }

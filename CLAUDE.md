@@ -668,6 +668,35 @@ re-litigated. The reasoning lives in the commit that made the change.
   The joystick is `absolute` — fixed in place with the knob tracking the finger, which is how the
   Bedrock stick behaves; the floating stick that re-centres under every touch is the other value.
   Selected from the editor's Select-default dialog, which lists `controlmap/` and now finds it.
+- **Timed key sequences** (`ControlData.sequence` + `ControlButton.startSequence`) — a button's
+  four keycodes can fire in order, a configurable gap apart, instead of together. Built because
+  the community asked for exactly this move: pearl slot, use, wind charge slot, use, on one
+  button; the game samples the hotbar once a tick, so "together" is the one way it can never
+  work and the gap's floor is one tick. Four decisions hold it. **One press is one run** and
+  the release edge is ignored, so a finger lifting mid-move cannot cut a pearl throw in half.
+  **A press during a run is dropped**, never queued: queued repeats are how a nervous double
+  tap becomes four pearls, and this staying a combo and not an autoclicker is the safety line.
+  **The whole run is one self-advancing runnable**, because a queue of anonymous lambdas
+  cannot be taken back and `onDetachedFromWindow` must be able to cancel it and release
+  whatever a completed step left held (the keyboard's latch lesson). And **stay-pressed and
+  in-order are mutually exclusive in the editor**: one holds keys until the next tap, the other
+  releases them on a clock, and a written combination has no meaning a switch label could
+  predict. The fields are additive, so old layouts deserialise untouched.
+- **Turnip driver manager** (`utils/TurnipDrivers.java` + `egl_bridge.c` + the Performance
+  screen) — import adrenotools driver zips and pick which Vulkan driver Zink renders through.
+  Upstream declined this (their issue 224, "PR it"); the loader machinery was already here,
+  hardcoded to the one bundled `libvulkan_freedreno.so`. The feature is the choice, not the
+  loading: `POJAV_TURNIP_DIR`/`POJAV_TURNIP_SONAME` point the existing namespace loader at an
+  imported folder, and every failure still lands on the system driver, so the worst a bad
+  import does is not get used. Drivers live under **internal** `getFilesDir()`, non-negotiably:
+  `Android/data` is mounted noexec and a library there can never be dlopened. The import
+  canonicalises entry paths (the launcher's fourth stranger archive), requires `meta.json`
+  naming the library, and refuses anything that does not parse as an arm64 ELF, so an x86
+  driver fails at import and not in game. The rows exist **only on Adreno GPUs**: a control
+  that can only make the game worse is not a control, and the thread that asked said the same
+  about other chips. The old "prefer system driver" boolean folded into the picker, read once.
+  Importing selects, like the texture packs; deleting an import falls the choice back to the
+  bundled Turnip, and only the launcher process ever rewrites the preference.
 - **Control layout editor** — hosts the same control center in editor mode, so the editor from
   Settings and the one from inside a game are one screen with two ways in.
 - **Editing a button** (`ui/controls/`) — the keycode spinners are gone: **you bind a key by
@@ -972,6 +1001,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   same flag and the same key-down. Latching Shift on both, then releasing one, desynchronises them.
   Properly fixing it needs global key-state tracking that does not exist; the keyboard confines the
   damage by only ever touching the flag belonging to the key that changed.
+- A key sequence is **at most the four keys a button holds**, one press each, no loops and no
+  repeats. That is deliberate: it is a combo, and the line between a combo and an autoclicker is
+  the line between a control scheme and a cheat. A sequence also cannot wait on the game, only
+  on the clock; a step that lands while a GUI is open types into it, exactly as the same key
+  from a finger would.
+- A sequence button held down does **not** repeat, and a toggle cannot be a sequence. Both are
+  the same decision from two sides: one press, one run.
+- The Turnip driver picker is **Adreno only, by presence**: on any other GPU the rows are not
+  shown, search does not find them, and nothing is disabled because nothing is there. An
+  imported driver is validated as an arm64 ELF in an adrenotools-shaped zip, and nothing more:
+  whether a given Mesa build actually works on a given Adreno is between the driver and the
+  phone, and the fallback to the system driver is what makes trying one safe.
+- A driver import is a **copy into internal storage**, so it spends real megabytes, and an
+  import with the same name replaces the previous one rather than piling up beside it.
 - The mod browser is **Modrinth only**. CurseForge needs an API key, and the one this repo has is
   a build config value for the modpack search; adding a second index is a bigger question than
   making the first one work.

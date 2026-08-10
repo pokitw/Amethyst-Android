@@ -124,6 +124,10 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // is press them one after another, which is the half a combo move actually needs. Upstream
     // said no to macros in as many words, so this row is a real difference, not a tie.
     ComparisonRow(R.string.onboarding_row_sequence, Support.PARTIAL, Support.YES),
+    // "Part" for upstream because it ships one Turnip build and loads it automatically on
+    // Adreno; what it declined (their issue 224) is letting you import a newer one. On any
+    // other GPU neither side offers anything, which is the row's honest scope.
+    ComparisonRow(R.string.onboarding_row_turnip, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.NO),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )

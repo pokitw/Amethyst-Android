@@ -100,10 +100,17 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         R.string.mcl_setting_subtitle_use_surface_view, R.string.settings_advanced,
         "surface view texture black screen"
     ),
+    // Present on Adreno devices only; on anything else search finds nothing, which is honest,
+    // because there is nothing there to find.
     SettingEntry(
-        R.string.preference_vulkan_driver_system_title, SettingsRoute.PERFORMANCE,
-        R.string.preference_vulkan_driver_system_description, R.string.settings_advanced,
-        "vulkan driver turnip adreno system"
+        R.string.settings_turnip_driver_title, SettingsRoute.PERFORMANCE,
+        R.string.settings_turnip_driver_description, R.string.settings_advanced,
+        "vulkan driver turnip adreno freedreno mesa system custom"
+    ),
+    SettingEntry(
+        R.string.settings_turnip_import_title, SettingsRoute.PERFORMANCE,
+        R.string.settings_turnip_import_description, R.string.settings_advanced,
+        "vulkan driver turnip import zip adrenotools custom"
     ),
     SettingEntry(
         R.string.preference_force_big_core_title, SettingsRoute.PERFORMANCE,
