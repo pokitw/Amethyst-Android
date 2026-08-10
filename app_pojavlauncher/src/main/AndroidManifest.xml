@@ -147,6 +147,16 @@
             android:label="@string/content_title"
             android:process=":launcher"/>
 
+        <!--
+            The Modrinth browser. Launcher process like Game files, which it installs into and is
+            reached from; it has nothing to do with the game process.
+        -->
+        <activity
+            android:name=".ModBrowserActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:label="@string/mods_browse_title"
+            android:process=":launcher"/>
+
         <!-- The welcome. Same process as the launcher it hands over to, and not exported: it is
              reached only from TestStorageActivity on a first run. -->
         <activity

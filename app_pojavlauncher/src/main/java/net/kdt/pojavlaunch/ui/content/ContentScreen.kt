@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -113,6 +116,7 @@ fun ContentScreen(
     onQuery: (String) -> Unit,
     onFilter: (String) -> Unit,
     onAdd: () -> Unit,
+    onBrowseMods: () -> Unit,
     onToggle: (ContentItem, Boolean) -> Unit,
     onDelete: (ContentItem) -> Unit,
     onOpen: (ContentItem) -> Unit,
@@ -121,12 +125,13 @@ fun ContentScreen(
     onBack: () -> Unit
 ) {
     var confirming by remember { mutableStateOf<ContentItem?>(null) }
+    var adding by remember { mutableStateOf(false) }
 
     LazyAppScaffold(
         title = stringResource(R.string.content_title),
         subtitle = state.profileLabel,
         onBack = onBack,
-        barAction = { AddButton(onAdd) }
+        barAction = { AddButton { adding = true } }
     ) {
         item(key = "search") {
             Column {
@@ -170,7 +175,7 @@ fun ContentScreen(
             item(key = "empty") {
                 Column {
                     Spacer(Modifier.height(22.dp))
-                    EmptyState(state.searching, state.filtered, onAdd)
+                    EmptyState(state.searching, state.filtered) { adding = true }
                 }
             }
         } else {
@@ -212,6 +217,14 @@ fun ContentScreen(
                 )
             }
         }
+    }
+
+    if (adding) {
+        AddSheet(
+            onDismiss = { adding = false },
+            onBrowse = { adding = false; onBrowseMods() },
+            onPick = { adding = false; onAdd() }
+        )
     }
 
     val target = confirming
@@ -612,6 +625,67 @@ private fun AddButton(onAdd: () -> Unit) {
             stringResource(R.string.content_add),
             style = MaterialTheme.typography.labelLarge,
             color = Amethyst20
+        )
+    }
+}
+
+/**
+ * The two ways to add something to a profile.
+ *
+ * The add button used to go straight to a file picker, which was the only way there was. Now that
+ * mods can be fetched from Modrinth there are two, and they are genuinely different acts rather
+ * than two routes to one: one searches an index, the other takes a file you already have. Putting
+ * the search first is not alphabetical, it is that almost every add is a mod and almost every mod
+ * is on Modrinth.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddSheet(onDismiss: () -> Unit, onBrowse: () -> Unit, onPick: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Text(
+                stringResource(R.string.content_add_title),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(14.dp))
+            // The arrow landing on a shelf is the download; the folder is the file you already
+            // have. They were the wrong way round in the first draft.
+            AddChoice(R.drawable.ic_x_install, R.string.content_add_from_modrinth, onBrowse)
+            Spacer(Modifier.height(8.dp))
+            AddChoice(R.drawable.ic_x_files, R.string.content_add_from_file, onPick)
+        }
+    }
+}
+
+@Composable
+private fun AddChoice(iconRes: Int, labelRes: Int, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surfaceContainerHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painterResource(iconRes),
+            contentDescription = null,
+            tint = colors.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(13.dp))
+        Text(
+            stringResource(labelRes),
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.onSurface
         )
     }
 }

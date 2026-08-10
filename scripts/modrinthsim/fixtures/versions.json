@@ -1,0 +1,155 @@
+[
+  {
+    "id": "vRELEASE1",
+    "project_id": "AANobbMI",
+    "name": "Sodium 0.5.8",
+    "version_number": "mc1.20.1-0.5.8",
+    "version_type": "release",
+    "game_versions": ["1.20.1", "1.20.2", "1.20.3", "1.20.4"],
+    "loaders": ["fabric", "quilt"],
+    "dependencies": [
+      {
+        "version_id": null,
+        "project_id": "P7dR8mSH",
+        "file_name": null,
+        "dependency_type": "required"
+      },
+      {
+        "version_id": null,
+        "project_id": "YL57xq9U",
+        "file_name": null,
+        "dependency_type": "optional"
+      }
+    ],
+    "files": [
+      {
+        "hashes": {
+          "sha512": "aaaa",
+          "sha1": "1111111111111111111111111111111111111111"
+        },
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vRELEASE1/sodium-sources.jar",
+        "filename": "sodium-fabric-mc1.20.1-0.5.8-sources.jar",
+        "primary": false,
+        "size": 100
+      },
+      {
+        "hashes": {
+          "sha512": "bbbb",
+          "sha1": "2222222222222222222222222222222222222222"
+        },
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vRELEASE1/sodium.jar",
+        "filename": "sodium-fabric-mc1.20.1-0.5.8.jar",
+        "primary": true,
+        "size": 900
+      }
+    ]
+  },
+  {
+    "id": "vBETA1",
+    "project_id": "AANobbMI",
+    "name": "Sodium 0.6.0 beta",
+    "version_number": "mc1.20.1-0.6.0-beta",
+    "version_type": "beta",
+    "game_versions": ["1.20.1"],
+    "loaders": ["fabric"],
+    "dependencies": [],
+    "files": [
+      {
+        "hashes": {"sha1": "3333333333333333333333333333333333333333"},
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vBETA1/sodium-beta.jar",
+        "filename": "sodium-fabric-mc1.20.1-0.6.0-beta.jar",
+        "primary": true,
+        "size": 950
+      }
+    ]
+  },
+  {
+    "id": "vNOPRIMARY",
+    "project_id": "AANobbMI",
+    "name": "Older release with no primary flag",
+    "version_number": "mc1.20.1-0.5.0",
+    "version_type": "release",
+    "game_versions": ["1.20.1"],
+    "loaders": ["fabric"],
+    "dependencies": [],
+    "files": [
+      {
+        "hashes": {"sha1": "4444444444444444444444444444444444444444"},
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vNOPRIMARY/only.jar",
+        "filename": "sodium-fabric-mc1.20.1-0.5.0.jar",
+        "size": 800
+      }
+    ]
+  },
+  {
+    "id": "vNOHASH",
+    "project_id": "AANobbMI",
+    "name": "A version whose file has no hashes at all",
+    "version_number": "mc1.20.1-0.4.0",
+    "version_type": "release",
+    "game_versions": ["1.20.1"],
+    "loaders": ["fabric"],
+    "dependencies": [],
+    "files": [
+      {
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vNOHASH/nohash.jar",
+        "filename": "sodium-fabric-mc1.20.1-0.4.0.jar",
+        "primary": true,
+        "size": 700
+      }
+    ]
+  },
+  {
+    "id": "vNOFILES",
+    "project_id": "AANobbMI",
+    "name": "A version with an empty file list",
+    "version_number": "broken",
+    "version_type": "release",
+    "game_versions": ["1.20.1"],
+    "loaders": ["fabric"],
+    "dependencies": [],
+    "files": []
+  },
+  {
+    "id": null,
+    "project_id": "AANobbMI",
+    "name": "A version with no id",
+    "version_type": "release",
+    "game_versions": ["1.20.1"],
+    "loaders": ["fabric"],
+    "dependencies": [],
+    "files": [
+      {
+        "url": "https://example.invalid/x.jar",
+        "filename": "x.jar",
+        "primary": true
+      }
+    ]
+  },
+  {
+    "id": "vNULLFIELDS",
+    "project_id": "AANobbMI",
+    "name": null,
+    "version_number": null,
+    "version_type": null,
+    "game_versions": ["1.20.1"],
+    "loaders": ["fabric"],
+    "dependencies": [
+      {
+        "version_id": "vPINNED",
+        "project_id": null,
+        "file_name": "pinned.jar",
+        "dependency_type": "required"
+      }
+    ],
+    "files": [
+      {
+        "hashes": {"sha1": "5555555555555555555555555555555555555555"},
+        "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vNULLFIELDS/null.jar",
+        "filename": "nullfields.jar",
+        "primary": true,
+        "size": 10
+      }
+    ]
+  }
+]

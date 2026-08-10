@@ -118,6 +118,7 @@ class ContentActivity : BaseActivity() {
                         filter = ContentKind.values().firstOrNull { it.name == value }
                     },
                     onAdd = ::pick,
+                    onBrowseMods = ::browseMods,
                     onToggle = toggleItem,
                     onDelete = deleteItem,
                     onOpen = openItem,
@@ -310,6 +311,11 @@ class ContentActivity : BaseActivity() {
             val current = items.firstOrNull { key(it) == key(item) } ?: return@launch
             put(current.copy(thumbnail = bitmap, thumbnailRequested = true))
         }
+    }
+
+    /** Straight to the Modrinth browser, which installs into this same profile's folder. */
+    private fun browseMods() {
+        startActivity(android.content.Intent(this, ModBrowserActivity::class.java))
     }
 
     private fun pick() {

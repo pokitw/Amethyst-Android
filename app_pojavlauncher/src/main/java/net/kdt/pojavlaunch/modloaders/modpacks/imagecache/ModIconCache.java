@@ -49,6 +49,17 @@ public class ModIconCache {
     }
 
     /**
+     * Stop the loader threads.
+     *
+     * The pool keeps ten core threads, and core threads do not time out, so a cache belonging to
+     * something that is opened and closed again leaks all ten each time. An owner that lives as
+     * long as the process does not need this; one that does not, does.
+     */
+    public void shutdown() {
+        cacheLoaderPool.shutdownNow();
+    }
+
+    /**
      * Mark the image obtainment task requested with this receiver as "cancelled". This means that
      * this receiver will not be called back and that some tasks related to this image may be
      * prevented from happening or interrupted.

@@ -685,6 +685,7 @@
     <string name="onboarding_row_gyro">Smooth gyro aiming</string>
     <string name="onboarding_row_voice">Voice typing in chat</string>
     <string name="onboarding_row_files">Worlds and mods in the app</string>
+    <string name="onboarding_row_mods">Install mods in the app</string>
     <string name="onboarding_row_keyboard">On-screen keyboard</string>
     <string name="onboarding_row_typing">See what you are typing</string>
     <string name="onboarding_row_search">Searchable settings</string>
@@ -700,6 +701,27 @@
     <string name="control_keyboard_close">Close keyboard</string>
 
     <!-- Game files: worlds, mods, packs, shaders and screenshots -->
+    <string name="mods_browse_title">Add mods</string>
+    <string name="mods_browse_hint">Search Modrinth</string>
+    <string name="mods_browse_results">RESULTS</string>
+    <string name="mods_browse_install">Install</string>
+    <string name="mods_browse_installed">Installed</string>
+    <string name="mods_browse_downloads">%1$s downloads</string>
+    <string name="mods_browse_filter_title">Only what this profile can run</string>
+    <string name="mods_browse_filter_on">Showing mods for %1$s</string>
+    <string name="mods_browse_filter_description">Showing every version and every loader. A mod that does not match this profile will not work.</string>
+    <string name="mods_browse_failed">Could not reach Modrinth. Check the connection and search again.</string>
+    <string name="mods_browse_rate_limited">Modrinth is asking us to slow down. Wait a moment and search again.</string>
+    <string name="mods_browse_server_error">Modrinth answered with an error. Try again in a moment.</string>
+    <string name="mods_browse_empty">Nothing matched. Try fewer words, or tap the filter above to look beyond this profile\'s version.</string>
+    <string name="mods_browse_no_loader">This profile has no mod loader, so it cannot run mods. Edit the profile and pick a Fabric, Quilt, Forge or NeoForge version first.</string>
+    <string name="mods_browse_no_profile">There is no profile to install into.</string>
+    <string name="mods_browse_no_version">No version of this mod fits this profile.</string>
+    <string name="mods_browse_install_failed">That mod could not be downloaded.</string>
+    <string name="mods_browse_no_folder">Could not create the mods folder for this profile.</string>
+    <string name="content_add_title">Add to this profile</string>
+    <string name="content_add_from_modrinth">Search Modrinth</string>
+    <string name="content_add_from_file">Pick a file</string>
     <string name="content_title">Game files</string>
     <string name="content_add">Add</string>
     <string name="content_added">%1$s added to %2$s</string>
@@ -1052,4 +1074,12 @@
     <string name="crash_generic_explanation">The game ended without leaving one of the failure patterns this launcher recognises.</string>
     <string name="crash_generic_advice">The answer is usually in the last lines of the log. Share it, or open latestlog.txt under Game files.</string>
 
+    <plurals name="mods_browse_with_dependencies">
+        <item quantity="one">Installed, with 1 dependency</item>
+        <item quantity="other">Installed, with %1$d dependencies</item>
+    </plurals>
+    <plurals name="mods_browse_missing_dependencies">
+        <item quantity="one">Installed, but 1 mod it needs could not be fetched</item>
+        <item quantity="other">Installed, but %1$d mods it needs could not be fetched</item>
+    </plurals>
 </resources>

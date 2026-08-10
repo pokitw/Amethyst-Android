@@ -107,6 +107,10 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // it answers the system one as well, which is the board most people actually meet.
     ComparisonRow(R.string.onboarding_row_typing, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_files, Support.NO, Support.YES),
+    // "Part" for upstream because it does have a Modrinth search: what that search finds is
+    // modpacks, and installing one builds a whole new profile. Adding one mod to the profile you
+    // have is the thing neither had until now.
+    ComparisonRow(R.string.onboarding_row_mods, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_search, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_controls, Support.PARTIAL, Support.YES),

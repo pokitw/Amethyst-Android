@@ -15,3 +15,5 @@ app_pojavlauncher/.cxx/
 /jre_lwjgl3glfw/**/.gradle/
 /app_pojavlauncher/curseforge_key.txt
 __pycache__/
+# Output of the verification harnesses in scripts/ (compiled stubs and shipped sources).
+/scripts/*/build/

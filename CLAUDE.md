@@ -408,7 +408,8 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Profile editor · type picker · MC version picker | **Compose** | `ui/profile/`, hosted by `ProfileEditorFragment.kt` and `ProfileTypeSelectFragment.kt` |
 | Crash screen | **Compose** | `diagnosis/`, hosted by `ExitActivity.kt` |
 | Skin editor | Not built | Designed, §18.1 |
-| Mod search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
+| Mod browser (Modrinth) | **Compose** | `ui/mods/`, `ModBrowserActivity.kt` |
+| Modpack search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
 | Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
 | Game surface | XML, stays | See §12.4 |
 
@@ -700,6 +701,31 @@ re-litigated. The reasoning lives in the commit that made the change.
   two hundred jars reopened; and **the background passes merge rather than replace** — the switch,
   the rename behind it and the picture that just arrived are taken from the row as it stands, or a
   mod turned off while its jar was being read turns itself back on.
+- **Mod browser** (`ui/mods/` + `modloaders/modpacks/api/ModrinthMods.java` +
+  `ModInstall.java`) — searching Modrinth and putting the jar in the profile, without leaving the
+  launcher.
+  **The mod search that already existed searched modpacks.** `SearchModFragment` sets
+  `isModpack = true` and never unsets it, and `ModrinthApi.installMod` carries a TODO saying it
+  only handles modpacks: what it does is download an `.mrpack` and build a whole new profile. So
+  the launcher has never had a way to add one mod to a profile you already have, and the way
+  people actually do it is a browser, a download, and the Game files importer.
+  **The filter is the feature.** The profile knows its Minecraft version and its loader, so the
+  search is narrowed to what will run before a character is typed, and installing is one tap
+  because there is then only one sensible version to pick. Re-presenting the mod page's version
+  table as a dialog would be putting back the step this exists to remove. `ModTarget` recovers
+  the two facts differently on purpose: the loader is in the version id and nowhere else, and the
+  Minecraft version is in the id for three loaders out of four, with NeoForge falling back to
+  `inheritsFrom` in the installed manifest.
+  **It is a second Modrinth client, not a widened one.** `ModrinthApi` reads `game_versions[0]`
+  as the version and `files[0]` as the download, and for a modpack both are right because there
+  is only ever one of each. For a mod the first game version is the *oldest* of a range and the
+  first file is as likely to be a sources jar, so bending that class would have broken the
+  modpack path to fix the mod one. Neither calls the other.
+  **Only required dependencies are installed.** Optional is a suggestion, and a launcher that
+  acted on suggestions would put jars in someone's folder that they did not choose and cannot
+  attribute later. The walk is breadth-first with a seen-set and a depth cap, because dependency
+  graphs have cycles and the cost of being wrong is a phone downloading until it is full.
+  Reached from Game files' add button, which now asks which of the two kinds of adding you meant.
 - **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
   because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
   flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and
@@ -925,8 +951,26 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   same flag and the same key-down. Latching Shift on both, then releasing one, desynchronises them.
   Properly fixing it needs global key-state tracking that does not exist; the keyboard confines the
   damage by only ever touching the flag belonging to the key that changed.
-- **`VersionSelectorDialog` still exists** for the mod-search flow, which is the only caller left.
-  The profile editor uses the Compose picker; the two should converge when mod search is redesigned.
+- The mod browser is **Modrinth only**. CurseForge needs an API key, and the one this repo has is
+  a build config value for the modpack search; adding a second index is a bigger question than
+  making the first one work.
+- It installs **mods**, not resource packs or shaders, though the client takes a project type and
+  the folders already exist. One kind at a time, and mods are the kind people ask for.
+- **A mod's own compatibility is Modrinth's word for it.** The filter is the index's version and
+  loader tags, so a mod tagged wrongly installs and does not work, and a mod that would work but
+  is not tagged for your version is hidden until the filter is turned off.
+- **Already-installed detection is a guess.** The search response has no file name in it, so a row
+  is ticked when the project's slug appears in a file name in the folder. A false tick means
+  installing over the top, a missed one means a duplicate jar; neither is worth a request per row
+  to avoid.
+- The wire format is coded from the **documented** Modrinth v2 contract: `api.modrinth.com` is not
+  reachable from the build container, so `scripts/modrinthsim/` drives the shipped parser against
+  fixtures rather than against a captured response. It checks the things that break (primary file
+  selection, null tolerance, version choice, facet syntax, name safety), not that the endpoint
+  still answers in that shape.
+- **`VersionSelectorDialog` still exists** for the modpack-search flow, which is the only caller
+  left. The profile editor uses the Compose picker, and the mod browser needs no version dialog at
+  all; the two should converge when modpack search is redesigned.
 - A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server
   reads a skin from, and an offline account has no profile to attach one to. Any skin editor has
   to say so rather than appearing to work and silently doing nothing.
@@ -966,9 +1010,9 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 4. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
    gallery with a preview, since a control layout is a picture, not a filename.
 5. Recording segmentation for multi-hour sessions.
-6. Mod search — `SearchModFragment` and its CurseForge/Modrinth flow are still the old XML, and
-   the one remaining `VersionSelectorDialog` caller. Installing *from* the internet and managing
-   what is installed should meet in `ui/mods/`.
+6. Modpack search — `SearchModFragment` and its CurseForge/Modrinth flow are still the old XML,
+   and the one remaining `VersionSelectorDialog` caller. Single mods now live in `ui/mods/`;
+   modpacks, which build a whole profile, have not moved.
 
 **Later**
 6. Shared-element transition from the version card into the version sheet.
@@ -1016,6 +1060,9 @@ Before pushing:
   the nine-slice can be reproduced in Python and rendered as a contact sheet at real button sizes,
   which is how a face that vanished over a bright sky and a corner radius that turned a small
   button into a circle were both caught before they shipped.
+- **Run `sh scripts/modrinthsim/run.sh`** if the Modrinth client changed. It compiles the shipped
+  `ModrinthMods` and `ModInstall` against stubs at source 8 and drives them with fixtures, which
+  is the only check available: the API is not reachable from the build container.
 - **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
