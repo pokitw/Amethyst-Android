@@ -833,6 +833,56 @@ re-litigated. The reasoning lives in the commit that made the change.
   tilted back or flat — the case local space, and every mobile shooter that uses it, gets wrong.
   Smoothing is **tiered**: only movements below ~1.5°/s are averaged, so shake is removed and a
   flick is not delayed. 100% sensitivity is **1:1** with the view.
+- **Performance mode** (`optimiser/` + `ui/settings/PerformanceSheet.kt`) — one switch that reads
+  what the phone actually is and sets the renderer, the resolution, the heap, Minecraft's own
+  graphics settings and a mod set to match. The single most asked-for thing a Minecraft launcher
+  on Android can do, and the launcher already knew everything the answer needs.
+  **The plan is a pure function**, and that is what the whole feature hangs off: `PerformancePlan`
+  takes primitives and returns a list of changes rather than performing them, so the same object
+  can be shown before anything is written, captured for the undo, and driven by
+  `scripts/plansim` with no device in the room. A version that wrote settings as it worked them
+  out could be none of those three things.
+  **The resolution is solved against a pixel budget, not set to a percentage.** A 1440 by 3168
+  panel is four and a half million pixels and the game pays for every one every frame, so the tier
+  names a number of pixels it can afford and the scale is `sqrt(budget / panel)`. That is why the
+  same tier gives 70% on a OnePlus 12 and 95% on a 1080p phone; a fixed percentage would blur the
+  second to fix the first.
+  **It never undoes somebody's own tuning.** Every graphics option carries a bound, and the
+  direction that means "faster" is stated per key rather than inferred, because it genuinely
+  differs: `graphicsMode` counts *up* from fast to fabulous and `particles` counts *up* from all to
+  minimal. A player already on minimal particles is not raised to decreased because a flagship tier
+  says so. On a flagship, where the tier asks for very little, that guard is most of what the plan
+  does.
+  **The distances are the exception, and the mods are what buy them back.** Render distance is set
+  outright: eight chunks on a flagship without mods, twelve with Sodium. A preset that only ever
+  takes things away is the one everybody turns off after an evening, and "not everything at zero"
+  is the difference. Particles land on decreased rather than minimal for the same reason: minimal
+  hides crit sparks and potion effects, which is feedback the game is played on.
+  **`vulkan_zink` is never chosen**, and that is a design decision rather than a performance one.
+  It renders through OSMesa, which has no EGL surface, so selecting it would silently take
+  recording away (§11) as the price of a plan the player was told was about frame rate. Under
+  1.17 the plan picks GL4ES and from 1.17 MobileGlues, because that boundary is the game asking
+  for OpenGL 3.2 core, which GL4ES cannot serve at all.
+  **Nothing writes JVM flags.** They are the one lever where being wrong does not cost frames, it
+  costs a game that will not start, and CI has no device to find that out on.
+  **The undo is the thing that makes the switch acceptable.** Every value is captured before
+  anything is written, including the profile's renderer, which rides in the same capture under a
+  reserved `@profileRenderer` key because it is part of the same undo even though it lives in
+  `launcher_profiles.json`. A key that was never set comes back as never set (`PerformanceBackup`),
+  which matters because several of these are computed from the device on first run and writing a
+  number into them would freeze the answer to whatever phone was in hand.
+  **The mods do not come back**, and the sheet says so in as many words. They are jars in a folder
+  the player owns, listed on Game files, and some keep configuration beside them; deleting
+  somebody's files because a switch was turned off is a much larger promise than restoring a
+  setting. Quilt profiles ask Modrinth for a Quilt build and fall back to the Fabric one, which is
+  Quilt's own advice and the difference between five of six mods missing and none.
+  It gets an **onboarding page**, and the rule about pages (§14, "one feature you would not
+  otherwise find") had to be argued for rather than assumed: the switch is the first row of
+  Settings and perfectly findable. What somebody would not find is the reason to look. Its
+  comparison row is **`Part` for upstream, not `No`**: upstream does pick a resolution and a heap
+  size from the device on first run, which is device-specific automatic configuration by any
+  honest reading, and a table that claimed otherwise would be worth less than one row.
+
 - **Sign-in** — one screen, not two. Microsoft carries the gradient and offline is quieter beneath
   it, because they are not equal choices: offline cannot join a server. The username is asked for
   in place, validated as it is typed. Microsoft still hands off to `MicrosoftLoginFragment`, and an
@@ -1114,6 +1164,40 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server
   reads a skin from, and an offline account has no profile to attach one to. Any skin editor has
   to say so rather than appearing to work and silently doing nothing.
+- Performance mode **cannot be applied while the game is running**. Minecraft reads options.txt
+  once at startup and writes its whole in-memory copy back on exit, so an edit made in between is
+  overwritten a moment later with no error anywhere. That is why it lives in Settings and not in
+  the in-game control center, and why the sheet says the changes land at the next launch.
+- The plan is **verified by simulation, not on hardware** (`scripts/plansim`, plus the apply round
+  trip in `scripts/optionssim`). What is checked is the decision: the pixel budget, the version
+  gating, the bounds, the value formats against Minecraft's own option readers. Whether MobileGlues
+  is actually faster than Zink on a given phone is between that phone and that translator, and
+  there is no device in CI to ask.
+- **Changing the renderer can stop a game that used to start.** The plan only ever moves to the
+  translator the Minecraft version needs, and the preview names the change before it happens, but
+  a device whose driver cannot serve MobileGlues will find out at launch. Turning the mode off puts
+  the old renderer back, including putting back "follow the global default" when that is what it
+  was.
+- Sustained performance is turned **on** for the two top tiers, which deliberately **lowers peak
+  clocks**. It is the throttling and heat answer, not the peak frame rate one: it costs the first
+  two minutes and pays for the next thirty. The lower tiers do not get it, because a device with
+  no headroom has none to give up.
+- The mod set is **Modrinth only and keyed on slugs**. A project that renames its slug is a mod
+  reported as having no build for this version, which is visible on the result screen and fixable
+  from the mod browser. Whether a mod is already installed is **the same guess the mod browser
+  makes** (the slug appearing in a file name), deliberately erring towards skipping rather than
+  towards two jars of one mod, which is a crash.
+- **Turning it off does not remove the mods.** They stay in the mods folder and can be deleted from
+  Game files. The settings all come back.
+- Minecraft's own settings are only written for a version the launcher could work out. A snapshot
+  id, or a profile whose version cannot be read, gets the launcher settings and the keys whose
+  spelling has never changed, and nothing that moved: `graphicsMode` replaced `fancyGraphics` in
+  1.16, and `simulationDistance` and `prioritizeChunkUpdates` arrived in 1.18. Writing a modern key
+  into an older file does not fail loudly, it fails silently.
+- The heap is capped at **half the device's memory** on every rung of the ladder. Android does not
+  swap, so a heap the JVM may fill is memory the system cannot take back.
+- The switch on the row is **inert**: it reports and never moves on its own, because the honest
+  answer to "is it on" takes a download to arrive at. Tapping the row opens the preview.
 - Gyro aiming is **verified by simulation, not on hardware** (`scripts/gyrosim/`). The maths and
   the axis mapping are checked; what a real MEMS gyroscope's noise floor feels like in the hand is
   not, and neither is the cost of 400Hz sensor callbacks on a weak device.
@@ -1196,8 +1280,17 @@ Before pushing:
   UV rectangles against independently written ground truth, at both arm widths, plus bounds,
   overlap and the columns the slim guess reads. A wrong rectangle is a leg wearing a sleeve
   and is invisible until someone opens the editor on a real skin.
-- **Run `sh scripts/optionssim/run.sh`** if the options.txt merge changed, and
-  **`sh scripts/devicesim/run.sh`** if the device tiering changed.
+- **Run `sh scripts/optionssim/run.sh`** if the options.txt merge or performance mode's apply
+  changed. It drives both: the merge against an awkward hand-edited file, and the shipped
+  `PerformanceMode.applyOptions` end to end, checking that a declined bound really is declined,
+  that a second apply does not overwrite the backup, and that turning the mode off gives the file
+  back byte for byte.
+- **Run `sh scripts/devicesim/run.sh`** if the device tiering changed, and
+  **`sh scripts/plansim/run.sh`** if the plan did. The plan harness is the one that matters most:
+  every way it can be wrong is silent. It checks the pixel budget against real panels, the frame
+  cap against Minecraft's own 10 to 260 range, the version gating against the game's option
+  readers version by version, and that no bound can ever move a setting to the slower side of
+  where the player left it.
 - **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser

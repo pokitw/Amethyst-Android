@@ -230,19 +230,48 @@ private fun RowText(title: String, description: String?, value: String?, badge: 
     }
 }
 
+/**
+ * A switch.
+ *
+ * The two optional extras exist for one row and are worth having generally: a switch that stands
+ * for more than itself needs to say what it currently amounts to, and the accent value line is
+ * exactly the device Settings already uses for that everywhere else.
+ *
+ * @param value  the state under the description, in the accent, when the switch stands for more
+ *               than a boolean
+ * @param inert  true when tapping opens something rather than toggling. The switch then reflects
+ *               state and never moves on its own, which is right for a row whose real answer
+ *               takes a download to arrive at.
+ */
 @Composable
 fun SwitchRow(
     title: String,
     description: String? = null,
     checked: Boolean,
+    value: String? = null,
+    iconRes: Int? = null,
+    inert: Boolean = false,
     onCheckedChange: (Boolean) -> Unit
 ) {
     RowShell(title = title, onClick = { onCheckedChange(!checked) }) {
-        Box(Modifier.weight(1f)) { RowText(title, description, null) }
+        if (iconRes != null) {
+            SlotWell(size = 34.dp) {
+                Icon(
+                    painterResource(iconRes),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+            Spacer(Modifier.width(13.dp))
+        }
+        Box(Modifier.weight(1f)) { RowText(title, description, value) }
         Spacer(Modifier.width(14.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            // An inert switch is a report, not a control: the row's own click is what acts, and
+            // letting the thumb be dragged would move it before anything had actually happened.
+            onCheckedChange = if (inert) null else onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Amethyst20,
                 checkedTrackColor = MaterialTheme.colorScheme.primary
