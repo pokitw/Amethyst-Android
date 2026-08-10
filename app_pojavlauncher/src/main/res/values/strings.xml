@@ -906,6 +906,10 @@
     <string name="preference_control_style_pocket">Pocket</string>
     <string name="preference_control_texture_add_title">Add a texture pack</string>
     <string name="preference_control_texture_add_description">A .zip holding a button.png, and optionally a button_pressed.png and a pack.json</string>
+    <string name="preference_control_texture_export_title">Make your own</string>
+    <string name="preference_control_texture_export_description">Save the style you are using to Downloads, with a note explaining the format. Edit the pictures, zip them back up, and add it above.</string>
+    <string name="preference_control_texture_exported">Saved %1$s to Downloads</string>
+    <string name="preference_control_texture_export_failed">Could not save the pack to Downloads</string>
     <string name="preference_control_texture_added">%1$s added, and your buttons are wearing it</string>
     <string name="preference_control_texture_not_a_pack">There is no button.png in that file, so it is not a texture pack</string>
     <string name="preference_control_texture_failed">That texture pack could not be added.</string>

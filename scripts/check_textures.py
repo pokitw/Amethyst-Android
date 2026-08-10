@@ -166,6 +166,73 @@ check(large > small,
 check(corner_for(16, 16, 46, 46, 4, False) % 4 == 0,
       "an unfiltered corner should be a whole number of source texels")
 
+# ------------------------------------------------------- the packs that actually ship
+#
+# The sweep above proves the arithmetic works for any pack. This proves the ones in the APK are
+# packs at all: a folder whose button.png went missing, or whose slice no longer fits its face,
+# would be listed in the picker and draw nothing, and there is no device in CI to notice.
+
+BUILT_IN = ROOT / "app_pojavlauncher/src/main/assets/controltextures"
+
+
+def png_size(path):
+    """Width and height straight out of the IHDR, so this needs no image library."""
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    if data[12:16] != b"IHDR":
+        return None
+    return (int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big"))
+
+
+packs = sorted(p for p in BUILT_IN.iterdir() if p.is_dir()) if BUILT_IN.is_dir() else []
+check(len(packs) >= 8,
+      "expected the launcher to ship a spread of texture packs, found %d" % len(packs))
+
+# Every shipped name has to be one the loader will accept as a folder, since the folder name is
+# both the value written into the preference and the name shown in Settings.
+SAFE = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_")
+
+for pack in packs:
+    name = pack.name
+    check(set(name) <= SAFE and not name.startswith(".") and 0 < len(name) <= 64,
+          "%s is not a name ControlTextures.isSafeName would accept" % name)
+
+    base = pack / "button.png"
+    check(base.is_file(), "%s has no button.png, so it would never be offered" % name)
+    if not base.is_file():
+        continue
+    size = png_size(base)
+    check(size is not None, "%s/button.png is not a PNG" % name)
+    if size is None:
+        continue
+    check(max(size) <= 1024,
+          "%s/button.png is %dx%d, past the size the loader refuses at" % ((name,) + size))
+
+    pressed = pack / "button_pressed.png"
+    if pressed.is_file():
+        check(png_size(pressed) == size,
+              "%s/button_pressed.png is %s, not the %s of its base; it would be ignored"
+              % (name, png_size(pressed), size))
+
+    meta_file = pack / "pack.json"
+    check(meta_file.is_file(), "%s has no pack.json, so its slice would default to 0" % name)
+    if not meta_file.is_file():
+        continue
+    import json
+    meta = json.loads(meta_file.read_text())
+    slice_ = meta.get("slice", 0)
+    check(isinstance(meta.get("smooth"), bool), "%s: smooth must be true or false" % name)
+    check(meta.get("label") in ("light", "dark"), "%s: label must be light or dark" % name)
+    check(slice_ * 2 < min(size),
+          "%s: slice %d does not leave a middle band in a %dx%d face"
+          % (name, slice_, size[0], size[1]))
+    # Every cell of a shipped pack should be a real cell: the clamp in the loader exists for a
+    # stranger's pack, not as somewhere for ours to land.
+    for (l, t, r, b) in build_source(size[0], size[1], slice_):
+        check(r > l and b > t, "%s: empty source cell %s" % (name, (l, t, r, b)))
+
+print("checked %d shipped packs" % len(packs))
 print("checked %d button geometries across %d source sizes" % (checked, len(SOURCES)))
 if failures:
     for message in failures:

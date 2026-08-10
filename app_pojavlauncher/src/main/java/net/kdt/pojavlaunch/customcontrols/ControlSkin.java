@@ -54,7 +54,19 @@ public final class ControlSkin {
      * whole preference file and the launcher would be the one to lose the change.
      */
     public static String texturePack() {
-        String style = LauncherPreferences.PREF_CONTROL_STYLE;
+        return texturePackIn(LauncherPreferences.PREF_CONTROL_STYLE);
+    }
+
+    /**
+     * The same question asked of a style that is not the live one.
+     *
+     * Settings reads the preference through its own store rather than the {@code PREF_} statics,
+     * which are a snapshot of what the last reload saw, so it needs to ask about the value it is
+     * holding rather than about the value this class would look up.
+     *
+     * @return the pack the style names, or null when it names one of the two built-in styles
+     */
+    public static String texturePackIn(String style) {
         if (style == null || STYLE_LAYOUT.equals(style) || STYLE_POCKET.equals(style)) return null;
         return style;
     }

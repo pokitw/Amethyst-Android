@@ -86,7 +86,7 @@ public class ControlLayout extends FrameLayout {
 		// game re-runs this after a trip to Settings, where the style may well have changed.
 		// Keyed on the pack's name, so the ordinary case is a string comparison, and it cannot
 		// throw — a texture that will not load is a flat button, never a launch that fails.
-		ControlTextures.ensureLoaded(ControlSkin.texturePack());
+		ControlTextures.ensureLoaded(getContext(), ControlSkin.texturePack());
 
 		boolean sanitizedModified = false;
 		if(controlLayout != null) {

@@ -1,5 +1,25 @@
 package net.kdt.pojavlaunch.ui.settings
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.text.style.TextOverflow
+import net.kdt.pojavlaunch.customcontrols.ControlSkin
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTexture
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextureDrawable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -515,5 +535,171 @@ fun AdvancedSection(count: Int, titles: List<String> = emptyList(), content: @Co
             Spacer(Modifier.height(8.dp))
             content()
         }
+    }
+}
+
+/**
+ * One entry in the Button style rail.
+ *
+ * @param value   what goes into the preference
+ * @param name    what is shown under the tile
+ * @param texture the pack's artwork, or null for the two styles drawn from the layout's own
+ *                numbers rather than from a picture
+ */
+@Immutable
+class ControlStyleOption(
+    val value: String,
+    val name: String,
+    val texture: ControlTexture? = null
+)
+
+/**
+ * Choosing what the on-screen buttons look like, by looking at them.
+ *
+ * <b>A rail rather than a [ChoiceRow].</b> Everything else in Settings picks between words, and a
+ * dialog listing them is the right shape for that. A button style is not a word: it is a picture,
+ * and once the launcher ships eleven of them a list of folder names is a worse way to choose than
+ * no list at all. The handbook already says as much about layouts, that a control layout is a
+ * picture and not a filename; a texture pack is that argument with nothing else in it.
+ *
+ * <b>The tiles are drawn by the button's own renderer.</b> A preview that reimplemented the
+ * nine-slice would be a third copy of geometry that already exists in Java and in the check
+ * script, and the copy that is wrong is always the one nobody looks at. [ControlTextureDrawable]
+ * is handed the same bounds a real button would give it, so what is in the tile is what will be
+ * on screen, including the corner rounding at that exact size.
+ *
+ * <b>And they are drawn over sky and grass.</b> Most of these faces are translucent, so against a
+ * settings surface they would all read as roughly the same dark rectangle and the one thing worth
+ * knowing about a pack — whether it is legible over a bright world — would be invisible. That is
+ * not decoration: a face that vanishes over midday is the failure this preview exists to catch.
+ */
+@Composable
+fun ControlStyleRow(
+    title: String,
+    description: String,
+    options: List<ControlStyleOption>,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    val chosen = options.firstOrNull { it.value == selected }
+    HighlightBox(title) {
+        Column(Modifier.padding(vertical = 13.dp)) {
+            Box(Modifier.padding(horizontal = 15.dp)) {
+                RowText(title, description, chosen?.name ?: selected)
+            }
+            Spacer(Modifier.height(13.dp))
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 15.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                options.forEach { option ->
+                    StyleTile(option, option.value == selected) { onSelect(option.value) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StyleTile(option: ControlStyleOption, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    // One drawable per pack, kept across recompositions: it holds the nine destination rectangles
+    // and recomputes them only when its bounds change, which is the whole reason it is cheap.
+    val drawable = remember(option.texture) {
+        option.texture?.let { ControlTextureDrawable(it) }
+    }
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(86.dp)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .clip(shape)
+                .border(
+                    width = if (selected) 2.dp else 1.dp,
+                    color = if (selected) colors.primary else colors.outline.copy(alpha = 0.45f),
+                    shape = shape
+                )
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                drawWorld()
+                inset(horizontal = size.width * 0.14f, vertical = size.height * 0.24f) {
+                    if (drawable != null) drawTexture(drawable) else drawFlat(option.value)
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            option.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) colors.primary else colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Sky over grass, desaturated well below what the game draws.
+ *
+ * Enough of a world to judge a translucent face against, and not a colour swatch: a settings card
+ * is somewhere quiet and eleven tiles of bright green would be the loudest thing on the screen by
+ * a distance. The ground is a strip below a high horizon for the same reason.
+ */
+private fun DrawScope.drawWorld() {
+    val horizon = size.height * 0.70f
+    drawRect(
+        brush = Brush.verticalGradient(
+            listOf(Color(0xFF63819C), Color(0xFF8FAAC2)),
+            endY = horizon
+        ),
+        size = Size(size.width, horizon)
+    )
+    drawRect(
+        color = Color(0xFF4C6438),
+        topLeft = Offset(0f, horizon),
+        size = Size(size.width, size.height - horizon)
+    )
+}
+
+private fun DrawScope.drawTexture(drawable: ControlTextureDrawable) {
+    drawIntoCanvas { canvas ->
+        drawable.setBounds(0, 0, size.width.toInt(), size.height.toInt())
+        drawable.draw(canvas.nativeCanvas)
+    }
+}
+
+/**
+ * The two styles that have no artwork, drawn from the numbers that actually produce them.
+ *
+ * Layout colours is a fresh {@code ControlData}: square, black at thirty per cent, no keyline.
+ * Pocket is {@link ControlSkin}'s own constants. Neither is an impression of the style, they are
+ * the style, which is why the two tiles look as different from each other as the buttons do.
+ */
+private fun DrawScope.drawFlat(style: String) {
+    val pocket = style == ControlSkin.STYLE_POCKET
+    // CORNER_PERCENT is a percentage of half the shorter side, the way ControlData stores it.
+    val radius = if (pocket) size.minDimension * ControlSkin.CORNER_PERCENT / 200f else 0f
+    val corner = CornerRadius(radius, radius)
+    drawRoundRect(
+        color = Color(if (pocket) ControlSkin.FILL else 0x4D000000),
+        cornerRadius = corner
+    )
+    if (pocket) {
+        val width = 1.5.dp.toPx()
+        drawRoundRect(
+            color = Color(ControlSkin.STROKE),
+            cornerRadius = corner,
+            topLeft = Offset(width / 2f, width / 2f),
+            size = Size(size.width - width, size.height - width),
+            style = Stroke(width)
+        )
     }
 }

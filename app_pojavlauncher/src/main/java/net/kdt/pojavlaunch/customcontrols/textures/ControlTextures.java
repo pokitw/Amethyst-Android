@@ -1,5 +1,7 @@
 package net.kdt.pojavlaunch.customcontrols.textures;
 
+import android.content.Context;
+import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Log;
@@ -11,10 +13,14 @@ import net.kdt.pojavlaunch.Tools;
 
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The texture pack the controls are currently wearing, if any.
@@ -40,6 +46,17 @@ import java.util.List;
  */
 public final class ControlTextures {
     private static final String TAG = "ControlTextures";
+
+    /**
+     * Where the packs that ship with the launcher live.
+     *
+     * <b>Read from assets, never copied out.</b> Unpacking them into the game folder on first run
+     * is the obvious alternative and it is the {@code default.json} trap in §12.12 all over again:
+     * a copy can be deleted, edited, or left behind at an old version, and then every one of those
+     * is a state to reason about. From here a built-in pack is the same on every device, cannot be
+     * half-written, and costs nothing to add to.
+     */
+    public static final String BUILT_IN_DIR = "controltextures";
 
     public static final String BASE_FILE = "button.png";
     public static final String PRESSED_FILE = "button_pressed.png";
@@ -70,24 +87,76 @@ public final class ControlTextures {
         return new File(home, "controltextures");
     }
 
-    /** Every pack that could be selected, by folder name, sorted for a stable picker. */
+    /**
+     * The packs that ship with the launcher, in the order they should be offered.
+     *
+     * Not sorted: these are ordered deliberately in {@link #BUILT_IN_ORDER} so the list opens on
+     * the one most people want rather than on whichever name happens to start with an A.
+     */
     @NonNull
-    public static List<String> available() {
-        List<String> names = new ArrayList<>();
+    public static List<String> builtIn(@Nullable Context context) {
+        List<String> found = new ArrayList<>();
+        if (context == null) return found;
+        try {
+            AssetManager assets = context.getAssets();
+            String[] children = assets.list(BUILT_IN_DIR);
+            if (children == null) return found;
+            List<String> present = Arrays.asList(children);
+            for (String name : BUILT_IN_ORDER) {
+                if (present.contains(name)) found.add(name);
+            }
+            // Anything shipped but missing from the running order still gets offered, so adding a
+            // pack to assets and forgetting this list loses its place rather than the pack.
+            for (String name : children) {
+                if (!found.contains(name)) found.add(name);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not list the built-in texture packs", t);
+        }
+        return found;
+    }
+
+    /**
+     * The running order of the shipped packs.
+     *
+     * Stone first because it is the Bedrock button this whole feature was asked for, then the rest
+     * of the blocks, then the launcher's own two surfaces. Alphabetical would open on Amethyst,
+     * which is the brand rather than the answer.
+     */
+    private static final String[] BUILT_IN_ORDER = {
+            "Stone", "Deepslate", "Oak", "Iron", "Gold",
+            "Emerald", "Lapis", "Redstone", "Amethyst", "Slate", "Glass"
+    };
+
+    /** Every pack that could be selected: the shipped ones, then whatever has been imported. */
+    @NonNull
+    public static List<String> available(@Nullable Context context) {
+        // A set, because an imported pack is allowed to shadow nothing: the importer already
+        // renames around the built-ins, but a folder copied in by other means could still collide
+        // and the list must not show the same name twice.
+        Set<String> names = new LinkedHashSet<>(builtIn(context));
+        List<String> installed = new ArrayList<>();
         try {
             File root = dir();
             File[] children = root == null ? null : root.listFiles();
-            if (children == null) return names;
-            for (File child : children) {
-                if (child.isDirectory() && new File(child, BASE_FILE).isFile()) {
-                    names.add(child.getName());
+            if (children != null) {
+                for (File child : children) {
+                    if (child.isDirectory() && new File(child, BASE_FILE).isFile()) {
+                        installed.add(child.getName());
+                    }
                 }
             }
         } catch (Throwable t) {
             Log.w(TAG, "Could not list the texture packs", t);
         }
-        java.util.Collections.sort(names, String.CASE_INSENSITIVE_ORDER);
-        return names;
+        java.util.Collections.sort(installed, String.CASE_INSENSITIVE_ORDER);
+        names.addAll(installed);
+        return new ArrayList<>(names);
+    }
+
+    /** Whether this name belongs to a pack that ships with the launcher. */
+    public static boolean isBuiltIn(@Nullable Context context, @Nullable String name) {
+        return name != null && builtIn(context).contains(name);
     }
 
     /* --------------------------------------------------------------- the loaded pack */
@@ -103,16 +172,17 @@ public final class ControlTextures {
      * editor activity, and the return from Settings that already reloads preferences and the
      * layout. Reloading is keyed on the name, so the common case is a string comparison.
      *
-     * @param name the selected pack's folder name, or null for none
+     * @param context used to reach the packs that ship in assets; disk-only without it
+     * @param name    the selected pack's folder name, or null for none
      */
-    public static void ensureLoaded(@Nullable String name) {
+    public static void ensureLoaded(@Nullable Context context, @Nullable String name) {
         if (loaded && equal(name, currentName)) return;
         loaded = true;
         currentName = name;
         current = null;
         if (name == null || name.isEmpty()) return;
         try {
-            current = load(name);
+            current = load(context, name);
         } catch (Throwable t) {
             // Never fatal: the controls simply come out in the flat skin.
             Log.w(TAG, "The texture pack \"" + name + "\" could not be loaded", t);
@@ -133,6 +203,40 @@ public final class ControlTextures {
         return current != null;
     }
 
+    /**
+     * Read one pack without disturbing the one in force, for showing it rather than wearing it.
+     *
+     * Settings needs every pack's face at once to draw the picker, which is a different question
+     * from "what are the controls wearing" and must not answer it: going through
+     * {@link #ensureLoaded} would leave the last pack listed loaded as the current one.
+     *
+     * @return the artwork, or null when there is no readable face under that name
+     */
+    @Nullable
+    public static ControlTexture read(@Nullable Context context, @Nullable String name) {
+        if (name == null || name.isEmpty()) return null;
+        try {
+            return load(context, name);
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not read the texture pack \"" + name + "\"", t);
+            return null;
+        }
+    }
+
+    /**
+     * One of a pack's files, exactly as it is stored.
+     *
+     * For copying a pack out rather than drawing it: re-encoding a decoded bitmap would hand back
+     * a different PNG from the one the author made, which for a pack being exported to be edited
+     * is the one thing it must not be.
+     */
+    @Nullable
+    public static byte[] readFile(@Nullable Context context, @NonNull String name,
+                                  @NonNull String fileName) {
+        Source source = sourceFor(context, name);
+        return source == null ? null : source.read(fileName);
+    }
+
     /** Forget the artwork, so the next {@link #ensureLoaded} reads from disk again. */
     public static void invalidate() {
         loaded = false;
@@ -140,20 +244,27 @@ public final class ControlTextures {
         currentName = null;
     }
 
+    /**
+     * Read one pack, from assets if the launcher ships it and from disk otherwise.
+     *
+     * Assets are tried first so a shipped pack always draws what it is supposed to: the name is
+     * what gets written into the preference, and a folder that turned up on disk under the same
+     * name would otherwise silently replace it.
+     */
     @Nullable
-    private static ControlTexture load(@NonNull String name) {
-        File root = dir();
-        if (root == null) return null;
-        File folder = new File(root, name);
-        Bitmap base = decode(new File(folder, BASE_FILE));
+    private static ControlTexture load(@Nullable Context context, @NonNull String name) {
+        Source source = sourceFor(context, name);
+        if (source == null) return null;
+        Bitmap base = source.decode(BASE_FILE);
         if (base == null) return null;
 
-        Bitmap pressed = decode(new File(folder, PRESSED_FILE));
+        Bitmap pressed = source.decode(PRESSED_FILE);
         if (pressed != null
                 && (pressed.getWidth() != base.getWidth() || pressed.getHeight() != base.getHeight())) {
             // Different dimensions would move the nine-slice grid on every press, which reads as
             // the button flickering rather than as it lighting up.
-            Log.w(TAG, PRESSED_FILE + " is not the same size as " + BASE_FILE + "; ignoring it");
+            Log.w(TAG, source.describe() + ": " + PRESSED_FILE + " is not the same size as "
+                    + BASE_FILE + "; ignoring it");
             pressed = null;
         }
 
@@ -161,8 +272,7 @@ public final class ControlTextures {
         boolean smooth = false;
         boolean darkLabel = false;
         try {
-            String json = Tools.read(new File(folder, PACK_FILE).getAbsolutePath());
-            JSONObject pack = new JSONObject(json);
+            JSONObject pack = new JSONObject(source.text(PACK_FILE));
             slice = pack.optInt("slice", 0);
             smooth = pack.optBoolean("smooth", false);
             darkLabel = "dark".equalsIgnoreCase(pack.optString("label", "light"));
@@ -181,33 +291,145 @@ public final class ControlTextures {
     }
 
     /**
-     * Read one PNG, or nothing.
+     * Where one pack's three files are coming from.
      *
-     * The bounds pass first, the same shape the launcher's own picture reading uses, but refusing
-     * rather than sampling — see {@link #MAX_DIMENSION}.
+     * The two places a pack can live differ only in how a named file inside it is opened, so that
+     * is the whole of what this abstracts. Everything else about reading a pack — which files, the
+     * size limit, what a missing one means — stays written once in {@link #load}.
      */
-    @Nullable
-    private static Bitmap decode(@NonNull File file) {
-        if (!file.isFile()) return null;
-        try {
-            BitmapFactory.Options bounds = new BitmapFactory.Options();
-            bounds.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(file.getAbsolutePath(), bounds);
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                Log.w(TAG, file.getName() + " is not a picture");
+    private abstract static class Source {
+        /** The bytes of one file, or null when it is not there. */
+        @Nullable abstract byte[] read(@NonNull String fileName);
+
+        /** Describes this pack in a log line, since a name alone would not say which one. */
+        @NonNull abstract String describe();
+
+        /**
+         * Read one PNG, or nothing.
+         *
+         * The bounds pass first, the same shape the launcher's own picture reading uses, but
+         * refusing rather than sampling — see {@link #MAX_DIMENSION}.
+         */
+        @Nullable
+        final Bitmap decode(@NonNull String fileName) {
+            byte[] bytes = read(fileName);
+            if (bytes == null) return null;
+            try {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    Log.w(TAG, describe() + "/" + fileName + " is not a picture");
+                    return null;
+                }
+                if (bounds.outWidth > MAX_DIMENSION || bounds.outHeight > MAX_DIMENSION) {
+                    Log.w(TAG, describe() + "/" + fileName + " is " + bounds.outWidth + "x"
+                            + bounds.outHeight + ", larger than " + MAX_DIMENSION + "; skipping it");
+                    return null;
+                }
+                return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not read " + describe() + "/" + fileName, t);
                 return null;
             }
-            if (bounds.outWidth > MAX_DIMENSION || bounds.outHeight > MAX_DIMENSION) {
-                Log.w(TAG, file.getName() + " is " + bounds.outWidth + "x" + bounds.outHeight
-                        + ", larger than " + MAX_DIMENSION + "; skipping it");
-                return null;
-            }
-            return BitmapFactory.decodeFile(file.getAbsolutePath());
-        } catch (Throwable t) {
-            Log.w(TAG, "Could not read " + file, t);
-            return null;
+        }
+
+        /** One file as text, or the empty string, which parses as no pack.json at all. */
+        @NonNull
+        final String text(@NonNull String fileName) {
+            byte[] bytes = read(fileName);
+            return bytes == null ? "" : new String(bytes, java.nio.charset.Charset.forName("UTF-8"));
         }
     }
+
+    @Nullable
+    private static Source sourceFor(@Nullable Context context, @NonNull String name) {
+        if (context != null && isBuiltIn(context, name)) {
+            return new AssetSource(context.getAssets(), BUILT_IN_DIR + "/" + name);
+        }
+        File root = dir();
+        return root == null ? null : new FileSource(new File(root, name));
+    }
+
+    private static final class AssetSource extends Source {
+        private final AssetManager assets;
+        private final String folder;
+
+        AssetSource(AssetManager assets, String folder) {
+            this.assets = assets;
+            this.folder = folder;
+        }
+
+        @Nullable
+        @Override
+        byte[] read(@NonNull String fileName) {
+            InputStream input = null;
+            try {
+                input = assets.open(folder + "/" + fileName);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) > 0) out.write(buffer, 0, count);
+                return out.toByteArray();
+            } catch (Throwable ignored) {
+                // Absent is the normal case for the two optional files, so it is not worth a line.
+                return null;
+            } finally {
+                if (input != null) try { input.close(); } catch (Throwable ignored) {}
+            }
+        }
+
+        @NonNull
+        @Override
+        String describe() {
+            return folder;
+        }
+    }
+
+    private static final class FileSource extends Source {
+        private final File folder;
+
+        FileSource(File folder) {
+            this.folder = folder;
+        }
+
+        @Nullable
+        @Override
+        byte[] read(@NonNull String fileName) {
+            File file = new File(folder, fileName);
+            if (!file.isFile()) return null;
+            try {
+                long length = file.length();
+                if (length <= 0 || length > MAX_FILE_BYTES) return null;
+                byte[] bytes = new byte[(int) length];
+                java.io.DataInputStream input =
+                        new java.io.DataInputStream(new java.io.FileInputStream(file));
+                try {
+                    input.readFully(bytes);
+                } finally {
+                    input.close();
+                }
+                return bytes;
+            } catch (Throwable t) {
+                Log.w(TAG, "Could not read " + file, t);
+                return null;
+            }
+        }
+
+        @NonNull
+        @Override
+        String describe() {
+            return folder.getName();
+        }
+    }
+
+    /**
+     * A ceiling on one file, so a pack is read into memory rather than a mistake being.
+     *
+     * The importer already caps a whole archive well below this; this is for a folder that got
+     * here some other way, which on a rooted device or an older Android it still can.
+     */
+    private static final long MAX_FILE_BYTES = 8L * 1024 * 1024;
 
     private static boolean equal(@Nullable String a, @Nullable String b) {
         return a == null ? b == null : a.equals(b);

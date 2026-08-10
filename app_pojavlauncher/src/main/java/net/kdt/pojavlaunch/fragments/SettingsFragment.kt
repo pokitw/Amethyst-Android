@@ -25,7 +25,10 @@ import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.contracts.OpenDocumentWithExtension
 import net.kdt.pojavlaunch.customcontrols.keyboard.VoiceInput
+import net.kdt.pojavlaunch.customcontrols.ControlSkin
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures
+import net.kdt.pojavlaunch.ui.settings.ControlStyleOption
+import net.kdt.pojavlaunch.customcontrols.textures.TexturePackExport
 import net.kdt.pojavlaunch.customcontrols.textures.TexturePackImport
 import net.kdt.pojavlaunch.multirt.MultiRTConfigDialog
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment
@@ -124,6 +127,28 @@ class SettingsFragment : Fragment() {
     }
 
     /** The device facts the screens show, none of which are snapshot state on their own. */
+    /**
+     * Every button style, with the artwork the rail needs to draw each one.
+     *
+     * The two flat styles first because they are what the launcher has always drawn, then the
+     * packs in the order {@code ControlTextures} offers them: the shipped ones, then whatever has
+     * been imported. A pack whose face will not decode still gets a tile, drawn as the flat skin,
+     * which is exactly what its buttons will do and is more use than quietly dropping it from a
+     * list the player put it in.
+     */
+    private fun controlStyles(context: android.content.Context): List<ControlStyleOption> {
+        val styles = mutableListOf(
+            ControlStyleOption(
+                ControlSkin.STYLE_LAYOUT, getString(R.string.preference_control_style_layout)),
+            ControlStyleOption(
+                ControlSkin.STYLE_POCKET, getString(R.string.preference_control_style_pocket))
+        )
+        for (name in ControlTextures.available(context)) {
+            styles += ControlStyleOption(name, name, ControlTextures.read(context, name))
+        }
+        return styles
+    }
+
     private fun readEnvironment(): SettingsEnvironment {
         val context = requireContext()
         val deviceMemory = Tools.getTotalDeviceMemory(context)
@@ -159,7 +184,7 @@ class SettingsFragment : Fragment() {
             maxMemoryMb = maxMemory,
             gyroAvailable = Tools.deviceSupportsGyro(context),
             voiceAvailable = VoiceInput.isAvailable(context),
-            texturePacks = ControlTextures.available(),
+            controlStyles = controlStyles(context),
             modCount = contentCount,
             notificationPermission = launcher?.checkForNotificationPermission() ?: true,
             microphonePermission = launcher?.checkForMicrophonePermission() ?: true,
@@ -224,22 +249,38 @@ class SettingsFragment : Fragment() {
             onWiki = { Tools.openURL(requireActivity(), Tools.URL_HOME) },
             onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) },
             onReplayWelcome = ::replayWelcome,
-            onImportTexturePack = ::pickTexturePack
+            onImportTexturePack = ::pickTexturePack,
+            onExportTexturePack = ::exportTexturePack
         )
     }
 
     /**
-     * Show the welcome again.
+     * Ask for an archive, taking anything.
      *
-     * The done flag is deliberately left set. Clearing it would put someone back through the flow
-     * on their *next* cold start as well, which is a setting nobody asked for; and
-     * [OnboardingActivity] writes the flag itself on the way out, so it is already true when this
-     * one ends. The activity is started plainly rather than through `TestStorageActivity`, since
-     * storage has clearly been sorted out by the time anyone is reading Settings.
+     * Not filtered to zips: Game files already learned that a picker narrowed by MIME type hides
+     * the file the player is looking at, because what a provider calls a zip varies by provider.
+     * What is inside decides whether it was a pack.
      */
     private fun pickTexturePack() {
         runCatching { texturePackLauncher.launch(arrayOf("*/*")) }
             .onFailure { toast(getString(R.string.preference_control_texture_failed)) }
+    }
+
+    /**
+     * Copy the style in force out to Downloads, so it can be edited and brought back.
+     *
+     * The current one rather than a blank template, because the shortest path to a pack of your
+     * own is changing the colours of one that already works, and because a blank canvas explains
+     * nothing about which parts of the picture get stretched.
+     */
+    private fun exportTexturePack() {
+        val style = SettingsStore(requireContext()).string("controlStyle", "pocket")
+        val result = TexturePackExport.export(requireContext(), ControlSkin.texturePackIn(style))
+        when (result.status) {
+            TexturePackExport.Status.SAVED ->
+                toast(getString(R.string.preference_control_texture_exported, result.fileName))
+            else -> toast(getString(R.string.preference_control_texture_export_failed))
+        }
     }
 
     /**
@@ -277,6 +318,15 @@ class SettingsFragment : Fragment() {
         Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
     }
 
+    /**
+     * Show the welcome again.
+     *
+     * The done flag is deliberately left set. Clearing it would put someone back through the flow
+     * on their *next* cold start as well, which is a setting nobody asked for; and
+     * [OnboardingActivity] writes the flag itself on the way out, so it is already true when this
+     * one ends. The activity is started plainly rather than through `TestStorageActivity`, since
+     * storage has clearly been sorted out by the time anyone is reading Settings.
+     */
     private fun replayWelcome() {
         startActivity(
             Intent(requireContext(), OnboardingActivity::class.java)

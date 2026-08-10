@@ -98,7 +98,8 @@ class SettingsActions(
     val onWiki: () -> Unit = {},
     val onDiscord: () -> Unit = {},
     val onReplayWelcome: () -> Unit = {},
-    val onImportTexturePack: () -> Unit = {}
+    val onImportTexturePack: () -> Unit = {},
+    val onExportTexturePack: () -> Unit = {}
 )
 
 /** Facts the screens show but cannot work out for themselves. */
@@ -112,13 +113,13 @@ class SettingsEnvironment(
     /** Whether anything on this device can transcribe speech at all. */
     val voiceAvailable: Boolean = true,
     /**
-     * The control texture packs installed, by folder name.
+     * Everything the buttons could look like: the two flat styles, then every pack.
      *
-     * Listed by the fragment and handed over, never scanned from inside the composition: a
-     * directory listing is not snapshot state, so a slider drag on this screen would stat the
-     * filesystem once a frame (§16.11).
+     * Built by the fragment and handed over, never gathered from inside the composition. Listing a
+     * directory and decoding eleven faces is not snapshot state, so doing it in a composable would
+     * mean a slider drag on this screen re-read the filesystem once a frame (§16.11).
      */
-    val texturePacks: List<String> = emptyList(),
+    val controlStyles: List<ControlStyleOption> = emptyList(),
     /** Roughly how much the profile owns, for the row that leads to it. */
     val modCount: Int = 0,
     val notificationPermission: Boolean = true,
@@ -828,14 +829,10 @@ private fun ControlsScreen(
             // separately which texture" — they think this is what my buttons look like. Two
             // controls would have needed a rule about which wins, and would have left the switch
             // doing nothing whenever a pack was chosen.
-            ChoiceRow(
+            ControlStyleRow(
                 title = stringResource(R.string.preference_control_style_title),
                 description = stringResource(R.string.preference_control_style_description),
-                names = listOf(
-                    stringResource(R.string.preference_control_style_layout),
-                    stringResource(R.string.preference_control_style_pocket)
-                ) + environment.texturePacks,
-                values = listOf("layout", "pocket") + environment.texturePacks,
+                options = environment.controlStyles,
                 selected = store.string("controlStyle",
                     if (store.bool("controlPocketSkin", true)) "pocket" else "layout"),
                 onSelect = { store.put("controlStyle", it) }
@@ -844,6 +841,11 @@ private fun ControlsScreen(
                 title = stringResource(R.string.preference_control_texture_add_title),
                 description = stringResource(R.string.preference_control_texture_add_description),
                 onClick = actions.onImportTexturePack
+            )
+            NavRow(
+                title = stringResource(R.string.preference_control_texture_export_title),
+                description = stringResource(R.string.preference_control_texture_export_description),
+                onClick = actions.onExportTexturePack
             )
             SwitchRow(
                 stringResource(R.string.preference_control_glyphs_title),

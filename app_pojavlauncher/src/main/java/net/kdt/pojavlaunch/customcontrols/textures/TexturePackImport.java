@@ -58,7 +58,7 @@ public final class TexturePackImport {
             return Result.FAILED;
         }
 
-        String folderName = uniqueName(root, baseName(context, uri));
+        String folderName = uniqueName(context, root, baseName(context, uri));
         File target = new File(root, folderName);
         if (!target.mkdirs()) {
             Log.w(TAG, "Could not create " + target);
@@ -176,12 +176,24 @@ public final class TexturePackImport {
     }
 
     @NonNull
-    private static String uniqueName(@NonNull File root, @NonNull String name) {
-        File candidate = new File(root, name);
-        for (int index = 2; candidate.exists() && index < 1000; index++) {
-            candidate = new File(root, name + " (" + index + ")");
+    /**
+     * A folder name nothing else answers to.
+     *
+     * Checked against the shipped packs as well as the folder, and that is not tidiness: a pack is
+     * loaded by name and the built-in ones are looked for first, so an import that landed on
+     * "Stone" would sit on disk unreachable, with the shipped Stone drawing in its place and
+     * nothing on screen to explain why.
+     */
+    @NonNull
+    private static String uniqueName(@NonNull Context context, @NonNull File root,
+                                     @NonNull String name) {
+        java.util.List<String> builtIn = ControlTextures.builtIn(context);
+        String candidate = name;
+        for (int index = 2; index < 1000; index++) {
+            if (!new File(root, candidate).exists() && !builtIn.contains(candidate)) break;
+            candidate = name + " (" + index + ")";
         }
-        return candidate.getName();
+        return candidate;
     }
 
     private static void deleteTree(@NonNull File root) {

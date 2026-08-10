@@ -149,6 +149,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "texture pack import install zip bedrock ore ui skin buttons custom"
     ),
     SettingEntry(
+        R.string.preference_control_texture_export_title, SettingsRoute.CONTROLS,
+        R.string.preference_control_texture_export_description, R.string.settings_section_style,
+        "texture pack export make create own edit template starter download custom buttons"
+    ),
+    SettingEntry(
         R.string.preference_control_glyphs_title, SettingsRoute.CONTROLS,
         R.string.preference_control_glyphs_description, R.string.settings_section_style,
         "icons glyphs symbols labels text jump sneak"
