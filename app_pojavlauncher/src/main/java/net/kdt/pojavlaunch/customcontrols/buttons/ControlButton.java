@@ -362,6 +362,15 @@ public class ControlButton extends TextView implements ControlInterface {
         // A button can be removed mid-press in the editor, and a dictation left running would
         // have nothing left to end it.
         endDictation();
+        // Same rule for a sequence: a posted step outlives the view it was posted on, so it is
+        // cancelled here, and a key sent down by a step that already ran must be sent up or it
+        // is held in the game forever. The keyboard host learned this first with latched keys.
+        removeCallbacks(mSequenceAdvance);
+        if(mSequenceHeldKey != GLFW_KEY_UNKNOWN){
+            sendSingleKey(mSequenceHeldKey, false);
+            mSequenceHeldKey = GLFW_KEY_UNKNOWN;
+        }
+        mSequenceRunning = false;
         super.onDetachedFromWindow();
     }
 
@@ -379,15 +388,86 @@ public class ControlButton extends TextView implements ControlInterface {
 
     public void sendKeyPresses(boolean isDown){
         setActivated(isDown);
-        for(int keycode : mProperties.keycodes){
-            if(keycode >= GLFW_KEY_UNKNOWN){
-                sendKeyPress(keycode, EfficientAndroidLWJGLKeycode.getLwjglChar(keycode), CallbackBridge.getCurrentMods(), isDown);
-                CallbackBridge.setModifiers(keycode, isDown);
-            }else{
-                Log.i("punjabilauncher", "sendSpecialKey("+keycode+","+isDown+")");
-                sendSpecialKey(keycode, isDown);
-            }
+        if(mProperties.sequence){
+            // One press runs the whole sequence; the release edge has nothing to add, because
+            // every step sends its own press and release. Ignoring the up edge is also what
+            // stops a toggle-style half-run: the finger lifting mid-sequence must not cut the
+            // pearl throw off between the slot switch and the click.
+            if(isDown) startSequence();
+            return;
         }
+        for(int keycode : mProperties.keycodes){
+            sendSingleKey(keycode, isDown);
+        }
+    }
+
+    /** One key of this button, pressed or released, special or not. */
+    private void sendSingleKey(int keycode, boolean isDown){
+        if(keycode >= GLFW_KEY_UNKNOWN){
+            sendKeyPress(keycode, EfficientAndroidLWJGLKeycode.getLwjglChar(keycode), CallbackBridge.getCurrentMods(), isDown);
+            CallbackBridge.setModifiers(keycode, isDown);
+        }else{
+            Log.i("punjabilauncher", "sendSpecialKey("+keycode+","+isDown+")");
+            sendSpecialKey(keycode, isDown);
+        }
+    }
+
+    /* A sequence in flight. GLFW_KEY_UNKNOWN (0 in this codebase) doubles as "nothing held",
+     * exactly as it doubles as "empty slot" in the keycodes array. */
+    private boolean mSequenceRunning;
+    private int mSequenceHeldKey = GLFW_KEY_UNKNOWN;
+    private int mSequenceIndex;
+    private final Runnable mSequenceAdvance = this::advanceSequence;
+
+    /**
+     * Fire the bound keys one after another, a game tick or more apart.
+     *
+     * The whole reason this exists is that Minecraft samples the hotbar once per tick: two slot
+     * switches inside one tick collapse into one, so a pearl-then-wind-charge move needs each
+     * step to land in its own tick. Every step is a full press and release, half the gap apart,
+     * so press-to-press spacing is exactly the gap.
+     *
+     * The whole run is <b>one</b> self-advancing runnable: each call sends one edge and books
+     * the next. That shape is what makes {@link #onDetachedFromWindow()} able to cancel it with
+     * a single removeCallbacks, where a queue of anonymous lambdas could not be taken back.
+     *
+     * A press while a sequence is running is ignored rather than queued: queued repeats are how
+     * a nervous double tap becomes four pearls.
+     */
+    private void startSequence(){
+        if(mSequenceRunning) return;
+        mSequenceRunning = true;
+        mSequenceIndex = 0;
+        advanceSequence();
+    }
+
+    private void advanceSequence(){
+        final int gap = Math.max(50, mProperties.sequenceGap == 0 ? 50 : mProperties.sequenceGap);
+        final int half = Math.max(25, gap / 2);
+        if(mSequenceHeldKey != GLFW_KEY_UNKNOWN){
+            // The release edge of the current step.
+            sendSingleKey(mSequenceHeldKey, false);
+            mSequenceHeldKey = GLFW_KEY_UNKNOWN;
+            if(mSequenceIndex < mProperties.keycodes.length){
+                postDelayed(mSequenceAdvance, half);
+            }else{
+                mSequenceRunning = false;
+            }
+            return;
+        }
+        // The press edge of the next bound key, skipping the array's empty slots.
+        while(mSequenceIndex < mProperties.keycodes.length
+                && mProperties.keycodes[mSequenceIndex] == GLFW_KEY_UNKNOWN){
+            mSequenceIndex++;
+        }
+        if(mSequenceIndex >= mProperties.keycodes.length){
+            mSequenceRunning = false;
+            return;
+        }
+        int keycode = mProperties.keycodes[mSequenceIndex++];
+        sendSingleKey(keycode, true);
+        mSequenceHeldKey = keycode;
+        postDelayed(mSequenceAdvance, half);
     }
 
     private void sendSpecialKey(int keycode, boolean isDown){

@@ -95,6 +95,10 @@ class ControlEditorState(val button: ControlInterface) {
         private set
     var isToggle by mutableStateOf(data.isToggle)
         private set
+    var sequence by mutableStateOf(data.sequence)
+        private set
+    var sequenceGap by mutableStateOf(if (data.sequenceGap > 0) data.sequenceGap else 50)
+        private set
     var isSwipeable by mutableStateOf(data.isSwipeable)
         private set
     var passThrough by mutableStateOf(data.passThruEnabled)
@@ -197,9 +201,26 @@ class ControlEditorState(val button: ControlInterface) {
     fun applyToggle(value: Boolean) {
         isToggle = value
         data.isToggle = value
+        // The two are answers to opposite questions: a toggle holds its keys until the next tap,
+        // a sequence presses and releases them on a clock. Turning one on turns the other off,
+        // visibly in the panel, rather than leaving a written combination whose meaning nobody
+        // could predict from the two switch labels.
+        if (value && sequence) applySequence(false)
         // The toggle overlay is tinted differently from the press flash, and that colour is
         // chosen in setProperties.
         button.setProperties(data, false)
+    }
+
+    fun applySequence(value: Boolean) {
+        sequence = value
+        data.sequence = value
+        data.sequenceGap = sequenceGap
+        if (value && isToggle) applyToggle(false)
+    }
+
+    fun applySequenceGap(value: Int) {
+        sequenceGap = value
+        data.sequenceGap = value
     }
 
     fun applySwipeable(value: Boolean) {

@@ -120,6 +120,10 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // "Part" because upstream has the joystick control; what it does not have is the finished
     // layout, which you assemble yourself in the editor. Shipping it ready-made is the feature.
     ComparisonRow(R.string.onboarding_row_bedrock, Support.PARTIAL, Support.YES),
+    // "Part" for upstream because a button there does hold four keys at once; what it cannot do
+    // is press them one after another, which is the half a combo move actually needs. Upstream
+    // said no to macros in as many words, so this row is a real difference, not a tie.
+    ComparisonRow(R.string.onboarding_row_sequence, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.NO),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )

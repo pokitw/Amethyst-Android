@@ -211,6 +211,24 @@ fun ControlEditorPanel(
                             state::applyToggle
                         )
                         SwitchRow(
+                            stringResource(R.string.control_editor_sequence),
+                            stringResource(R.string.control_editor_sequence_description),
+                            state.sequence,
+                            state::applySequence
+                        )
+                        // Only while the mode is on: a slider that does nothing is the one thing
+                        // a settings surface must never show. The floor is one game tick, which
+                        // is the least that makes two hotbar switches land as two.
+                        if (state.sequence) {
+                            LiveSlider(
+                                title = stringResource(R.string.control_editor_sequence_gap),
+                                value = state.sequenceGap.toFloat(),
+                                range = 50f..300f,
+                                format = { "${it.roundToInt()} ms" },
+                                onValueChange = { state.applySequenceGap(it.roundToInt()) }
+                            )
+                        }
+                        SwitchRow(
                             stringResource(R.string.control_editor_swipe),
                             stringResource(R.string.control_editor_swipe_description),
                             state.isSwipeable,

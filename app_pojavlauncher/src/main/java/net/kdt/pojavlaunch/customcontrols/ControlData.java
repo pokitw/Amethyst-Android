@@ -84,6 +84,17 @@ public class ControlData {
     public boolean isSwipeable;
     public boolean displayInGame;
     public boolean displayInMenu;
+    /**
+     * Fire the bound keys one after another instead of together.
+     *
+     * The community's ask, in their own words: swap to the pearl slot, use it, swap to the wind
+     * charge, use it, on one button. The game reads the hotbar once a tick, so two slot switches
+     * in one tick are one switch; the gap below is what makes each step land. Absent from old
+     * layouts, so Gson leaves it false and every existing button behaves exactly as before.
+     */
+    public boolean sequence;
+    /** Milliseconds between sequence steps. 0 means the default; one game tick (50) is the floor. */
+    public int sequenceGap;
     private float width;         //Dp instead of Px now
     private float height;        //Dp instead of Px now
 
@@ -170,6 +181,10 @@ public class ControlData {
                 controlData.isSwipeable,
                 controlData.passThruEnabled
         );
+        // Not in the sixteen-argument constructor, which upstream code also calls: additive
+        // fields ride along here so a duplicated button keeps its sequence behaviour.
+        this.sequence = controlData.sequence;
+        this.sequenceGap = controlData.sequenceGap;
     }
 
     public static ControlData[] getSpecialButtons() {
