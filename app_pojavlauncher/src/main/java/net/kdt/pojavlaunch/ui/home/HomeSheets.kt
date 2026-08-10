@@ -44,6 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.ui.common.AppSheetHeading
 import net.kdt.pojavlaunch.ui.theme.Amethyst70
 
 /**
@@ -69,7 +70,7 @@ fun VersionSheet(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
-        SheetHeading(
+        AppSheetHeading(
             stringResource(R.string.home_choose_version_title),
             stringResource(R.string.home_choose_version_hint)
         )
@@ -175,7 +176,7 @@ fun AccountSheet(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
-        SheetHeading(
+        AppSheetHeading(
             stringResource(R.string.home_choose_account_title),
             stringResource(
                 if (accounts.isEmpty()) R.string.home_choose_account_empty
@@ -283,23 +284,6 @@ private fun AccountRow(
                 tint = MaterialTheme.colorScheme.primary
             )
         }
-    }
-}
-
-@Composable
-private fun SheetHeading(title: String, hint: String) {
-    Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 14.dp)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            hint,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 

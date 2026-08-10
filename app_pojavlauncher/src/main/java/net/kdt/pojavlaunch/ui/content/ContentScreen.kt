@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,18 +26,15 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -51,14 +49,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.ui.common.AppEmptyState
+import net.kdt.pojavlaunch.ui.common.AppSearchField
+import net.kdt.pojavlaunch.ui.common.AppSheetHeading
 import net.kdt.pojavlaunch.ui.common.LazyAppScaffold
 import net.kdt.pojavlaunch.ui.settings.ChoiceRow
 import net.kdt.pojavlaunch.ui.settings.InfoRow
@@ -126,95 +127,106 @@ fun ContentScreen(
 ) {
     var confirming by remember { mutableStateOf<ContentItem?>(null) }
     var adding by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
 
-    LazyAppScaffold(
-        title = stringResource(R.string.content_title),
-        subtitle = state.profileLabel,
-        onBack = onBack,
-        barAction = { AddButton { adding = true } }
-    ) {
-        item(key = "search") {
-            Column {
-                Spacer(Modifier.height(4.dp))
-                SearchField(query, onQuery)
-                Spacer(Modifier.height(18.dp))
-                SettingsCard {
-                    InfoRow(
-                        title = stringResource(R.string.content_storage),
-                        value = state.storageLine
-                    )
-                    ChoiceRow(
-                        title = stringResource(R.string.content_show),
-                        names = filterNames(),
-                        values = FILTER_VALUES,
-                        selected = state.filterLabel,
-                        onSelect = onFilter
-                    )
-                }
-                // The gesture that is not obvious, named once, the way every sheet in the app
-                // names its long press. A delete link on every row would put the one irreversible
-                // action on this screen under a scrolling thumb four hundred times over.
-                Spacer(Modifier.height(9.dp))
-                Text(
-                    stringResource(R.string.content_hold_hint),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
-        }
-
-        if (state.loading && state.total == 0) {
-            item(key = "skeleton") {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        LazyAppScaffold(
+            title = stringResource(R.string.content_title),
+            subtitle = state.profileLabel,
+            onBack = onBack,
+            barAction = { AddButton { adding = true } }
+        ) {
+            item(key = "search") {
                 Column {
-                    SectionLabel(stringResource(R.string.content_loading))
-                    SkeletonCard()
-                }
-            }
-        } else if (state.sections.isEmpty()) {
-            item(key = "empty") {
-                Column {
-                    Spacer(Modifier.height(22.dp))
-                    EmptyState(state.searching, state.filtered) { adding = true }
-                }
-            }
-        } else {
-            for (section in state.sections) {
-                item(key = "head-" + section.kind.name) { SectionLabel(section.heading) }
-                // Every row is its own lazy item, and the card is rebuilt from their corners.
-                //
-                // Putting the section inside one `SettingsCard` would have read identically and
-                // composed every row in it the moment the section scrolled into view — four
-                // hundred screenshots in a single item is a LazyColumn that is not lazy, which is
-                // the whole reason this screen is not built on `AppScaffold` in the first place.
-                itemsIndexed(
-                    section.items,
-                    key = { _, entry -> entry.kind.name + "/" + entry.id }
-                ) { index, entry ->
-                    ContentRow(
-                        item = entry,
-                        shape = groupedShape(index, section.items.size),
-                        onToggle = onToggle,
-                        onDelete = { confirming = it },
-                        onOpen = onOpen,
-                        onNeedThumbnail = onNeedThumbnail
+                    Spacer(Modifier.height(14.dp))
+                    AppSearchField(
+                        query = query,
+                        onQueryChange = onQuery,
+                        placeholder = stringResource(R.string.content_search_hint),
+                        modifier = Modifier.fillMaxWidth(),
+                        // Search here filters as you type, so the IME's Search key has nothing
+                        // to submit; dismissing the keyboard is the useful thing left for it.
+                        onSubmit = { focus.clearFocus() }
+                    )
+                    Spacer(Modifier.height(18.dp))
+                    SettingsCard {
+                        InfoRow(
+                            title = stringResource(R.string.content_storage),
+                            value = state.storageLine
+                        )
+                        ChoiceRow(
+                            title = stringResource(R.string.content_show),
+                            names = filterNames(),
+                            values = FILTER_VALUES,
+                            selected = state.filterLabel,
+                            onSelect = onFilter
+                        )
+                    }
+                    // The gesture that is not obvious, named once, the way every sheet in the app
+                    // names its long press. A delete link on every row would put the one irreversible
+                    // action on this screen under a scrolling thumb four hundred times over.
+                    Spacer(Modifier.height(9.dp))
+                    Text(
+                        stringResource(R.string.content_hold_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
                 }
             }
-        }
 
-        item(key = "footer") {
-            Column {
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    stringResource(R.string.content_open_folder),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable(onClick = onOpenFolder)
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                )
+            if (state.loading && state.total == 0) {
+                item(key = "skeleton") {
+                    Column {
+                        SectionLabel(stringResource(R.string.content_loading))
+                        SkeletonCard()
+                    }
+                }
+            } else if (state.sections.isEmpty()) {
+                item(key = "empty") {
+                    Column {
+                        Spacer(Modifier.height(22.dp))
+                        EmptyState(state.searching, state.filtered, query) { adding = true }
+                    }
+                }
+            } else {
+                for (section in state.sections) {
+                    item(key = "head-" + section.kind.name) { SectionLabel(section.heading) }
+                    // Every row is its own lazy item, and the card is rebuilt from their corners.
+                    //
+                    // Putting the section inside one `SettingsCard` would have read identically and
+                    // composed every row in it the moment the section scrolled into view — four
+                    // hundred screenshots in a single item is a LazyColumn that is not lazy, which is
+                    // the whole reason this screen is not built on `AppScaffold` in the first place.
+                    itemsIndexed(
+                        section.items,
+                        key = { _, entry -> entry.kind.name + "/" + entry.id }
+                    ) { index, entry ->
+                        ContentRow(
+                            item = entry,
+                            shape = groupedShape(index, section.items.size),
+                            onToggle = onToggle,
+                            onDelete = { confirming = it },
+                            onOpen = onOpen,
+                            onNeedThumbnail = onNeedThumbnail
+                        )
+                    }
+                }
+            }
+
+            item(key = "footer") {
+                Column {
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        stringResource(R.string.content_open_folder),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable(onClick = onOpenFolder)
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
             }
         }
     }
@@ -231,7 +243,15 @@ fun ContentScreen(
     if (target != null) {
         AlertDialog(
             onDismissRequest = { confirming = null },
-            title = { Text(stringResource(R.string.content_delete_title, target.title)) },
+            title = {
+                Text(
+                    // Pinned to titleMedium like every dialog in the settings vocabulary: this
+                    // one interpolates a file name, and a jar's name at the Material default
+                    // wraps to three display lines above the body copy.
+                    stringResource(R.string.content_delete_title, target.title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
             text = {
                 Text(
                     stringResource(
@@ -290,65 +310,6 @@ private fun groupedShape(index: Int, count: Int): RoundedCornerShape {
         bottomEnd = if (last) card.bottomEnd else flat,
         bottomStart = if (last) card.bottomStart else flat
     )
-}
-
-/**
- * The search field.
- *
- * Deliberately the same object as Settings' way into search — same circle, same padding, same
- * nineteen-pixel icon, same `bodyLarge` hint. The only difference is that this one is the field
- * rather than a button to one, because there is nowhere else for the results to go.
- */
-@Composable
-private fun SearchField(query: String, onQuery: (String) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(CircleShape)
-            .background(colors.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Filled.Search,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(19.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-                Text(
-                    stringResource(R.string.content_search_hint),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQuery,
-                singleLine = true,
-                textStyle = LocalTextStyle.current.merge(
-                    MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface)
-                ),
-                cursorBrush = SolidColor(colors.primary),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-        if (query.isNotEmpty()) {
-            Icon(
-                Icons.Filled.Close,
-                contentDescription = stringResource(R.string.content_search_clear),
-                tint = colors.onSurfaceVariant,
-                modifier = Modifier
-                    .size(19.dp)
-                    .clickable { onQuery("") }
-            )
-        }
-    }
 }
 
 /**
@@ -550,58 +511,55 @@ private fun Modifier.shimmer(): Modifier {
     return background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = progress))
 }
 
-/** The first thing a new profile shows, so it says what to do rather than that there is nothing. */
+/**
+ * The first thing a new profile shows, so it says what to do rather than that there is nothing.
+ *
+ * All three states get a second line now. A search or a filter that found nothing used to get the
+ * title alone, which made this the one place Settings' equivalent was more helpful than Game
+ * files. The button stays behind the un-searched case: "add something" answers an empty folder
+ * and does not answer "nothing matches those words".
+ */
 @Composable
-private fun EmptyState(searching: Boolean, filtered: Boolean, onAdd: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .background(colors.surfaceContainer)
-            .padding(horizontal = 20.dp, vertical = 34.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        SlotWell(size = 60.dp) {
-            Icon(
-                painterResource(R.drawable.ic_x_files),
-                contentDescription = null,
-                tint = colors.primary,
-                modifier = Modifier.size(26.dp)
-            )
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(
-                when {
-                    searching -> R.string.content_empty_search
-                    filtered -> R.string.content_empty_filter
-                    else -> R.string.content_empty_all
-                }
-            ),
-            style = MaterialTheme.typography.titleMedium,
-            color = colors.onSurface
-        )
-        if (!searching && !filtered) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                stringResource(R.string.content_empty_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant
-            )
-            Spacer(Modifier.height(18.dp))
+private fun EmptyState(
+    searching: Boolean,
+    filtered: Boolean,
+    query: String,
+    onAdd: () -> Unit
+) {
+    // Branched whole rather than as a `when` inside one stringResource call: the search title
+    // takes a format argument and the other two do not, and a `when` over the mixed shapes
+    // unifies to Any and matches neither overload.
+    val title = when {
+        searching -> stringResource(R.string.content_empty_search, query.trim())
+        filtered -> stringResource(R.string.content_empty_filter)
+        else -> stringResource(R.string.content_empty_all)
+    }
+    val body = when {
+        searching -> stringResource(R.string.content_empty_search_hint)
+        filtered -> stringResource(R.string.content_empty_filter_hint)
+        else -> stringResource(R.string.content_empty_body)
+    }
+    val action: (@Composable () -> Unit)? =
+        if (searching || filtered) null
+        else ({
             Text(
                 stringResource(R.string.content_add),
                 style = MaterialTheme.typography.titleSmall,
                 color = Amethyst20,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .background(colors.primary)
+                    .background(MaterialTheme.colorScheme.primary)
                     .clickable(onClick = onAdd)
                     .padding(horizontal = 22.dp, vertical = 11.dp)
             )
-        }
-    }
+        })
+
+    AppEmptyState(
+        iconRes = R.drawable.ic_x_files,
+        title = title,
+        body = body,
+        action = action
+    )
 }
 
 @Composable
@@ -647,19 +605,20 @@ private fun AddSheet(onDismiss: () -> Unit, onBrowse: () -> Unit, onPick: () -> 
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Text(
-                stringResource(R.string.content_add_title),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(Modifier.height(14.dp))
+        AppSheetHeading(
+            stringResource(R.string.content_add_title),
+            stringResource(R.string.content_add_hint)
+        )
+        Column(
+            Modifier.padding(horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             // The arrow landing on a shelf is the download; the folder is the file you already
             // have. They were the wrong way round in the first draft.
             AddChoice(R.drawable.ic_x_install, R.string.content_add_from_modrinth, onBrowse)
-            Spacer(Modifier.height(8.dp))
             AddChoice(R.drawable.ic_x_files, R.string.content_add_from_file, onPick)
         }
+        Spacer(Modifier.height(16.dp))
     }
 }
 

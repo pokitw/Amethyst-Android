@@ -726,6 +726,9 @@
     <string name="mods_browse_rate_limited">Modrinth is asking us to slow down. Wait a moment and search again.</string>
     <string name="mods_browse_server_error">Modrinth answered with an error. Try again in a moment.</string>
     <string name="mods_browse_empty">Nothing matched. Try fewer words, or tap the filter above to look beyond this profile\'s version.</string>
+    <string name="mods_browse_empty_title">Nothing matched</string>
+    <string name="mods_browse_empty_body">Try a shorter word, or a different spelling.</string>
+    <string name="mods_browse_empty_filtered">Try a shorter word, or turn off the filter above to look beyond this profile.</string>
     <string name="mods_browse_no_loader">This profile has no mod loader, so it cannot run mods. Edit the profile and pick a Fabric, Quilt, Forge or NeoForge version first.</string>
     <string name="mods_browse_no_loader_short">This profile has no mod loader. Pick a Fabric, Quilt, Forge or NeoForge version first.</string>
     <string name="mods_browse_already_installed">Already in this profile\'s mods folder.</string>
@@ -734,6 +737,7 @@
     <string name="mods_browse_install_failed">That mod could not be downloaded.</string>
     <string name="mods_browse_no_folder">Could not create the mods folder for this profile.</string>
     <string name="content_add_title">Add to this profile</string>
+    <string name="content_add_hint">What you pick decides where it goes.</string>
     <string name="content_add_from_modrinth">Search Modrinth</string>
     <string name="content_add_from_file">Pick a file</string>
     <string name="content_title">Game files</string>
@@ -768,8 +772,10 @@
     <string name="content_kind_screenshots">Screenshots</string>
 
     <string name="content_empty_all">Nothing here yet</string>
-    <string name="content_empty_search">Nothing matches that</string>
+    <string name="content_empty_search">Nothing matches “%1$s”</string>
+    <string name="content_empty_search_hint">Try a shorter word, or part of the file name.</string>
     <string name="content_empty_filter">None of those yet</string>
+    <string name="content_empty_filter_hint">Set Show back to All to see everything in this profile.</string>
     <string name="content_empty_body">Add a .jar or a .zip and it goes where it belongs on its own.</string>
     <string name="content_empty_worlds">No worlds yet</string>
     <string name="content_empty_mods">No mods yet</string>

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -14,15 +15,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,13 +28,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
@@ -45,6 +41,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.modloaders.modpacks.api.ModrinthMods
+import net.kdt.pojavlaunch.ui.common.AppEmptyState
+import net.kdt.pojavlaunch.ui.common.AppSearchField
 import net.kdt.pojavlaunch.ui.common.LazyAppScaffold
 import net.kdt.pojavlaunch.ui.settings.SettingsCard
 import net.kdt.pojavlaunch.ui.settings.SwitchRow
@@ -102,114 +100,98 @@ fun ModBrowserScreen(
         }
     }
 
-    LazyAppScaffold(
-        title = stringResource(R.string.mods_browse_title),
-        subtitle = state.target.name.ifEmpty { null },
-        onBack = onBack,
-        state = listState
-    ) {
-        item(key = "search") {
-            Column {
-                Spacer(Modifier.height(4.dp))
-                SearchBar(state.query, onQuery) {
-                    focus.clearFocus()
-                    onSearch()
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+        LazyAppScaffold(
+            title = stringResource(R.string.mods_browse_title),
+            subtitle = state.target.name.ifEmpty { null },
+            onBack = onBack,
+            state = listState
+        ) {
+            item(key = "search") {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    AppSearchField(
+                        query = state.query,
+                        onQueryChange = onQuery,
+                        placeholder = stringResource(R.string.mods_browse_hint),
+                        modifier = Modifier.fillMaxWidth(),
+                        onSubmit = { focus.clearFocus(); onSearch() }
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    FilterRow(state, onToggleFilter)
+                    Spacer(Modifier.height(18.dp))
                 }
-                Spacer(Modifier.height(12.dp))
-                FilterRow(state, onToggleFilter)
-                Spacer(Modifier.height(18.dp))
             }
-        }
 
-        if (state.targetKnown && !state.target.canRunMods) {
-            item(key = "vanilla") {
-                Notice(stringResource(R.string.mods_browse_no_loader))
-                Spacer(Modifier.height(14.dp))
+            if (state.targetKnown && !state.target.canRunMods) {
+                item(key = "vanilla") {
+                    Notice(stringResource(R.string.mods_browse_no_loader))
+                    Spacer(Modifier.height(14.dp))
+                }
             }
-        }
 
-        when {
-            state.loading -> item(key = "loading") { Centred { Spinner() } }
-            state.failed -> item(key = "failed") {
-                Notice(stringResource(
-                    when (state.failure) {
-                        ModrinthMods.Failure.RATE_LIMITED -> R.string.mods_browse_rate_limited
-                        ModrinthMods.Failure.SERVER -> R.string.mods_browse_server_error
-                        else -> R.string.mods_browse_failed
+            when {
+                state.loading -> item(key = "loading") { Centred { Spinner() } }
+                state.failed -> item(key = "failed") {
+                    Notice(
+                        error = true,
+                        text = stringResource(
+                            when (state.failure) {
+                                ModrinthMods.Failure.RATE_LIMITED -> R.string.mods_browse_rate_limited
+                                ModrinthMods.Failure.SERVER -> R.string.mods_browse_server_error
+                                else -> R.string.mods_browse_failed
+                            }
+                        )
+                    )
+                }
+                state.empty -> item(key = "empty") {
+                    Column {
+                        Spacer(Modifier.height(22.dp))
+                        AppEmptyState(
+                            // The files glyph, deliberately not the install one: the install mark is
+                            // on every row's button, and accent-tinted above "Nothing matched" it
+                            // would read as an offer to install.
+                            iconRes = R.drawable.ic_x_files,
+                            title = stringResource(R.string.mods_browse_empty_title),
+                            body = stringResource(
+                                // Pointing at a filter that is already off would send someone to fix
+                                // the one thing that is not the problem, which is the same rule the
+                                // failure messages here already follow.
+                                if (state.filtered && state.target.filterLabel.isNotEmpty()) {
+                                    R.string.mods_browse_empty_filtered
+                                } else {
+                                    R.string.mods_browse_empty_body
+                                }
+                            )
+                        )
                     }
-                ))
+                }
             }
-            state.empty -> item(key = "empty") {
-                Notice(stringResource(R.string.mods_browse_empty))
-            }
-        }
 
-        if (state.rows.isNotEmpty()) {
-            item(key = "label") { SectionLabel(stringResource(R.string.mods_browse_results)) }
-            // Each row is its own lazy item and the card's corners are rebuilt from its position,
-            // which is the same shape Game files uses: one SettingsCard around the whole list
-            // would compose every row the moment the section scrolled into view.
-            itemsIndexed(state.rows, key = { _, row -> row.hit.projectId }) { index, row ->
-                LaunchedEffect(row.hit.projectId) { if (row.icon == null) onNeedIcon(row) }
-                ModResultRow(
-                    row = row,
-                    shape = groupedShape(index, state.rows.size),
-                    enabled = state.targetKnown && state.target.canRunMods,
-                    onInstall = { onInstall(row) }
-                )
+            if (state.rows.isNotEmpty()) {
+                item(key = "label") { SectionLabel(stringResource(R.string.mods_browse_results)) }
+                // Each row is its own lazy item and the card's corners are rebuilt from its position,
+                // which is the same shape Game files uses: one SettingsCard around the whole list
+                // would compose every row the moment the section scrolled into view.
+                itemsIndexed(state.rows, key = { _, row -> row.hit.projectId }) { index, row ->
+                    LaunchedEffect(row.hit.projectId) { if (row.icon == null) onNeedIcon(row) }
+                    ModResultRow(
+                        row = row,
+                        shape = groupedShape(index, state.rows.size),
+                        enabled = state.targetKnown && state.target.canRunMods,
+                        onInstall = { onInstall(row) }
+                    )
+                }
+            }
+
+            if (state.loadingMore) {
+                item(key = "more") { Centred { Spinner() } }
             }
         }
-
-        if (state.loadingMore) {
-            item(key = "more") { Centred { Spinner() } }
-        }
-        item(key = "tail") { Spacer(Modifier.height(28.dp)) }
     }
 }
 
 /* ------------------------------------------------------------------ pieces */
-
-@Composable
-private fun SearchBar(query: String, onQuery: (String) -> Unit, onGo: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(CircleShape)
-            .background(colors.surfaceContainer)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Filled.Search,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(19.dp)
-        )
-        Spacer(Modifier.width(12.dp))
-        Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-                Text(
-                    stringResource(R.string.mods_browse_hint),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQuery,
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
-                cursorBrush = SolidColor(colors.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onGo() }),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
 
 /**
  * The switch that narrows the search to what this profile can run.
@@ -256,14 +238,14 @@ private fun ModResultRow(
             .padding(horizontal = 15.dp, vertical = 13.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SlotWell(size = 44.dp) {
+            SlotWell(size = 38.dp) {
                 val icon = row.icon
                 if (icon != null) {
                     Image(
                         BitmapPainter(icon),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp))
+                        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(9.dp))
                     )
                 } else {
                     Icon(
@@ -274,7 +256,7 @@ private fun ModResultRow(
                     )
                 }
             }
-            Spacer(Modifier.width(13.dp))
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     row.hit.title,
@@ -292,10 +274,15 @@ private fun ModResultRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(3.dp))
+                // The row's current-value line, in accent labelLarge like every other row in
+                // the launcher. This was the one list whose third line was grey, and that accent
+                // line is exactly what makes a long list scannable.
                 Text(
                     downloadsLabel(row.hit.downloads),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.onSurfaceVariant
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Spacer(Modifier.width(10.dp))
@@ -321,12 +308,11 @@ private fun InstallButton(row: ModRow, enabled: Boolean, onInstall: () -> Unit) 
         Modifier
             .size(40.dp)
             .clip(CircleShape)
+            // Never a filled accent: this is a repeating row control, not the screen's one
+            // primary action, and twenty solid violet discs is the accent as decoration.
             .background(
-                when {
-                    done -> colors.primary.copy(alpha = 0.16f)
-                    !enabled -> colors.surfaceContainerHighest
-                    else -> colors.primary
-                }
+                if (done) colors.primary.copy(alpha = 0.13f)
+                else colors.surfaceContainerHighest
             )
             // Always tappable, deliberately. This shipped once as a button that was inert
             // whenever the profile could not run mods, which reads as a broken screen, not as a
@@ -343,7 +329,7 @@ private fun InstallButton(row: ModRow, enabled: Boolean, onInstall: () -> Unit) 
         when {
             row.state == InstallState.WORKING -> CircularProgressIndicator(
                 strokeWidth = 2.dp,
-                color = colors.onPrimary,
+                color = colors.primary,
                 modifier = Modifier.size(18.dp)
             )
             done -> Icon(
@@ -355,20 +341,28 @@ private fun InstallButton(row: ModRow, enabled: Boolean, onInstall: () -> Unit) 
             else -> Icon(
                 painterResource(R.drawable.ic_x_install),
                 contentDescription = stringResource(R.string.mods_browse_install),
-                tint = if (enabled) colors.onPrimary else colors.onSurfaceVariant,
+                tint = if (enabled) colors.primary else colors.onSurfaceVariant,
                 modifier = Modifier.size(19.dp)
             )
         }
     }
 }
 
+/**
+ * A paragraph in a card, for the things that are not a list.
+ *
+ * The error colour is not decoration: a failure and a piece of advice were drawn identically
+ * here, so "Modrinth is rate limiting" read exactly like "this profile has no mod loader". The
+ * error token is what every other failure in the launcher wears.
+ */
 @Composable
-private fun Notice(text: String) {
+private fun Notice(text: String, error: Boolean = false) {
     SettingsCard {
         Text(
             text,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (error) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 15.dp, vertical = 14.dp)
         )
     }
