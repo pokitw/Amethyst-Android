@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.text.style.TextOverflow
 import net.kdt.pojavlaunch.customcontrols.ControlSkin
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTexture
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTextureDrawable
