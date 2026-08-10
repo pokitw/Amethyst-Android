@@ -692,6 +692,7 @@
     <string name="onboarding_row_controls">Redesigned controls</string>
     <string name="onboarding_row_textures">Button texture packs</string>
     <string name="onboarding_row_bedrock">Ready-made Bedrock layout</string>
+    <string name="onboarding_row_sequence">Timed key sequences</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_size">Smaller download</string>
 
@@ -715,6 +716,8 @@
     <string name="mods_browse_server_error">Modrinth answered with an error. Try again in a moment.</string>
     <string name="mods_browse_empty">Nothing matched. Try fewer words, or tap the filter above to look beyond this profile\'s version.</string>
     <string name="mods_browse_no_loader">This profile has no mod loader, so it cannot run mods. Edit the profile and pick a Fabric, Quilt, Forge or NeoForge version first.</string>
+    <string name="mods_browse_no_loader_short">This profile has no mod loader. Pick a Fabric, Quilt, Forge or NeoForge version first.</string>
+    <string name="mods_browse_already_installed">Already in this profile\'s mods folder.</string>
     <string name="mods_browse_no_profile">There is no profile to install into.</string>
     <string name="mods_browse_no_version">No version of this mod fits this profile.</string>
     <string name="mods_browse_install_failed">That mod could not be downloaded.</string>
@@ -794,6 +797,9 @@
     <string name="control_editor_colour_blue">Blue</string>
     <string name="control_editor_toggle">Stay pressed</string>
     <string name="control_editor_toggle_description">One tap holds the key down, the next lets it up.</string>
+    <string name="control_editor_sequence">Press keys in order</string>
+    <string name="control_editor_sequence_description">One tap presses each bound key in turn, with a pause between. Bind the pearl slot, right click, the wind charge slot, right click, and one button does the whole move.</string>
+    <string name="control_editor_sequence_gap">Pause between keys</string>
     <string name="control_editor_swipe">Release when you slide off</string>
     <string name="control_editor_swipe_description">Sliding your thumb off the button lets the key up, so you can run your finger across a row of them.</string>
     <string name="control_editor_passthrough">Pass touches through</string>

@@ -3,6 +3,7 @@ package net.kdt.pojavlaunch.ui.mods
 import android.util.Log
 import net.kdt.pojavlaunch.JMinecraftVersionList
 import net.kdt.pojavlaunch.Tools
+import net.kdt.pojavlaunch.prefs.LauncherPreferences
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles
 import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile
 import java.io.File
@@ -67,9 +68,28 @@ private val LOADERS = listOf(
  */
 private val MC_VERSION = Regex("""1\.\d{1,2}(\.\d{1,2})?""")
 
+/**
+ * Read on the main thread, like every other reader of [LauncherProfiles] (see handbook, 12.7):
+ * the statics it touches are unsynchronised and shared with the launch path.
+ *
+ * Resolved the way the home screen resolves it, not through `getCurrentProfile()`: that method
+ * assumes the store is already loaded and <i>throws</i> when the selected key is missing, which
+ * is the ordinary state of a fresh launcher process. Swallowing that throw is how this screen
+ * shipped with an install button that was silently dead.
+ */
 fun currentModTarget(): ModTarget {
-    val profile = runCatching { LauncherProfiles.getCurrentProfile() }.getOrNull()
-        ?: return ModTarget("", null, null, null, null)
+    val profile = runCatching {
+        LauncherProfiles.load()
+        val key = LauncherPreferences.DEFAULT_PREF
+            .getString(LauncherPreferences.PREF_KEY_CURRENT_PROFILE, null)
+            ?.takeIf { it.isNotEmpty() }
+        LauncherProfiles.mainProfileJson?.profiles?.let { profiles ->
+            // The launcher's own selection first; failing that, the only profile there is.
+            // A player with exactly one profile has unambiguously told us which one they mean,
+            // and an empty screen because a preference was never written helps nobody.
+            key?.let(profiles::get) ?: profiles.values.singleOrNull()
+        }
+    }.getOrNull() ?: return ModTarget("", null, null, null, null)
     val versionId = profile.lastVersionId.orEmpty()
     val haystack = (versionId + " " + profile.icon.orEmpty()).lowercase(Locale.ROOT)
     val loader = LOADERS.firstOrNull { (needle, _, _) -> haystack.contains(needle) }

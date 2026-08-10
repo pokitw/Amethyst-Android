@@ -328,8 +328,13 @@ private fun InstallButton(row: ModRow, enabled: Boolean, onInstall: () -> Unit) 
                     else -> colors.primary
                 }
             )
+            // Always tappable, deliberately. This shipped once as a button that was inert
+            // whenever the profile could not run mods, which reads as a broken screen, not as a
+            // decision. Whatever the state, a tap now gets an answer: the activity installs, or
+            // says in the row why it will not. Only mid-install is a tap ignored, because the
+            // spinner is already the answer.
             .then(
-                if (enabled && !done && row.state != InstallState.WORKING) {
+                if (row.state != InstallState.WORKING) {
                     Modifier.clickable(onClick = onInstall)
                 } else Modifier
             ),

@@ -92,16 +92,17 @@ class ModBrowserActivity : BaseActivity() {
     /**
      * Re-read which profile is selected, then optionally search for it.
      *
-     * Off the main thread because it can end up parsing a version manifest, and a modded manifest
-     * is not a small file. The first search waits for it, since searching before the filter is
-     * known would spend a round trip on the wrong query and then immediately replace it.
+     * On the main thread on purpose, and synchronously: [LauncherProfiles] is unsynchronised
+     * static state shared with the launch path, and the handbook (12.7) says it is read on the
+     * main thread only. Reading it on IO here was not a performance win, it was the bug: the
+     * store was never loaded in this process, the lookup threw, and the screen spent its whole
+     * life claiming the profile could not run mods with an install button that did nothing.
+     * The work is a preference, a map lookup and at worst one small manifest read.
      */
     private fun refreshTarget(thenSearch: Boolean) {
-        lifecycleScope.launch {
-            val target = withContext(Dispatchers.IO) { currentModTarget() }
-            state = state.copy(target = target, targetKnown = true)
-            if (thenSearch) search(reset = true) else target.modsFolder?.let(::refreshInstalled)
-        }
+        val target = currentModTarget()
+        state = state.copy(target = target, targetKnown = true)
+        if (thenSearch) search(reset = true) else target.modsFolder?.let(::refreshInstalled)
     }
 
     /**
@@ -234,6 +235,17 @@ class ModBrowserActivity : BaseActivity() {
      * screen exists to remove, and re-presenting it as a dialog would be putting it back.
      */
     private fun install(row: ModRow) {
+        // The button under this is always tappable, so the refusals happen here, in words on the
+        // row. A tap on a mod the profile cannot run, or on one already present, must answer.
+        if (!state.target.canRunMods) {
+            update(row) { it.copy(state = InstallState.FAILED,
+                note = getString(R.string.mods_browse_no_loader_short)) }
+            return
+        }
+        if (row.installed || row.state == InstallState.DONE) {
+            update(row) { it.copy(note = getString(R.string.mods_browse_already_installed)) }
+            return
+        }
         val folder = state.target.modsFolder
         if (folder == null) {
             update(row) { it.copy(state = InstallState.FAILED,
