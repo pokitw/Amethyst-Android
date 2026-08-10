@@ -170,7 +170,7 @@
     <string name="preference_recorder_audio_source_both">Game audio and microphone</string>
     <string name="control_recording_truncated">Recording finished early: %s</string>
     <string name="control_recording_capture_prompt_title">Choose “Entire screen”</string>
-    <string name="control_recording_capture_prompt_message">Android is about to ask what to capture. Pick “Entire screen” — choosing “A single app” stops the game\'s audio from being recorded.\n\nOnly the audio is taken this way; the video always comes from the game itself.</string>
+    <string name="control_recording_capture_prompt_message">Android is about to ask what to capture. Pick “Entire screen”. Choosing “A single app” stops the game\'s audio from being recorded.\n\nOnly the audio is taken this way; the video always comes from the game itself.</string>
     <string name="recordings_sort_title">Sort</string>
     <string name="recordings_sort_newest">Newest first</string>
     <string name="recordings_sort_oldest">Oldest first</string>
@@ -632,7 +632,7 @@
     <string name="control_center_screenshot">Take a screenshot</string>
     <string name="control_center_shutter">Shutter button</string>
     <string name="control_center_shutter_hint">Just the game. Pin a shutter to see the shot first</string>
-    <string name="control_center_shutter_hint_on">Shutter is on screen — hold it to move it</string>
+    <string name="control_center_shutter_hint_on">Shutter is on screen. Hold it to move it</string>
     <string name="control_center_tile_controls">Controls</string>
     <string name="control_center_tile_keycode">Keyboard</string>
     <string name="control_center_add_drawer">Add drawer</string>
@@ -650,21 +650,21 @@
     <string name="onboarding_welcome_body">Minecraft: Java Edition, on your phone. This is a fork of Amethyst with a recorder built into the renderer and most of the launcher redrawn.</string>
 
     <string name="onboarding_record_title">Record the game, not your screen</string>
-    <string name="onboarding_record_body">Capture happens inside the graphics pipeline, before anything is drawn on top. Your on-screen buttons, notifications and the status bar never appear in the video — just the game.</string>
-    <string name="onboarding_record_note">Not available on the Zink renderer, and a clip stops before 4 GB — around 40 minutes at 1080p60.</string>
+    <string name="onboarding_record_body">Capture happens inside the graphics pipeline, before anything is drawn on top. Your on-screen buttons, notifications and the status bar never appear in the video, only the game.</string>
+    <string name="onboarding_record_note">Not available on the Zink renderer, and a clip stops before 4 GB, which is around 40 minutes at 1080p60.</string>
 
     <string name="onboarding_design_title">Rebuilt, screen by screen</string>
-    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker, the control editor and the in-game menu were redrawn from scratch — designed around what you actually do, and built to work one-handed. Settings has a search, so you never have to remember which screen a setting was on.</string>
+    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker, the control editor and the in-game menu were redrawn from scratch, designed around what you actually do and built to work one-handed. Settings has a search, so you never have to remember which screen a setting was on.</string>
 
     <string name="onboarding_crash_title">Crashes explained in English</string>
-    <string name="onboarding_crash_body">When the game dies, the log gets read for you and the cause is named — a missing mod dependency, not enough memory, the wrong Java version — with the line it concluded from.</string>
+    <string name="onboarding_crash_body">When the game dies, the log gets read for you and the cause is named in plain words: a missing mod dependency, not enough memory, the wrong Java version. It quotes the line it concluded from.</string>
 
     <string name="onboarding_gyro_title">Aim by moving your phone</string>
-    <string name="onboarding_gyro_body">Turn by tilting, the way a mouse turns — no threshold to push through and no stutter at slow speeds. At 100% it is one to one with the view, and it still works with the phone tilted back or lying flat.</string>
+    <string name="onboarding_gyro_body">Turn by tilting, the way a mouse turns, with no threshold to push through and no stutter at slow speeds. At 100% it is one to one with the view, and it still works with the phone tilted back or lying flat.</string>
     <string name="onboarding_gyro_note">Needs a gyroscope. It stays off until you turn it on in Settings → Controls.</string>
 
     <string name="onboarding_chat_title">Say it instead of typing it</string>
-    <string name="onboarding_chat_body">Hold the chat button and talk — the words appear as you speak, and letting go sends them. Or use a real on-screen keyboard rather than a list of keycodes, where holding a key keeps it down, so F3 + G finally works.</string>
+    <string name="onboarding_chat_body">Hold the chat button and talk. The words appear as you speak, and letting go sends them. Or use a real on-screen keyboard rather than a list of keycodes, where holding a key keeps it down, so F3 + G finally works.</string>
     <string name="onboarding_chat_note">Keyboard is US layout, landscape only. Dictation is your device\'s own speech recogniser, and it cannot open chat for you.</string>
 
     <string name="onboarding_files_title">Everything the game has, in one place</string>
@@ -812,7 +812,7 @@
 
     <!-- Voice typing, in game -->
     <string name="voice_listening">Listening…</string>
-    <string name="voice_hint">Say it — the words go wherever the cursor is.</string>
+    <string name="voice_hint">Say it. The words go wherever the cursor is.</string>
     <string name="voice_stop">Stop dictating</string>
     <string name="voice_error_timeout">Nothing was heard, so listening stopped.</string>
     <string name="voice_error_unavailable">This device has no speech recognition.</string>
@@ -906,7 +906,7 @@
     <string name="preference_control_texture_not_a_pack">There is no button.png in that file, so it is not a texture pack</string>
     <string name="preference_control_texture_failed">That texture pack could not be added.</string>
     <string name="preference_control_glyphs_title">Action icons</string>
-    <string name="preference_control_glyphs_description">Show an icon on buttons whose key is recognised — jump, sneak, inventory — instead of their name</string>
+    <string name="preference_control_glyphs_description">Show an icon instead of a name on buttons whose key is recognised, like jump, sneak and inventory</string>
     <string name="control_center_share">Share layout</string>
 
     <!-- Signing in -->
@@ -916,10 +916,10 @@
     <string name="auth_microsoft_blurb">Play online, join servers, keep your skin. Needs a copy of Minecraft: Java Edition.</string>
     <string name="auth_offline_title">Offline account</string>
     <string name="auth_offline_blurb">Singleplayer only. No servers, no skin, no realms.</string>
-    <string name="auth_footnote">Amethyst X never sees your password — Microsoft sign-in happens on Microsoft\'s own page.</string>
+    <string name="auth_footnote">Amethyst X never sees your password. Microsoft sign-in happens on Microsoft\'s own page.</string>
     <string name="auth_name_rule">3–16 characters: letters, numbers and underscores.</string>
-    <string name="auth_name_short">A bit short — names are at least 3 characters.</string>
-    <string name="auth_name_long">Too long — names are at most 16 characters.</string>
+    <string name="auth_name_short">A bit short. Names are at least 3 characters.</string>
+    <string name="auth_name_long">Too long. Names are at most 16 characters.</string>
     <string name="auth_name_characters">Only letters, numbers and underscores.</string>
     <string name="auth_name_taken">You already have an account with that name.</string>
 
@@ -930,7 +930,7 @@
     <string name="version_picker_custom">Custom</string>
     <string name="version_picker_empty">No versions yet</string>
     <string name="version_picker_no_match">Nothing matches “%1$s”</string>
-    <string name="version_picker_empty_hint">The version list is fetched in the background — try again in a moment.</string>
+    <string name="version_picker_empty_hint">The version list is fetched in the background. Try again in a moment.</string>
 
     <!-- Creating and editing a profile -->
     <string name="profile_editor_title">Edit profile</string>
@@ -980,7 +980,7 @@
 
     <string name="crash_memory_title">Minecraft ran out of memory</string>
     <string name="crash_memory_explanation">The game filled everything the Memory allocation setting allows, and Java shut it down.</string>
-    <string name="crash_memory_advice">Raise Memory allocation in Settings → Performance if the phone has room — or lower render distance, resolution, or the mod count so the game needs less.</string>
+    <string name="crash_memory_advice">Raise Memory allocation in Settings → Performance if the phone has room, or lower render distance, resolution or the mod count so the game needs less.</string>
 
     <string name="crash_memory_native_title">The phone ran out of memory</string>
     <string name="crash_memory_native_explanation">Java asked the phone for more memory than it could give.</string>
@@ -992,7 +992,7 @@
     <string name="crash_java_version_title">Wrong Java version for this Minecraft</string>
     <string name="crash_java_version_explanation_plain">This Minecraft needs a newer Java than the one the profile launched with.</string>
     <string name="crash_java_version_explanation">This Minecraft is built for Java %1$d, but the profile launched with Java %2$d.</string>
-    <string name="crash_java_version_advice">In the profile\'s settings, switch Runtime to a newer Java — install one first from Settings → Performance → Runtime Manager if none is listed.</string>
+    <string name="crash_java_version_advice">In the profile\'s settings, switch Runtime to a newer Java. Install one first from Settings → Performance → Runtime Manager if none is listed.</string>
 
     <string name="crash_java_too_new_title">This Forge needs an older Java</string>
     <string name="crash_java_too_new_explanation">Forge versions this old only run on Java 8, and the profile launched with something newer.</string>
@@ -1012,16 +1012,16 @@
     <string name="crash_duplicate_advice">Open the mods folder under Game files and delete the older copy.</string>
 
     <string name="crash_mod_broken_title">A mod doesn\'t match this Minecraft</string>
-    <string name="crash_mod_broken_explanation">A mod tried to hook into game code that isn\'t there — usually a mod built for a different Minecraft or loader version.</string>
+    <string name="crash_mod_broken_explanation">A mod tried to hook into game code that isn\'t there, usually because it was built for a different Minecraft or loader version.</string>
     <string name="crash_mod_broken_advice">Update or remove the mod named in the log line below. After changing Minecraft versions, every mod needs a matching build.</string>
 
     <string name="crash_renderer_title">The graphics driver failed</string>
     <string name="crash_renderer_explanation">The renderer couldn\'t create or keep an OpenGL context on this device.</string>
-    <string name="crash_renderer_advice">Pick a different Renderer in Settings → Performance — it\'s saved per profile, so trying each one is safe.</string>
+    <string name="crash_renderer_advice">Pick a different Renderer in Settings → Performance. It\'s saved per profile, so trying each one is safe.</string>
 
     <string name="crash_storage_title">The phone is out of storage</string>
     <string name="crash_storage_explanation">Minecraft tried to write a file and the system refused: no space left on the device.</string>
-    <string name="crash_storage_advice">Free some space — old recordings and unused apps are the usual suspects — then launch again.</string>
+    <string name="crash_storage_advice">Free some space, then launch again. Old recordings and unused apps are the usual suspects.</string>
 
     <string name="crash_account_title">The sign-in has expired</string>
     <string name="crash_account_explanation">Minecraft\'s servers rejected this account\'s session.</string>
@@ -1029,18 +1029,18 @@
 
     <string name="crash_network_title">No connection to the download servers</string>
     <string name="crash_network_explanation">Something the launch needed couldn\'t be fetched over the network.</string>
-    <string name="crash_network_advice">Check the connection and launch again — once a version is fully downloaded, it starts without internet.</string>
+    <string name="crash_network_advice">Check the connection and launch again. Once a version is fully downloaded, it starts without internet.</string>
 
     <string name="crash_corrupt_title">Game files are damaged</string>
-    <string name="crash_corrupt_explanation">A file this version depends on is incomplete or unreadable — usually the leftovers of an interrupted download.</string>
+    <string name="crash_corrupt_explanation">A file this version depends on is incomplete or unreadable, usually the leftovers of an interrupted download.</string>
     <string name="crash_corrupt_advice">Delete this version\'s folder inside Game files → versions, then launch again to re-download it cleanly.</string>
 
     <string name="crash_native_title">The game crashed outside Java</string>
-    <string name="crash_native_explanation">Native code — most often the graphics driver — hit an error it couldn\'t recover from.</string>
+    <string name="crash_native_explanation">Native code, most often the graphics driver, hit an error it couldn\'t recover from.</string>
     <string name="crash_native_advice">Try a different Renderer in Settings → Performance. If every renderer crashes the same way, share the log.</string>
 
     <string name="crash_generic_title">The log doesn\'t show a known cause</string>
     <string name="crash_generic_explanation">The game ended without leaving one of the failure patterns this launcher recognises.</string>
-    <string name="crash_generic_advice">The answer is usually in the last lines of the log — share it, or open latestlog.txt under Game files.</string>
+    <string name="crash_generic_advice">The answer is usually in the last lines of the log. Share it, or open latestlog.txt under Game files.</string>
 
 </resources>
