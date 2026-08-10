@@ -867,11 +867,23 @@ private fun ControlsScreen(
                 stringResource(R.string.mcl_setting_subtitle_buttonallcaps),
                 store.bool("buttonAllCaps", true)
             ) { store.put("buttonAllCaps", it) }
+        }
+
+        // Panning used to sit under Buttons, where it was the one row that had nothing to do with
+        // one. It belongs beside the strip instead: both exist because a keyboard in landscape
+        // covers the field it is typing into, and they are the two halves of the same answer.
+        SectionLabel(stringResource(R.string.settings_section_typing))
+        SettingsCard {
             SwitchRow(
                 stringResource(R.string.mcl_setting_title_keyboard_panning),
                 stringResource(R.string.mcl_setting_subtitle_keyboard_panning),
                 store.bool("keyboardPanning", true)
             ) { store.put("keyboardPanning", it) }
+            SwitchRow(
+                stringResource(R.string.preference_typing_preview_title),
+                stringResource(R.string.preference_typing_preview_description),
+                store.bool("typingPreview", true)
+            ) { store.put("typingPreview", it) }
         }
 
         SectionLabel(stringResource(R.string.settings_section_voice))

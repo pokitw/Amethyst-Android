@@ -44,7 +44,9 @@ class VoiceInputHost(
     private val view: ComposeView,
     private val voice: VoiceInput,
     private val sender: CharacterSenderStrategy,
-    private val gate: Gate
+    private val gate: Gate,
+    /** Told when a dictation begins, so the typing strip knows it has lost its place. */
+    private val typing: TypingSink? = null
 ) : VoiceInput.Listener {
 
     /** The two questions this cannot answer for itself, both of which belong to the activity. */
@@ -205,6 +207,10 @@ class VoiceInputHost(
         // A previous dictation's text belongs to the player now. Tracking it into this one would
         // let the first correction backspace over words they typed themselves.
         typer.forget()
+        // And the typing strip is about to have words put into its field by something other than
+        // the keyboard it is watching. It cannot see them, so it is told to stop claiming it can:
+        // marked rather than silenced, so what is typed afterwards is still shown and still true.
+        typing?.forget()
         handler.removeCallbacks(hideMessage)
         state = VoiceUiState(listening = true)
         view.visibility = View.VISIBLE

@@ -686,6 +686,7 @@
     <string name="onboarding_row_voice">Voice typing in chat</string>
     <string name="onboarding_row_files">Worlds and mods in the app</string>
     <string name="onboarding_row_keyboard">On-screen keyboard</string>
+    <string name="onboarding_row_typing">See what you are typing</string>
     <string name="onboarding_row_search">Searchable settings</string>
     <string name="onboarding_row_controls">Redesigned controls</string>
     <string name="onboarding_row_textures">Button texture packs</string>
@@ -850,6 +851,9 @@
     <string name="settings_section_graphics">GRAPHICS</string>
     <string name="settings_section_memory">MEMORY AND RUNTIME</string>
     <string name="settings_section_buttons">BUTTONS</string>
+    <string name="settings_section_typing">TYPING</string>
+    <string name="preference_typing_preview_title">Typing preview</string>
+    <string name="preference_typing_preview_description">Show what you are typing in a small strip at the top, so a chat box or a world name hidden behind the keyboard can still be read. It knows only what you type, not what the field already contained.</string>
     <string name="settings_section_mouse">VIRTUAL MOUSE</string>
     <string name="settings_section_gestures">GESTURES</string>
     <string name="settings_section_video">VIDEO</string>

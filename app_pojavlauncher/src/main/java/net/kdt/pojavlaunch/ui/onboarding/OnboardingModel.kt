@@ -103,6 +103,9 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     ComparisonRow(R.string.onboarding_row_gyro, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_voice, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_keyboard, Support.NO, Support.YES),
+    // Its own row rather than folded into the keyboard's, because it is not part of the keyboard:
+    // it answers the system one as well, which is the board most people actually meet.
+    ComparisonRow(R.string.onboarding_row_typing, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_files, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_search, Support.NO, Support.YES),

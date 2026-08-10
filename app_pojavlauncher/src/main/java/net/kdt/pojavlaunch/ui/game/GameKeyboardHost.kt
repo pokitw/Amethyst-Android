@@ -33,7 +33,10 @@ import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
  * every touch the game is waiting for. GONE is delayed by the exit animation's length so the slide
  * out is not cut in half.
  */
-class GameKeyboardHost(private val view: ComposeView) {
+class GameKeyboardHost(
+    private val view: ComposeView,
+    private val typing: TypingPreviewHost? = null
+) {
 
     private var visible by mutableStateOf(false)
     private val handler = Handler(Looper.getMainLooper())
@@ -42,7 +45,7 @@ class GameKeyboardHost(private val view: ComposeView) {
      * Lives here rather than in the composition because a latched key is not UI state — it is a
      * key-down the game has already been told about, and something has to give it back.
      */
-    val keys = GameKeyboardState()
+    val keys = GameKeyboardState(typing)
 
     init {
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -69,11 +72,15 @@ class GameKeyboardHost(private val view: ComposeView) {
         keys.showLetters()
         view.visibility = View.VISIBLE
         visible = true
+        typing?.applyBoardOpen(true)
     }
 
     fun close() {
         if (!visible) return
         visible = false
+        // Reported from here rather than from the activity because the panel closes itself: the
+        // cross on the board calls straight into this, and the activity never hears about it.
+        typing?.applyBoardOpen(false)
         // A latched key is down inside the game; nothing leaves the screen still held.
         keys.releaseAll()
         handler.postDelayed({

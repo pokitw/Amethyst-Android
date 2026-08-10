@@ -401,6 +401,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Runtime manager · gamepad remapper · MobileGlues tuning | XML, stays for now | Reached from the new Settings; see §17 |
 | In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` **and** `CustomControlsActivity` |
 | On-screen keyboard · voice overlay | **Compose** | `ui/game/`, each with its own bottom-anchored `ComposeView` |
+| Typing preview | **Compose** | `ui/game/TypingPreviewHost.kt`, its own top-anchored `ComposeView` |
 | Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
 | Control editor panel · key picker | **Compose** | `ui/controls/`, driven by `ControlLayout.setEditorHost` |
 | Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
@@ -552,6 +553,30 @@ re-litigated. The reasoning lives in the commit that made the change.
   appear is the more startling of the two. The recogniser watchdog is a **silence** timer that
   every callback pushes back; a fixed session limit would cut off exactly the long sentence the
   feature exists for.
+- **Typing preview** (`ui/game/TypingPreviewHost.kt`) — a strip at the top of the game holding
+  what is being typed, because the pan that lifts a text field clear of the keyboard pushes it off
+  the top of a short landscape screen instead, and the only way to check a typo was to close the
+  keyboard, look, and open it again.
+  It **mirrors what was sent and never claims to be the field**, which is the same wall `LiveTyper`
+  lives behind: nothing on the launcher side can read a pixel the game drew. Everything else
+  follows from taking that seriously. Backspacing past the first character it saw means the game
+  deleted something it never had, so it puts an **ellipsis on the front and carries on** rather
+  than dropping the keystroke or hiding — everything after the mark is still true, and hiding would
+  take the feature away at the exact moment it was in use. Anything else that loses its place, a
+  caret key on the launcher's own board or a dictation starting, lands in the same state through
+  `forget()`. It **watches a session rather than a lifetime**, a session being one spell with a
+  keyboard open, because with no keyboard up there is no pan and the field can simply be read.
+  Three things make it work. It is fed by **wrapping the sender** rather than editing one: the
+  system keyboard's characters all pass through `CharacterSenderStrategy`, and `watch()` returns
+  the sender untouched when the preference is off, so two upstream files on the input path needed
+  no change at all. It is the **one overlay that cancels the pan** instead of riding it, since the
+  frame every overlay lives in is the thing being translated and a strip that moved with it would
+  leave the screen exactly when wanted. And it **shares the top band with the screenshot toast by
+  z-order alone** — declared first, so the toast covers it for its two seconds and it is still
+  there afterwards, with neither needing to know the other exists.
+  Its settings sit with keyboard panning in a **Typing** section of their own, which also takes
+  panning out of Buttons, where it was the one row that had nothing to do with a button. The two
+  are halves of one answer to one problem, which is why they are now next to each other.
 - **On-screen controls** — `ControlSkin` decides how a control is drawn **at draw time and never
   writes to the layout**, so turning it off gives the author's colours back. `ControlGlyphs` picks
   an icon from **the key a button sends**, not its name, so old layouts gain icons with no
@@ -679,6 +704,11 @@ reformat around your change.
   "corrected" later.
 - **Resources**: `home_*`, `recordings_*`, `preference_recorder_*` prefixes. New strings go in
   `values/strings.xml` only; translations are upstream's.
+- **No em dashes in anything a user reads.** They are the single clearest tell that a sentence was
+  machine-written, and a launcher that says "A bit short — names are at least 3 characters" reads
+  like a generated one. A full stop, a comma or a colon says the same thing and sounds like a
+  person. This applies to `values/strings.xml` and to any literal that reaches the screen; the
+  prose in this file and in KDoc is not user-facing and keeps them.
 - **Commits**: imperative subject under ~72 chars, then *why*, not *what*. Never mention the model.
 
 ---
@@ -814,6 +844,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   wrong place.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- The typing preview shows **what you typed, not what the field holds**. A field that already had
+  text in it, or one edited with the arrow keys, is text it never saw; it marks that with a leading
+  ellipsis rather than pretending otherwise. It also cannot move the caret, and deliberately draws
+  no caret, because drawing one would promise exactly that.
+- The preview is **cleared whenever every keyboard closes**, so reopening one starts it empty. That
+  is the honest boundary: with no keyboard up the field is not covered and can be read directly.
 - Voice typing **cannot open chat for you**. The chat key is rebindable and nothing on the
   launcher side can read the player's keybinds, so a voice button pressed with no text field open
   types into nothing. That is also why the hold shortcut is hardcoded to T and `/` — the vanilla

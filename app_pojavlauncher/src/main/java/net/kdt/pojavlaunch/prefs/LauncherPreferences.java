@@ -82,6 +82,16 @@ public class LauncherPreferences {
     public static boolean PREF_KEYBOARD_PANNING = true;
 
     /**
+     * Whether to mirror what is being typed into a strip at the top of the game.
+     *
+     * On, with {@link #PREF_KEYBOARD_PANNING}, because the two are halves of the same answer: the
+     * pan lifts the field clear of the keyboard, and on a screen too short for that to work the
+     * strip is the only way to read what has been written. A setting nobody finds helps nobody,
+     * and there is no moment where this is up and the game is being looked at.
+     */
+    public static boolean PREF_TYPING_PREVIEW = true;
+
+    /**
      * What the on-screen buttons look like: {@code layout}, {@code pocket}, or a texture pack's
      * folder name. One key rather than a switch plus a picker, because it is one decision.
      */
@@ -135,6 +145,7 @@ public class LauncherPreferences {
         PREF_TOUCHCONTROLLER_VIBRATE_LENGTH = DEFAULT_PREF.getInt("touchControllerVibrateLength", 100);
         PREF_MOUSE_GRAB_FORCE = DEFAULT_PREF.getBoolean("always_grab_mouse", false);
         PREF_KEYBOARD_PANNING = DEFAULT_PREF.getBoolean("keyboardPanning", true);
+        PREF_TYPING_PREVIEW = DEFAULT_PREF.getBoolean("typingPreview", true);
         // Migrated from the switch this replaced, so nobody's buttons change appearance on
         // update: the old boolean is read once and only when the new key has never been written.
         PREF_CONTROL_STYLE = DEFAULT_PREF.getString("controlStyle",

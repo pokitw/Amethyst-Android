@@ -81,6 +81,7 @@ import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 import net.kdt.pojavlaunch.ui.game.GameKeyboardHost;
 import net.kdt.pojavlaunch.ui.game.ScreenshotHost;
+import net.kdt.pojavlaunch.ui.game.TypingPreviewHost;
 import net.kdt.pojavlaunch.ui.game.VoiceInputHost;
 import net.kdt.pojavlaunch.utils.JREUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
@@ -119,6 +120,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private GameKeyboardHost mGameKeyboard;
     private VoiceInputHost mVoiceInput;
     private ScreenshotHost mScreenshot;
+    private TypingPreviewHost mTypingPreview;
     private GyroControl mGyroControl = null;
     private ControlLayout mControlLayout;
     private HotbarView mHotbarView;
@@ -164,6 +166,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         initLayout(R.layout.activity_basemain);
         CallbackBridge.addGrabListener(touchpad);
         CallbackBridge.addGrabListener(minecraftGLView);
+        CallbackBridge.addGrabListener(mTypingGrabListener);
 
         if (Tools.hasTouchController(new File(gameDirPath)) || LauncherPreferences.PREF_FORCE_ENABLE_TOUCHCONTROLLER) {
             TouchControllerUtils.initialize(this, touchControllerInputView);
@@ -239,7 +242,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             Logger.begin(latestLogFile.getAbsolutePath());
             // FIXME: is it safe for multi thread?
             GLOBAL_CLIPBOARD = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            touchCharInput.setCharacterSender(new LwjglCharSender());
+            // Wrapped rather than replaced: the strip needs to see the characters the system
+            // keyboard sends, and this is the one place all of them pass through. Returns the
+            // sender itself when the preference is off, so nothing is in the way of typing.
+            touchCharInput.setCharacterSender(mTypingPreview.watch(new LwjglCharSender()));
 
             touchControllerInputView.setInputAreaRectListener(this);
 
@@ -340,9 +346,13 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                 this);
         mControlEditor = new ControlEditorHost(findViewById(R.id.control_editor), mControlLayout);
         mControlLayout.setEditorHost(mControlEditor);
-        mGameKeyboard = new GameKeyboardHost(findViewById(R.id.game_keyboard));
+        mTypingPreview = new TypingPreviewHost(findViewById(R.id.typing_preview));
+        mGameKeyboard = new GameKeyboardHost(findViewById(R.id.game_keyboard), mTypingPreview);
+        // The sender here is deliberately not wrapped: dictation already shows its words in its own
+        // overlay, and a second live copy of them at the top would be the same text twice. The
+        // strip is told a dictation started instead, which is all it needs to stay honest.
         mVoiceInput = new VoiceInputHost(findViewById(R.id.voice_overlay), new VoiceInput(this),
-                new LwjglCharSender(), this);
+                new LwjglCharSender(), this, mTypingPreview);
         mScreenshot = new ScreenshotHost(findViewById(R.id.screenshot_toast),
                 findViewById(R.id.screenshot_shutter));
     }
@@ -399,10 +409,12 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         super.onDestroy();
         CallbackBridge.removeGrabListener(touchpad);
         CallbackBridge.removeGrabListener(minecraftGLView);
+        CallbackBridge.removeGrabListener(mTypingGrabListener);
         if(mControlCenter != null) mControlCenter.release();
         if(mGameKeyboard != null) mGameKeyboard.release();
         if(mVoiceInput != null) mVoiceInput.release();
         if(mScreenshot != null) mScreenshot.release();
+        if(mTypingPreview != null) mTypingPreview.release();
         ContextExecutor.clearActivity();
     }
 
@@ -1086,11 +1098,21 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     }
 
     private void refreshImeTranslation() {
-        if (imeHeight == 0) {
-            // Early exit
-            contentFrame.setTranslationY(0);
-            return;
+        int translation = imeTranslation();
+        contentFrame.setTranslationY(translation);
+        if (mTypingPreview != null) {
+            // The typing strip is a child of the frame that just moved, and it is the one thing in
+            // it that must not move: it exists because the pan carries the text field off the top
+            // of the screen, so a strip that panned with it would leave at the moment it was
+            // wanted. Cancelling the frame's own translation pins it to the top of the window.
+            mTypingPreview.applyPan(translation);
+            mTypingPreview.applyImeOpen(imeHeight != 0);
         }
+    }
+
+    /** How far up the game has to move so the keyboard is not sitting on the text field. */
+    private int imeTranslation() {
+        if (imeHeight == 0) return 0;
 
         int inputAreaBottom;
         if (inputAreaRect != null) {
@@ -1098,13 +1120,21 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         } else if (LauncherPreferences.PREF_KEYBOARD_PANNING) {
             inputAreaBottom = contentFrame.getHeight();
         } else {
-            contentFrame.setTranslationY(0);
-            return;
+            return 0;
         }
 
         int bottomDistance = contentFrame.getHeight() - inputAreaBottom;
-        int bottomPadding = Math.max(imeHeight - bottomDistance, 0);
-
-        contentFrame.setTranslationY(-bottomPadding);
+        return -Math.max(imeHeight - bottomDistance, 0);
     }
+
+    /**
+     * Kept as a field rather than implemented by the activity, which already stands for three
+     * other interfaces, and so it can be handed back to {@link CallbackBridge} by reference.
+     */
+    private final GrabListener mTypingGrabListener = new GrabListener() {
+        @Override
+        public void onGrabState(boolean isGrabbing) {
+            if (mTypingPreview != null) mTypingPreview.applyGrab(isGrabbing);
+        }
+    };
 }

@@ -164,9 +164,12 @@ const val ROW_UNITS = 15f
  *
  * Stable in the Compose sense: everything a composable can read here is snapshot state, so a board
  * of eighty caps holding a reference to it is safe and skippable.
+ *
+ * @param typing where to mirror the text going out, so it can be shown somewhere the keyboard is
+ *               not covering. Optional, and null everywhere the strip is turned off.
  */
 @Stable
-class GameKeyboardState {
+class GameKeyboardState(private val typing: TypingSink? = null) {
 
     /** The keys currently latched down, by GLFW keycode. */
     var held: Set<Short> by mutableStateOf(emptySet())
@@ -199,14 +202,48 @@ class GameKeyboardState {
             key.kind == KeyKind.LAYOUT -> numeric = !numeric
             key.code in held -> release(key.code)
             key.kind == KeyKind.MODIFIER -> hold(key.code)
-            else -> stroke(key)
+            else -> {
+                stroke(key)
+                mirror(key)
+            }
         }
     }
 
     /** A long press. Latches any key down, so F3 can be held while G is tapped beside it. */
     fun longPress(key: Key) {
         if (key.kind == KeyKind.SPACER || key.kind == KeyKind.LAYOUT) return
-        if (key.code in held) release(key.code) else hold(key.code)
+        if (key.code in held) {
+            release(key.code)
+        } else {
+            hold(key.code)
+            // A latch is a key-down the game has already acted on, so a latched letter has typed
+            // itself once. Letting it back up types nothing, which is why only this side mirrors.
+            mirror(key)
+        }
+    }
+
+    /**
+     * Tell the typing strip what this cap just did to the text.
+     *
+     * Three outcomes matter to something modelling what has been typed: a character went in, one
+     * came out, or the field is done with. Everything that moves the insertion point instead goes
+     * to [TypingSink.forget], because a mirror built by appending cannot follow a caret it has no
+     * way of seeing, and carrying on appending to the wrong end of the text would be worse than
+     * saying it has lost its place.
+     */
+    private fun mirror(key: Key) {
+        val sink = typing ?: return
+        when (key.code) {
+            GLFW_KEY_BACKSPACE -> sink.deleted()
+            GLFW_KEY_ENTER, GLFW_KEY_KP_ENTER, GLFW_KEY_ESCAPE -> sink.committed()
+            GLFW_KEY_LEFT, GLFW_KEY_RIGHT, GLFW_KEY_UP, GLFW_KEY_DOWN,
+            GLFW_KEY_HOME, GLFW_KEY_END, GLFW_KEY_PAGE_UP, GLFW_KEY_PAGE_DOWN,
+            GLFW_KEY_DELETE, GLFW_KEY_TAB -> sink.forget()
+            else -> {
+                val typed = charFor(key)
+                if (typed != NO_CHAR) sink.typed(typed)
+            }
+        }
     }
 
     /** Let one named key up, for the chips in the header that report what is being held. */

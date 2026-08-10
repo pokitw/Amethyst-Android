@@ -165,8 +165,13 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
     ),
     SettingEntry(
         R.string.mcl_setting_title_keyboard_panning, SettingsRoute.CONTROLS,
-        R.string.mcl_setting_subtitle_keyboard_panning, R.string.settings_section_buttons,
+        R.string.mcl_setting_subtitle_keyboard_panning, R.string.settings_section_typing,
         "keyboard pan shift screen typing"
+    ),
+    SettingEntry(
+        R.string.preference_typing_preview_title, SettingsRoute.CONTROLS,
+        R.string.preference_typing_preview_description, R.string.settings_section_typing,
+        "text field chat world name hidden behind keyboard see typo"
     ),
     SettingEntry(
         R.string.preference_voice_title, SettingsRoute.CONTROLS,

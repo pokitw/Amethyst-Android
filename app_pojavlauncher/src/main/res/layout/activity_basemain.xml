@@ -140,6 +140,31 @@
 			android:visibility="gone"/>
 
 		<!--
+			What is being typed, for when the keyboard is covering the field it is going into.
+
+			Top-anchored and sized to its content, so it takes no touches the game is waiting for
+			and covers as little as it can. The margin is what keeps it clear of the recording pill
+			above it, and it is also the "a little way down" the strip needs so a camera notch on
+			the long edge of a phone held that way up cannot sit on top of it; the composition pads
+			itself clear of a reported cutout as well.
+
+			Declared before the screenshot toast on purpose. The two share this band, and z-order is
+			the whole of the arbitration: the toast has something to say for two seconds and then
+			stops, so it draws over the strip for exactly that long and the strip is still there
+			afterwards. Neither needs to know the other exists.
+
+			This is also the one view here that must not ride the keyboard pan, since it exists
+			because of it. TypingPreviewHost.applyPan cancels the frame's translation out.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/typing_preview"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="top|center_horizontal"
+			android:layout_marginTop="44dp"
+			android:visibility="gone"/>
+
+		<!--
 			The word that a screenshot was taken. Nothing else on screen changes when one is, so
 			without this the only way to find out whether the button worked is to leave the game.
 
