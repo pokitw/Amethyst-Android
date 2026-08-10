@@ -767,6 +767,8 @@
     <string name="skin_error_rate_limited">Mojang is asking us to slow down. Try again in a minute.</string>
     <string name="skin_error_too_large">That file is too big for Mojang to accept. A skin should be a 64 by 64 PNG.</string>
     <string name="skin_error_rejected">Mojang would not accept that skin.</string>
+    <string name="skin_error_rejected_reason">Mojang would not accept that skin: %1$s</string>
+    <string name="skin_error_not_a_skin">That file is %1$s pixels. A skin has to be 64 by 64.</string>
     <string name="skin_error_offline">Could not reach Mojang. Check the connection and try again.</string>
     <string name="skin_import_failed">That file is not an image the editor can read.</string>
     <string name="skin_import_wrong_size">A skin has to be 64 by 64, or 64 by 32 for an older one.</string>

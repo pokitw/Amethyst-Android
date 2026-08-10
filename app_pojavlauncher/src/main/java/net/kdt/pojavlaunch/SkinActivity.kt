@@ -24,6 +24,7 @@ import net.kdt.pojavlaunch.ui.skin.SkinGalleryScreen
 import net.kdt.pojavlaunch.ui.skin.SkinGalleryState
 import net.kdt.pojavlaunch.ui.skin.SkinImport
 import net.kdt.pojavlaunch.ui.skin.blankSkin
+import net.kdt.pojavlaunch.ui.skin.classicOnlyArmPixels
 import net.kdt.pojavlaunch.ui.skin.deleteSkin
 import net.kdt.pojavlaunch.ui.skin.listSkins
 import net.kdt.pojavlaunch.ui.skin.loadSkinBitmap
@@ -208,10 +209,13 @@ class SkinActivity : BaseActivity() {
             val file = entry.stored.file
             withContext(Dispatchers.IO) {
                 val bitmap = loadSkinBitmap(file) ?: return@withContext
-                for (x in 54..55) {
-                    for (y in 20 until 32) {
-                        bitmap.setPixel(x, y, if (slim) 0 else 0xFF000000.toInt())
-                    }
+                // Both arms and both layers, worked out from the UV table. Going slim clears the
+                // strip a slim arm has no room for; coming back copies the nearest column the
+                // arm still wears, so the sleeve continues rather than turning into a stripe of
+                // whatever colour the launcher felt like.
+                for ((target, source) in classicOnlyArmPixels()) {
+                    val argb = if (slim) 0 else bitmap.getPixel(source.first, source.second)
+                    bitmap.setPixel(target.first, target.second, argb)
                 }
                 saveSkin(bitmap, file.nameWithoutExtension)
                 bitmap.recycle()
@@ -235,13 +239,24 @@ class SkinActivity : BaseActivity() {
                 SkinUpload.upload(token, entry.stored.file, entry.stored.slim)
             }
             gallery = gallery.copy(applying = false)
+            // Mojang's own words where there are any. A generic refusal on top of a specific one
+            // is the launcher hiding the answer, which is what the first version did.
+            val reason = SkinUpload.lastReason()
             when (result) {
                 SkinUpload.Result.OK -> note(R.string.skin_applied, error = false)
                 SkinUpload.Result.SIGNED_OUT -> note(R.string.skin_error_signed_out, error = true)
                 SkinUpload.Result.RATE_LIMITED -> note(R.string.skin_error_rate_limited, error = true)
                 SkinUpload.Result.TOO_LARGE -> note(R.string.skin_error_too_large, error = true)
                 SkinUpload.Result.OFFLINE -> note(R.string.skin_error_offline, error = true)
-                else -> note(R.string.skin_error_rejected, error = true)
+                SkinUpload.Result.NOT_A_SKIN -> gallery = gallery.copy(
+                    note = getString(R.string.skin_error_not_a_skin, reason.orEmpty()),
+                    noteIsError = true
+                )
+                else -> gallery = gallery.copy(
+                    note = if (reason.isNullOrEmpty()) getString(R.string.skin_error_rejected)
+                    else getString(R.string.skin_error_rejected_reason, reason),
+                    noteIsError = true
+                )
             }
         }
     }

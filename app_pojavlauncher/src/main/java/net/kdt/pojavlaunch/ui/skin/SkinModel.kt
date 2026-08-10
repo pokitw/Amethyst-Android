@@ -181,3 +181,50 @@ fun guessSlim(alphaAt: (Int, Int) -> Int): Boolean {
     }
     return opaque < 4
 }
+
+/**
+ * The pixels a classic arm uses and a slim arm does not, with where to rebuild each one from.
+ *
+ * Switching arm width has to touch the texture, because the PNG is the only place slimness can
+ * be recorded (see [guessSlim]). Going to slim means clearing the strip a slim arm has no room
+ * for; coming back means putting something there, and the something must not be a colour picked
+ * out of the air. The first version wrote opaque black, which paints a black stripe down the
+ * back of both arms and looks exactly like a corrupted skin.
+ *
+ * Computed from the two layouts rather than written out, so it covers both arms and both layers
+ * and cannot drift from the table above. The source pixel is the nearest column to the left that
+ * a slim arm does use, which continues whatever the arm is already wearing.
+ *
+ * @return (x, y) of the pixel to write, and (x, y) of the pixel to copy it from
+ */
+fun classicOnlyArmPixels(): List<Pair<Pair<Int, Int>, Pair<Int, Int>>> {
+    fun cover(slim: Boolean): Set<Int> {
+        val out = HashSet<Int>()
+        for (part in skinParts(slim)) {
+            if (!part.isArm) continue
+            for (rects in listOfNotNull(part.faces, part.overlay)) {
+                for (rect in rects.values) {
+                    for (x in rect.x until rect.right) {
+                        for (y in rect.y until rect.bottom) out.add(x shl 8 or y)
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    val slimCover = cover(true)
+    val result = ArrayList<Pair<Pair<Int, Int>, Pair<Int, Int>>>()
+    val seen = HashSet<Int>()
+    for (key in cover(false)) {
+        if (key in slimCover || !seen.add(key)) continue
+        val x = key shr 8
+        val y = key and 0xFF
+        // Walk left to the last column a slim arm still paints, which is the pixel this strip is
+        // the continuation of.
+        var source = x - 1
+        while (source > 0 && (source shl 8 or y) !in slimCover) source--
+        result.add((x to y) to (source to y))
+    }
+    return result
+}

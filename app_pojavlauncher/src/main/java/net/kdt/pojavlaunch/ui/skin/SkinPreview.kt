@@ -8,14 +8,12 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Matrix
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -202,47 +200,87 @@ fun SkinPreview(
  * `drawImage` and Compose does the sampling. [FilterQuality.None] because a skin is pixel art
  * and any smoothing turns a crisp face into a smear.
  */
+/**
+ * Draw one face as a textured parallelogram.
+ *
+ * <b>android.graphics.Matrix, deliberately not Compose's.</b> The first version of this used
+ * Compose's Matrix and wrote the translation into cells [0,3] and [1,3], which is the convention
+ * an OpenGL-shaped 4x4 usually follows. Compose's is the other one: its own map() computes
+ * newX = m[0,0]*x + m[1,0]*y + m[3,0], so the translation belongs at [3,0] and [3,1], and the
+ * two cells I used are the perspective column. A few hundred pixels in the perspective divisor
+ * collapses every face to nothing, which is exactly what it did: the whole model vanished while
+ * the flat face thumbnails, which use no matrix, kept working.
+ *
+ * The platform matrix is used instead of correcting the indices because its element order is
+ * fixed by named constants (MSCALE_X, MSKEW_X, MTRANS_X, ...) rather than by a convention that
+ * has to be remembered correctly. A layout that can be read off the names cannot be got subtly
+ * backwards a second time.
+ *
+ * The paint carries the face shading and turns filtering off, because a skin is pixel art and
+ * any smoothing turns a crisp face into a smear.
+ */
 private fun DrawScope.drawQuad(image: ImageBitmap, quad: Quad) {
     val w = quad.rect.width.toFloat()
     val h = quad.rect.height.toFloat()
     if (w <= 0f || h <= 0f) return
-    val matrix = Matrix()
-    matrix[0, 0] = quad.ux / w
-    matrix[1, 0] = quad.uy / w
-    matrix[0, 1] = quad.vx / h
-    matrix[1, 1] = quad.vy / h
-    matrix[0, 3] = quad.ox
-    matrix[1, 3] = quad.oy
-    withTransform({ transform(matrix) }) {
-        drawImage(
-            image = image,
-            srcOffset = IntOffset(quad.rect.x, quad.rect.y),
-            srcSize = IntSize(quad.rect.width, quad.rect.height),
-            dstOffset = IntOffset.Zero,
-            dstSize = IntSize(quad.rect.width, quad.rect.height),
-            alpha = 1f,
-            filterQuality = FilterQuality.None,
-            colorFilter = shadeFilter(quad.shade)
+
+    // x' = MSCALE_X * x + MSKEW_X * y + MTRANS_X
+    // y' = MSKEW_Y  * x + MSCALE_Y * y + MTRANS_Y
+    // with x, y in the face's own texture pixels, so the face's rectangle maps onto the
+    // parallelogram its projected corners describe.
+    val matrix = android.graphics.Matrix()
+    matrix.setValues(
+        floatArrayOf(
+            quad.ux / w, quad.vx / h, quad.ox,
+            quad.uy / w, quad.vy / h, quad.oy,
+            0f, 0f, 1f
         )
+    )
+
+    drawIntoCanvas { canvas ->
+        val native = canvas.nativeCanvas
+        val saved = native.save()
+        native.concat(matrix)
+        native.drawBitmap(
+            image.asAndroidBitmap(),
+            android.graphics.Rect(
+                quad.rect.x, quad.rect.y, quad.rect.right, quad.rect.bottom
+            ),
+            android.graphics.RectF(0f, 0f, w, h),
+            shadePaint(quad.shade)
+        )
+        native.restoreToCount(saved)
     }
 }
 
-/** Flat multiply, cached per shade level so a frame allocates six filters rather than seventy. */
-private val shadeCache = HashMap<Int, androidx.compose.ui.graphics.ColorFilter>()
+/**
+ * A paint per shading level, built once.
+ *
+ * Six levels exist and a frame draws up to seventy faces, so building one per face would be
+ * seventy allocations a frame for six distinct objects.
+ */
+private val shadePaints = HashMap<Int, android.graphics.Paint>()
 
-private fun shadeFilter(shade: Float): androidx.compose.ui.graphics.ColorFilter? {
-    if (shade >= 0.999f) return null
+private fun shadePaint(shade: Float): android.graphics.Paint {
     val key = (shade * 100).toInt()
-    return shadeCache.getOrPut(key) {
-        androidx.compose.ui.graphics.ColorFilter.colorMatrix(
-            androidx.compose.ui.graphics.ColorMatrix(
-                floatArrayOf(
-                    shade, 0f, 0f, 0f, 0f,
-                    0f, shade, 0f, 0f, 0f,
-                    0f, 0f, shade, 0f, 0f,
-                    0f, 0f, 0f, 1f, 0f
+    return shadePaints.getOrPut(key) {
+        android.graphics.Paint().apply {
+            isAntiAlias = false
+            // Nearest neighbour: the whole point is that a texture pixel stays a square.
+            isFilterBitmap = false
+            isDither = false
+            if (shade < 0.999f) {
+                colorFilter = android.graphics.ColorMatrixColorFilter(
+                    android.graphics.ColorMatrix(
+                        floatArrayOf(
+                            shade, 0f, 0f, 0f, 0f,
+                            0f, shade, 0f, 0f, 0f,
+                            0f, 0f, shade, 0f, 0f,
+                            0f, 0f, 0f, 1f, 0f
+                        )
+                    )
                 )
-            )
-        )
+            }
+        }
     }
 }

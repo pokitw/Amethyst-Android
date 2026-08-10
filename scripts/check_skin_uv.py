@@ -101,8 +101,37 @@ for x in (54, 55):
     check(covered(classic, x, 25), "slim probe column %d is not painted on a classic arm" % x)
     check(not covered(slim, x, 25), "slim probe column %d IS painted on a slim arm" % x)
 
-print("checked 6 parts, both arm widths, %d spot rectangles, bounds, overlap and the slim probe"
-      % len(SPOT))
+# The strip a classic arm uses and a slim one does not. Switching arm width writes here, and
+# guessSlim reads part of it, so the two have to agree: a probe column outside the written set
+# means a skin can be converted and then read back as the width it was converted away from.
+classic_only = set()
+slim_cover = set()
+for slim_arm, target in ((3, slim_cover), (4, classic_only)):
+    for pid in ("rightArm", "leftArm"):
+        for which in (0, 1):
+            for (x, y, w, h) in box(*resolve(parts[pid][which], slim_arm)).values():
+                for px in range(x, x + w):
+                    for py in range(y, y + h):
+                        target.add((px, py))
+classic_only -= slim_cover
+check(len(classic_only) == 128,
+      "expected 128 classic-only arm pixels, got %d" % len(classic_only))
+check({x for x, _ in classic_only} == {42, 43, 46, 47, 50, 51, 54, 55, 58, 59, 62, 63},
+      "classic-only columns were %s" % sorted({x for x, _ in classic_only}))
+for px in (54, 55):
+    for py in range(20, 32):
+        check((px, py) in classic_only,
+              "the slim probe pixel %s is not one the width switch clears" % ((px, py),))
+# Every classic-only pixel must have a slim pixel to its left on the same row to rebuild from,
+# or switching back to classic has nothing to copy and would invent a colour.
+for (px, py) in classic_only:
+    source = px - 1
+    while source > 0 and (source, py) not in slim_cover:
+        source -= 1
+    check(source > 0, "no slim source column left of %s to rebuild from" % ((px, py),))
+
+print("checked 6 parts, both arm widths, %d spot rectangles, bounds, overlap, the slim probe "
+      "and the %d pixel arm-width strip" % (len(SPOT), len(classic_only)))
 if fail:
     print("%d failure(s)" % fail); sys.exit(1)
 print("skin UV table OK")

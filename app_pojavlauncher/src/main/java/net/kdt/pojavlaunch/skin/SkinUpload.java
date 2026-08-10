@@ -5,6 +5,9 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import android.graphics.BitmapFactory;
+
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,7 +43,23 @@ public final class SkinUpload {
     /** Mojang refuses anything larger, and so should this rather than spending the upload. */
     private static final long MAX_BYTES = 24576;
 
-    public enum Result { OK, SIGNED_OUT, RATE_LIMITED, TOO_LARGE, REJECTED, OFFLINE }
+    public enum Result { OK, SIGNED_OUT, RATE_LIMITED, TOO_LARGE, REJECTED, OFFLINE, NOT_A_SKIN }
+
+    /**
+     * Whatever Mojang said about the last refusal, or null.
+     *
+     * <b>Kept because throwing it away was the bug.</b> The first version showed "Mojang would not
+     * accept that skin" and discarded the response body, which is the one place the actual reason
+     * lives. A message the player cannot act on, covering a message that would have told them
+     * exactly what was wrong, is worse than no message.
+     */
+    @Nullable
+    private static volatile String lastReason;
+
+    @Nullable
+    public static String lastReason() {
+        return lastReason;
+    }
 
     private SkinUpload() {}
 
@@ -58,8 +77,22 @@ public final class SkinUpload {
             // the offline case arriving here rather than an expired session.
             return Result.SIGNED_OUT;
         }
+        lastReason = null;
         if (!skin.isFile()) return Result.REJECTED;
         if (skin.length() > MAX_BYTES) return Result.TOO_LARGE;
+
+        // Checked here rather than left to Mojang, because Mojang's answer to a wrongly sized
+        // image is a bare 400 and the launcher can say something useful about it instead.
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(skin.getAbsolutePath(), bounds);
+        boolean legalSize = bounds.outWidth == 64
+                && (bounds.outHeight == 64 || bounds.outHeight == 32);
+        if (!legalSize) {
+            lastReason = bounds.outWidth + " by " + bounds.outHeight;
+            Log.w(TAG, "Refusing to upload a " + lastReason + " image as a skin");
+            return Result.NOT_A_SKIN;
+        }
 
         String boundary = "----AmethystSkin" + System.currentTimeMillis();
         HttpURLConnection connection = null;
@@ -67,9 +100,8 @@ public final class SkinUpload {
             connection = (HttpURLConnection) new URL(ENDPOINT).openConnection();
             connection.setConnectTimeout(TIMEOUT_MS);
             connection.setReadTimeout(TIMEOUT_MS);
+            // Order matters: setDoOutput promotes a GET to POST, so the method is set after it.
             connection.setDoOutput(true);
-            // Set through the field rather than setRequestMethod: some Android versions refuse
-            // PUT on HttpURLConnection outright, and this is the long-standing way round it.
             connection.setRequestMethod("PUT");
             connection.setRequestProperty("Authorization", "Bearer " + accessToken);
             connection.setRequestProperty("Content-Type",
@@ -91,9 +123,10 @@ public final class SkinUpload {
 
             int code = connection.getResponseCode();
             if (code >= 200 && code < 300) return Result.OK;
+            lastReason = readError(connection);
+            Log.w(TAG, "Mojang answered " + code + " for a skin upload: " + lastReason);
             if (code == 401 || code == 403) return Result.SIGNED_OUT;
             if (code == 429) return Result.RATE_LIMITED;
-            Log.w(TAG, "Mojang answered " + code + " for a skin upload");
             return Result.REJECTED;
         } catch (IOException e) {
             Log.w(TAG, "Could not reach Mojang to upload a skin", e);
@@ -104,6 +137,51 @@ public final class SkinUpload {
         } finally {
             if (connection != null) connection.disconnect();
         }
+    }
+
+    /**
+     * Mojang's explanation, out of the error stream.
+     *
+     * Bounded and reduced to the one field worth showing: this is a remote string on its way to
+     * a screen, so it is capped and stripped of anything that is not ordinary text rather than
+     * pasted through. A body that is not the shape expected simply yields null and the caller
+     * falls back to its own wording.
+     */
+    @Nullable
+    private static String readError(@NonNull HttpURLConnection connection) {
+        try (InputStream stream = connection.getErrorStream()) {
+            if (stream == null) return null;
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = stream.read(buffer)) != -1 && out.size() < 4096) {
+                out.write(buffer, 0, read);
+            }
+            String body = new String(out.toByteArray(), "UTF-8");
+            String message = valueOf(body, "errorMessage");
+            if (message == null) message = valueOf(body, "error");
+            if (message == null) return null;
+            message = message.replaceAll("[^\\p{Print}]", " ").trim();
+            if (message.isEmpty()) return null;
+            return message.length() > 160 ? message.substring(0, 160) : message;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** One string field out of a flat JSON object, without pulling in a parser for it. */
+    @Nullable
+    private static String valueOf(@NonNull String body, @NonNull String field) {
+        String needle = "\"" + field + "\"";
+        int at = body.indexOf(needle);
+        if (at < 0) return null;
+        int colon = body.indexOf(':', at + needle.length());
+        if (colon < 0) return null;
+        int open = body.indexOf('"', colon);
+        if (open < 0) return null;
+        int close = body.indexOf('"', open + 1);
+        if (close < 0) return null;
+        return body.substring(open + 1, close);
     }
 
     private static void writePart(DataOutputStream out, String boundary, String name, String value)
