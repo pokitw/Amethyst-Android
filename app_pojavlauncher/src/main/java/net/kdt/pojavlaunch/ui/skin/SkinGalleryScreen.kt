@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,7 +66,7 @@ class SkinEntry(
 
 /** Everything the gallery draws. */
 @Immutable
-class SkinGalleryState(
+data class SkinGalleryState(
     val skins: List<SkinEntry> = emptyList(),
     val selected: SkinEntry? = null,
     val loading: Boolean = true,
@@ -428,7 +430,7 @@ private fun AddSkinButton(onAdd: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            androidx.compose.material.icons.Icons.Filled.Add,
+            Icons.Filled.Add,
             contentDescription = stringResource(R.string.skin_add_title),
             tint = colors.onPrimary,
             modifier = Modifier.size(20.dp)
