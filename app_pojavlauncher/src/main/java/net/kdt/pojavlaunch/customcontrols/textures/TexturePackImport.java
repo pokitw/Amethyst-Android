@@ -175,7 +175,6 @@ public final class TexturePackImport {
         return ControlTextures.isSafeName(result) ? result : "Texture pack";
     }
 
-    @NonNull
     /**
      * A folder name nothing else answers to.
      *
