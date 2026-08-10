@@ -632,6 +632,28 @@ re-litigated. The reasoning lives in the commit that made the change.
   this format has inside it. Downloads rather than beside the packs for the same reason the
   importer exists at all: `Android/data` is unbrowsable from Android 11, so a README shipped next
   to the artwork would be a file nobody could open.
+- **The Bedrock layout** (`assets/Bedrock.json`) — a second shipped layout: joystick on the
+  left, the staggered Bedrock action cluster on the right, chat / keyboard / pause / menu
+  top-centre the way the Pocket UI arranges its trio, and the two Java leftovers (drop,
+  perspective) small in the top-left where the Java HUD draws nothing. Pair it with a texture
+  pack and the controls are the Bedrock screenshot it was drawn from.
+  Five decisions hold it up. **The cluster is two rows, not Bedrock's three**, because 56dp
+  buttons at 175% scale on a 360dp-tall phone leave no height for a third; the budget decides the
+  shape, down to the upper row sitting at 126 rather than the stagger's exact 130 so it clears a
+  320dp-tall screen. **The third column rides the zigzag rows** rather than sitting at the
+  bottom, because at 640dp the game's own hotbar reaches that far across and a button at hotbar
+  height there steals slot taps. **The top row can be centred** only because the drawer pull tab
+  hides itself whenever a layout carries a menu button, which this one does — and that same fact
+  is why **keyboard, pause and menu stay visible while a GUI is open** (`displayInMenu`): every
+  GUI ungrabs the cursor, ungrabbed hides the in-game controls, and with the pull tab gone a
+  layout that kept nothing visible would strand the player in the chat box it had just opened.
+  The adversarial review caught exactly that in the first draft, and `check_layouts.py` now
+  asserts it for every shipped layout. And it is **copied out once and never refreshed**: a
+  layout is a user file the moment it lands (the editor writes back to that exact path), so a
+  redesign ships under a new name, the way `default.json` ships `new_default.json`.
+  The joystick is `absolute` — fixed in place with the knob tracking the finger, which is how the
+  Bedrock stick behaves; the floating stick that re-centres under every touch is the other value.
+  Selected from the editor's Select-default dialog, which lists `controlmap/` and now finds it.
 - **Control layout editor** — hosts the same control center in editor mode, so the editor from
   Settings and the one from inside a game are one screen with two ways in.
 - **Editing a button** (`ui/controls/`) — the keycode spinners are gone: **you bind a key by
@@ -848,8 +870,15 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   "deeper settings" rather than as broken.
 - **Search does not index those three leaves.** Their contents live in `pref_renderer.xml` and in
   the remapper's own capture UI, so search gets you as far as the row that opens them.
-- The new default control layout is checked from 80% to 175% button scale. Above that the top row
-  runs out of screen on a small display — inherent to nineteen buttons, and the layout is editable.
+- Both shipped layouts stay on screen from 80% to 175% button scale on every screen the check
+  sweeps, down to a 320dp-tall hdpi phone, and overlap-free through 125% on ordinary screens.
+  Past that on a phone, buttons start to cover each other: the top rows meet in the middle and
+  the action cluster can reach the joystick. Inherent to this many controls at that size, and
+  both layouts are editable. The 250% end of the scale slider is outside what any shipped layout
+  survives on a phone.
+- `Bedrock.json` is copied into `controlmap/` once and never refreshed, because the editor writes
+  back to that exact path and an update would stamp over rearranged buttons. A redesign would
+  ship under a new name.
 - A pack that ships with the launcher **cannot be removed**, only switched away from. It lives in
   assets, so it costs nothing and is always intact, but the picker will always list all eleven.
 - The shipped packs' interiors are **flat by necessity**, not by taste. Ore speckle, plank grain
@@ -945,8 +974,6 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 6. Shared-element transition from the version card into the version sheet.
 7. Recordings: in-app playback and trimming rather than handing off to an external player.
 8. Retire `activity_pojav_launcher.xml` chrome entirely once every fragment is Compose.
-9. A joystick variant of the Pocket default, offered as a choice the way Bedrock offers it,
-   rather than something you assemble yourself in the editor.
 
 ---
 
@@ -966,10 +993,12 @@ Before pushing:
   `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell --screenshot`.
   A contact sheet of the whole family catches shapes that are merely upside down.
 - Check balanced braces in new Kotlin and Java files.
-- **Evaluate any changed control layout.** `${...}` substitution is a plain string replace
-  (`JSONUtils.insertSingleJSONValue`) and the result goes to exp4j, so a short Python script can
-  reproduce it exactly: substitute, map `px(n)` to `n * density`, `^` to `**`, and check every
-  button lands on screen across a grid of resolutions and button scales.
+- **Run `python3 scripts/check_layouts.py`** if any shipped layout changed. `${...}`
+  substitution is a plain string replace (`JSONUtils.insertSingleJSONValue`) and the result goes
+  to exp4j, so the script reproduces it exactly: substitute, map `px(n)` to `n * density`, and
+  evaluate every control across a grid of screens, densities and button scales. It asserts
+  everything stays on screen, nothing overlaps through 125% (175% where there is room), and every
+  keycode exists.
 - **Run `python3 scripts/check_crash_rules.py`** if the crash rule table changed — it tests the
   shipped patterns, parsed out of the Kotlin source, against fixture crash logs.
 - **Run `scripts/nbtsim/run.sh`** if `NbtReader` changed — it writes a `level.dat` shaped like a

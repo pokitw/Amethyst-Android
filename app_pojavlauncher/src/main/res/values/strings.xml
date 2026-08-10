@@ -690,6 +690,7 @@
     <string name="onboarding_row_search">Searchable settings</string>
     <string name="onboarding_row_controls">Redesigned controls</string>
     <string name="onboarding_row_textures">Button texture packs</string>
+    <string name="onboarding_row_bedrock">Ready-made Bedrock layout</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_size">Smaller download</string>
 

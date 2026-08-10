@@ -113,6 +113,9 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // Not a tie, unlike the screenshot: upstream has per-button colours, which is a different
     // thing from wearing a picture, so the row says something.
     ComparisonRow(R.string.onboarding_row_textures, Support.NO, Support.YES),
+    // "Part" because upstream has the joystick control; what it does not have is the finished
+    // layout, which you assemble yourself in the editor. Shipping it ready-made is the feature.
+    ComparisonRow(R.string.onboarding_row_bedrock, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.NO),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )

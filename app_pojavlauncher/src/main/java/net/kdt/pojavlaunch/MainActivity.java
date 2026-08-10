@@ -53,6 +53,8 @@ import androidx.core.view.WindowInsetsAnimationCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 
+import com.google.gson.JsonSyntaxException;
+
 import com.kdt.LoggerView;
 
 import net.kdt.pojavlaunch.customcontrols.ControlButtonMenuListener;
@@ -303,7 +305,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     minecraftProfile.controlFile == null
                             ? LauncherPreferences.PREF_DEFAULTCTRL_PATH
                             : Tools.CTRLMAP_PATH + "/" + minecraftProfile.controlFile);
-        } catch(IOException e) {
+        } catch(IOException | JsonSyntaxException e) {
+            // JsonSyntaxException as well as IOException: a layout file that was half-written,
+            // by an interrupted copy or an interrupted save, throws from Gson rather than from
+            // the file system, and a corrupt layout should mean the default layout, not an
+            // error dialog over a game with no controls at all.
             try {
                 Log.w("MainActivity", "Unable to load the control file, loading the default now", e);
                 mControlLayout.loadLayout(Tools.CTRLDEF_FILE);

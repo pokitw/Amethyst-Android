@@ -80,6 +80,14 @@ public class AsyncAssetManager {
                     Tools.copyAssetFile(ctx, "default.json", Tools.CTRLMAP_PATH, false);
                 }
 
+                // The Bedrock-style joystick layout, beside the default rather than instead of
+                // it. Copied once and never refreshed (copyAssetFile skips a file that exists):
+                // a layout is a user file the moment it lands, the editor writes back to this
+                // exact path, and an update that stamped over someone's rearranged buttons would
+                // be the layout equivalent of the skin writing into the file. If it is ever
+                // redesigned it ships under a new name, the way default.json ships new_default.
+                Tools.copyAssetFile(ctx, "Bedrock.json", Tools.CTRLMAP_PATH, false);
+
                 Tools.copyAssetFile(ctx, "launcher_profiles.json", Tools.DIR_GAME_NEW, false);
                 Tools.copyAssetFile(ctx,"resolv.conf",Tools.DIR_DATA, false);
             } catch (IOException e) {
