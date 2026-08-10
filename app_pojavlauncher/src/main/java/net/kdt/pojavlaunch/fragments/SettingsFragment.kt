@@ -453,7 +453,14 @@ class SettingsFragment : Fragment() {
     private fun applyPerformanceMode(plan: PerformancePlan.Plan, target: ModTarget) {
         val context = requireContext().applicationContext
         val store = SettingsStore(context)
-        val gameDir = runCatching { currentGameDirectory() }.getOrNull()
+        // Taken from the mods folder rather than asked for separately, because the mods folder is
+        // File(gameDir, "mods") of the profile the plan was built against. Resolving the directory
+        // a second time can disagree: currentGameDirectory falls back to the default folder when
+        // no profile is selected, while the target additionally accepts the only profile there is.
+        // Writing Minecraft's settings into a different folder from the mods is not a failure
+        // anything would report.
+        val gameDir = target.modsFolder?.parentFile
+            ?: runCatching { currentGameDirectory() }.getOrNull()
         performance.showWorking(getString(R.string.performance_working))
 
         val report = PerformanceMode.applyPreferences(context, plan, store.currentRenderer())

@@ -10,10 +10,15 @@ import net.kdt.pojavlaunch.optimiser.PerformancePlan
  * The seam between performance mode's work and the screen showing it.
  *
  * <b>The work does not belong to the composition.</b> Applying the plan writes preferences, edits
- * Minecraft's options file and downloads six mods, which takes as long as it takes; a
- * `rememberCoroutineScope` is cancelled the moment somebody leaves the screen, and half an install
- * is the one outcome worse than none. So the fragment owns the work on its own lifecycle and this
- * holds what the screen draws, in the same shape as `ControlCenterHost`.
+ * Minecraft's options file and downloads six mods, which takes as long as it takes. A
+ * `rememberCoroutineScope` dies with the composition, so moving between the settings screens
+ * while it ran would abandon it; the fragment's own scope survives that, and this holds what the
+ * screen draws, in the same shape as `ControlCenterHost`.
+ *
+ * Leaving Settings altogether does end the scope, and the honest answer is that it does not
+ * matter: the install loop is a blocking call on a shared IO pool, so it finishes the mods it was
+ * given, and the preferences were written before it started. What is lost is the result screen,
+ * and the mode is already recorded as on, so opening it again reports the truth.
  *
  * Mutators are named apart from the properties on purpose: a `var stage by mutableStateOf(...)`
  * with `private set` still emits a JVM `setStage`, and a method of that name beside it is a

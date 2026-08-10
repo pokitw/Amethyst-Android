@@ -208,13 +208,13 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_toggle),
                             stringResource(R.string.control_editor_toggle_description),
                             state.isToggle,
-                            state::applyToggle
+                            onCheckedChange = state::applyToggle
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_sequence),
                             stringResource(R.string.control_editor_sequence_description),
                             state.sequence,
-                            state::applySequence
+                            onCheckedChange = state::applySequence
                         )
                         // Only while the mode is on: a slider that does nothing is the one thing
                         // a settings surface must never show. The floor is one game tick, which
@@ -232,13 +232,13 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_swipe),
                             stringResource(R.string.control_editor_swipe_description),
                             state.isSwipeable,
-                            state::applySwipeable
+                            onCheckedChange = state::applySwipeable
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_passthrough),
                             stringResource(R.string.control_editor_passthrough_description),
                             state.passThrough,
-                            state::applyPassThrough
+                            onCheckedChange = state::applyPassThrough
                         )
                     }
                 }
@@ -250,13 +250,13 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_forward_lock),
                             stringResource(R.string.control_editor_forward_lock_description),
                             state.forwardLock,
-                            state::applyForwardLock
+                            onCheckedChange = state::applyForwardLock
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_absolute),
                             stringResource(R.string.control_editor_absolute_description),
                             state.absoluteTracking,
-                            state::applyAbsoluteTracking
+                            onCheckedChange = state::applyAbsoluteTracking
                         )
                     }
                 }
@@ -268,13 +268,13 @@ fun ControlEditorPanel(
                             stringResource(R.string.control_editor_show_game),
                             stringResource(R.string.control_editor_show_game_description),
                             state.showInGame,
-                            state::applyShowInGame
+                            onCheckedChange = state::applyShowInGame
                         )
                         SwitchRow(
                             stringResource(R.string.control_editor_show_menu),
                             stringResource(R.string.control_editor_show_menu_description),
                             state.showInMenu,
-                            state::applyShowInMenu
+                            onCheckedChange = state::applyShowInMenu
                         )
                     }
                 }

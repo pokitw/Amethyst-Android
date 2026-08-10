@@ -1001,6 +1001,17 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     vocabulary and evaluated by a script against a grid of screen sizes and button scales, which
     is a real check rather than a hope.
 
+18. **Adding a parameter to a shared composable re-points every positional call site.**
+    `SwitchRow` gained `value`, `iconRes` and `inert` before its `onCheckedChange`, which is
+    harmless for the callers that pass the callback as a trailing lambda, because a trailing
+    lambda always binds to the last parameter whatever comes before it. It is not harmless for
+    the ones that pass it as the fourth positional argument, and `ControlEditorPanel.kt` had
+    eight of those. The check that missed it was mine: I grepped for the `) { ... }` shape,
+    confirmed every hit was a trailing lambda, and concluded the change was safe, having never
+    looked for the other shape at all. **A grep that only matches the form you expect is not a
+    survey, it is a confirmation.** `scripts/check_settings_calls.py` now reproduces Kotlin's own
+    "No value passed for parameter" against every call site of every shared settings row.
+
 ---
 
 ## 17. Known limitations
@@ -1291,6 +1302,11 @@ Before pushing:
   cap against Minecraft's own 10 to 260 range, the version gating against the game's option
   readers version by version, and that no bound can ever move a setting to the slower side of
   where the player left it.
+- **Run `python3 scripts/check_settings_calls.py`** if anything in `ui/settings/SettingsComponents.kt`
+  changed its parameters. It reproduces Kotlin's "No value passed for parameter" against every
+  call site of every shared row, which is the one way an optional parameter added in the middle
+  of one of them fails: a trailing lambda still binds to the last parameter, and a callback
+  passed positionally does not.
 - **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
