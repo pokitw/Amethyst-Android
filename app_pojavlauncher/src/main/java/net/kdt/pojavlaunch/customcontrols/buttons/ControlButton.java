@@ -8,6 +8,7 @@ import android.annotation.SuppressLint;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.util.TypedValue;
@@ -28,6 +29,9 @@ import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlGlyphs;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTexture;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextureDrawable;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -37,6 +41,8 @@ import java.util.Locale;
 public class ControlButton extends TextView implements ControlInterface {
     /** How much of the shorter side the action icon takes. Sized like a Pocket Edition button. */
     private static final float GLYPH_SIZE_RATIO = 0.46f;
+    /** Near-black rather than black: a pure black label on stone reads as a hole. */
+    private static final int DARK_CONTENT = 0xFF1A1A1A;
 
     /** The label size a button keeps when its name already fits across it. */
     private static final float BASE_TEXT_SP = 14f;
@@ -134,7 +140,29 @@ public class ControlButton extends TextView implements ControlInterface {
         // A button showing an icon shows nothing else: two things fighting for the same 50dp is
         // how the old layouts ended up with "Third\nPerson" wrapped over two lines.
         setText(mGlyph == null ? properties.name : "");
+        applyContentTone();
         fitTextSize(properties);
+    }
+
+    /**
+     * Make the label and the icon readable against whatever the button's face turned out to be.
+     *
+     * Both are white, and white is right over the translucent dark fills the flat skins draw. A
+     * texture pack removes that guarantee: a sandstone or a light-stone face erases every label
+     * and every glyph, and a glyph that cannot be read at a glance mid-fight is the one failure
+     * these icons exist to avoid. The pack says which it is; light — today's white — is the
+     * default, so a pack matching the current look needs to say nothing.
+     */
+    private void applyContentTone() {
+        ControlTexture texture = ControlTextures.current();
+        boolean dark = texture != null && texture.darkLabel;
+        setTextColor(dark ? DARK_CONTENT : Color.WHITE);
+        if (mGlyph != null) {
+            // Safe because resolveGlyph already mutated it: an un-mutated drawable shares its
+            // constant state, and the tint would land on every button on screen.
+            if (dark) mGlyph.setColorFilter(DARK_CONTENT, PorterDuff.Mode.SRC_IN);
+            else mGlyph.clearColorFilter();
+        }
     }
 
     /**
@@ -193,8 +221,25 @@ public class ControlButton extends TextView implements ControlInterface {
             mGlyph.setBounds(left, top, left + size, top + size);
             mGlyph.draw(canvas);
         }
-        if (mIsToggled || (!mProperties.isToggle && isActivated()))
-            canvas.drawRoundRect(0, 0, getWidth(), getHeight(), mComputedRadius, mComputedRadius, mRectPaint);
+        if (!(mIsToggled || (!mProperties.isToggle && isActivated()))) return;
+
+        // Over a texture the highlight has to wear the artwork's silhouette, not a rounded
+        // rectangle: mComputedRadius is the layout's own corner percentage, which is exactly the
+        // number the texture stopped drawing, so the rectangle would bleed past a rounded face or
+        // cut across a square one. The drawable redraws itself in one colour instead.
+        //
+        // Only for the latch. A press is already the drawable's own business — it swaps to the
+        // pack's pressed face, or tints itself — and drawing this on top as well would light the
+        // button twice.
+        Drawable background = getBackground();
+        if (background instanceof ControlTextureDrawable) {
+            if (mIsToggled) {
+                ((ControlTextureDrawable) background)
+                        .drawOverlay(canvas, mRectPaint.getColor(), mRectPaint.getAlpha());
+            }
+            return;
+        }
+        canvas.drawRoundRect(0, 0, getWidth(), getHeight(), mComputedRadius, mComputedRadius, mRectPaint);
     }
 
 

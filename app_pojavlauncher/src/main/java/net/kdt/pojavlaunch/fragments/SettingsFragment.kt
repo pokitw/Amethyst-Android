@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -24,6 +25,8 @@ import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.contracts.OpenDocumentWithExtension
 import net.kdt.pojavlaunch.customcontrols.keyboard.VoiceInput
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures
+import net.kdt.pojavlaunch.customcontrols.textures.TexturePackImport
 import net.kdt.pojavlaunch.multirt.MultiRTConfigDialog
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
@@ -35,6 +38,7 @@ import net.kdt.pojavlaunch.ui.content.contentFolder
 import net.kdt.pojavlaunch.ui.settings.SettingsActions
 import net.kdt.pojavlaunch.ui.settings.SettingsEnvironment
 import net.kdt.pojavlaunch.ui.settings.SettingsRoute
+import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.settings.SettingsScreen
 import net.kdt.pojavlaunch.ui.settings.rememberSettingsStore
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
@@ -63,6 +67,18 @@ class SettingsFragment : Fragment() {
     private val runtimeInstallLauncher =
         registerForActivityResult(OpenDocumentWithExtension("xz")) { uri ->
             if (uri != null) Tools.installRuntimeFromUri(context, uri)
+        }
+
+    /**
+     * Anything, rather than a zip filter.
+     *
+     * Providers disagree about what MIME type a zip is — some hand them out as octet-stream —
+     * and Game files already settled this: the picker takes what it is given and what is inside
+     * decides what it was.
+     */
+    private val texturePackLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) importTexturePack(uri)
         }
 
     /**
@@ -143,6 +159,7 @@ class SettingsFragment : Fragment() {
             maxMemoryMb = maxMemory,
             gyroAvailable = Tools.deviceSupportsGyro(context),
             voiceAvailable = VoiceInput.isAvailable(context),
+            texturePacks = ControlTextures.available(),
             modCount = contentCount,
             notificationPermission = launcher?.checkForNotificationPermission() ?: true,
             microphonePermission = launcher?.checkForMicrophonePermission() ?: true,
@@ -206,7 +223,8 @@ class SettingsFragment : Fragment() {
             onShareLog = { Tools.shareLog(requireContext()) },
             onWiki = { Tools.openURL(requireActivity(), Tools.URL_HOME) },
             onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) },
-            onReplayWelcome = ::replayWelcome
+            onReplayWelcome = ::replayWelcome,
+            onImportTexturePack = ::pickTexturePack
         )
     }
 
@@ -219,6 +237,46 @@ class SettingsFragment : Fragment() {
      * one ends. The activity is started plainly rather than through `TestStorageActivity`, since
      * storage has clearly been sorted out by the time anyone is reading Settings.
      */
+    private fun pickTexturePack() {
+        runCatching { texturePackLauncher.launch(arrayOf("*/*")) }
+            .onFailure { toast(getString(R.string.preference_control_texture_failed)) }
+    }
+
+    /**
+     * Unpack a chosen archive, then make it the style straight away.
+     *
+     * Selecting it for the player is the whole reason this is one action rather than two: nobody
+     * imports a pack in order to leave it turned off, and a picker that silently gained a row is
+     * the kind of thing you have to go back and check.
+     */
+    private fun importTexturePack(uri: android.net.Uri) {
+        val importer = TexturePackImport()
+        when (importer.importFrom(requireContext(), uri)) {
+            TexturePackImport.Result.ADDED -> {
+                val name = importer.name
+                if (name != null) {
+                    // Straight to the same store the screen writes through, so the reload of the
+                    // PREF_ statics happens exactly as it would have from a tap on the row.
+                    SettingsStore(requireContext()).put("controlStyle", name)
+                    // The launcher process has the old artwork in memory; the game gets a fresh
+                    // registry anyway, but the editor lives here and would keep drawing the last
+                    // pack until the process died.
+                    ControlTextures.invalidate()
+                    environment = readEnvironment()
+                    toast(getString(R.string.preference_control_texture_added, name))
+                }
+            }
+            TexturePackImport.Result.NOT_A_PACK ->
+                toast(getString(R.string.preference_control_texture_not_a_pack))
+            TexturePackImport.Result.FAILED ->
+                toast(getString(R.string.preference_control_texture_failed))
+        }
+    }
+
+    private fun toast(message: String) {
+        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+    }
+
     private fun replayWelcome() {
         startActivity(
             Intent(requireContext(), OnboardingActivity::class.java)

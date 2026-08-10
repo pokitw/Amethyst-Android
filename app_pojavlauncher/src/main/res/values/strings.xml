@@ -688,6 +688,7 @@
     <string name="onboarding_row_keyboard">On-screen keyboard</string>
     <string name="onboarding_row_search">Searchable settings</string>
     <string name="onboarding_row_controls">Redesigned controls</string>
+    <string name="onboarding_row_textures">Button texture packs</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_size">Smaller download</string>
 
@@ -746,6 +747,9 @@
     <string name="control_editor_section_drawer">DRAWER</string>
     <string name="control_editor_section_size">SIZE</string>
     <string name="control_editor_section_look">LOOK</string>
+    <string name="control_editor_style_overridden">Drawn by the button style</string>
+    <string name="control_editor_style_texture">A texture pack is drawing these buttons. Your fill, border and corners are kept in the layout and come back when you switch it off.</string>
+    <string name="control_editor_style_pocket">The Pocket style is drawing these buttons. Your fill, border and corners are kept in the layout and come back when you switch it off.</string>
     <string name="control_editor_section_behaviour">BEHAVIOUR</string>
     <string name="control_editor_section_visibility">SHOW</string>
     <string name="control_editor_key_none">Choose a key</string>
@@ -892,8 +896,15 @@
     </plurals>
 
     <!-- On-screen controls -->
-    <string name="preference_control_pocket_title">Pocket button style</string>
-    <string name="preference_control_pocket_description">Draw the on-screen buttons the way Minecraft does on phones, instead of using the colours saved in the layout</string>
+    <string name="preference_control_style_title">Button style</string>
+    <string name="preference_control_style_description">What the on-screen buttons are drawn with. Whatever you pick, the colours saved in your layout stay in the file.</string>
+    <string name="preference_control_style_layout">Layout colours</string>
+    <string name="preference_control_style_pocket">Pocket</string>
+    <string name="preference_control_texture_add_title">Add a texture pack</string>
+    <string name="preference_control_texture_add_description">A .zip holding a button.png, and optionally a button_pressed.png and a pack.json</string>
+    <string name="preference_control_texture_added">%1$s added, and your buttons are wearing it</string>
+    <string name="preference_control_texture_not_a_pack">There is no button.png in that file, so it is not a texture pack</string>
+    <string name="preference_control_texture_failed">That texture pack could not be added.</string>
     <string name="preference_control_glyphs_title">Action icons</string>
     <string name="preference_control_glyphs_description">Show an icon on buttons whose key is recognised — jump, sneak, inventory — instead of their name</string>
     <string name="control_center_share">Share layout</string>

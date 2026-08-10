@@ -81,7 +81,11 @@ public class LauncherPreferences {
     public static boolean PREF_MOUSE_GRAB_FORCE = false;
     public static boolean PREF_KEYBOARD_PANNING = true;
 
-    public static boolean PREF_CONTROL_POCKET_SKIN = true;
+    /**
+     * What the on-screen buttons look like: {@code layout}, {@code pocket}, or a texture pack's
+     * folder name. One key rather than a switch plus a picker, because it is one decision.
+     */
+    public static String PREF_CONTROL_STYLE = "pocket";
     public static boolean PREF_CONTROL_GLYPHS = false;
 
     public static boolean PREF_VOICE_LIVE_TYPING = true;
@@ -131,7 +135,10 @@ public class LauncherPreferences {
         PREF_TOUCHCONTROLLER_VIBRATE_LENGTH = DEFAULT_PREF.getInt("touchControllerVibrateLength", 100);
         PREF_MOUSE_GRAB_FORCE = DEFAULT_PREF.getBoolean("always_grab_mouse", false);
         PREF_KEYBOARD_PANNING = DEFAULT_PREF.getBoolean("keyboardPanning", true);
-        PREF_CONTROL_POCKET_SKIN = DEFAULT_PREF.getBoolean("controlPocketSkin", true);
+        // Migrated from the switch this replaced, so nobody's buttons change appearance on
+        // update: the old boolean is read once and only when the new key has never been written.
+        PREF_CONTROL_STYLE = DEFAULT_PREF.getString("controlStyle",
+                DEFAULT_PREF.getBoolean("controlPocketSkin", true) ? "pocket" : "layout");
         PREF_CONTROL_GLYPHS = DEFAULT_PREF.getBoolean("controlGlyphs", false);
         PREF_VOICE_LIVE_TYPING = DEFAULT_PREF.getBoolean("voiceLiveTyping", true);
         PREF_VOICE_AUTO_SEND = DEFAULT_PREF.getBoolean("voiceAutoSend", false);

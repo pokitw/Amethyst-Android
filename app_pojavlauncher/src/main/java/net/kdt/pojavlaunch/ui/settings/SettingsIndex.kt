@@ -138,9 +138,15 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "layout editor buttons move add joystick", suggested = true
     ),
     SettingEntry(
-        R.string.preference_control_pocket_title, SettingsRoute.CONTROLS,
-        R.string.preference_control_pocket_description, R.string.settings_section_style,
-        "pocket bedrock style look theme translucent round"
+        R.string.preference_control_style_title, SettingsRoute.CONTROLS,
+        R.string.preference_control_style_description, R.string.settings_section_style,
+        "pocket bedrock style look theme translucent round texture pack skin appearance",
+        suggested = true
+    ),
+    SettingEntry(
+        R.string.preference_control_texture_add_title, SettingsRoute.CONTROLS,
+        R.string.preference_control_texture_add_description, R.string.settings_section_style,
+        "texture pack import install zip bedrock ore ui skin buttons custom"
     ),
     SettingEntry(
         R.string.preference_control_glyphs_title, SettingsRoute.CONTROLS,

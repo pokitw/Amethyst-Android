@@ -48,7 +48,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData
+import net.kdt.pojavlaunch.customcontrols.ControlSkin
 import net.kdt.pojavlaunch.customcontrols.ControlGlyphs
+import net.kdt.pojavlaunch.ui.settings.InfoRow
 import net.kdt.pojavlaunch.ui.settings.SectionLabel
 import net.kdt.pojavlaunch.ui.settings.SettingsCard
 import net.kdt.pojavlaunch.ui.settings.SwitchRow
@@ -151,34 +153,52 @@ fun ControlEditorPanel(
                         format = { "${(it * 100).roundToInt()}%" },
                         onValueChange = state::applyOpacity
                     )
-                    if (state.cornerEditable) {
+                    // Opacity stays above this line whatever the style is: it is applied as the
+                    // view's own alpha and never went through the skin at all.
+                    //
+                    // The four below it did, and under a style that overrides the layout's
+                    // colours they write the file and change nothing on screen — which has been
+                    // true of the Pocket skin since it shipped, and is the thing a settings
+                    // screen must never do. They are replaced by a line saying who is drawing.
+                    if (ControlSkin.isPocket() || ControlSkin.isTextured()) {
+                        InfoRow(
+                            title = stringResource(R.string.control_editor_style_overridden),
+                            description = stringResource(
+                                if (ControlSkin.isTextured())
+                                    R.string.control_editor_style_texture
+                                else R.string.control_editor_style_pocket
+                            )
+                        )
+                    } else {
+                        if (state.cornerEditable) {
+                            LiveSlider(
+                                title = stringResource(R.string.control_editor_corners),
+                                value = state.cornerRadius,
+                                range = 0f..100f,
+                                format = { "${it.roundToInt()}%" },
+                                onValueChange = state::applyCornerRadius
+                            )
+                        }
                         LiveSlider(
-                            title = stringResource(R.string.control_editor_corners),
-                            value = state.cornerRadius,
-                            range = 0f..100f,
-                            format = { "${it.roundToInt()}%" },
-                            onValueChange = state::applyCornerRadius
+                            title = stringResource(R.string.control_editor_border),
+                            value = state.strokeWidth,
+                            range = 0f..10f,
+                            format = { String.format(Locale.getDefault(), "%.1f dp", it) },
+                            onValueChange = state::applyStrokeWidth
+                        )
+                        ColorField(
+                            title = stringResource(R.string.control_editor_fill),
+                            color = state.fillColor,
+                            alphaEnabled = true,
+                            onColor = state::applyFillColor
+                        )
+                        ColorField(
+                            title = stringResource(R.string.control_editor_border_colour),
+                            color = state.strokeColor,
+                            alphaEnabled = false,
+                            onColor = state::applyStrokeColor
                         )
                     }
-                    LiveSlider(
-                        title = stringResource(R.string.control_editor_border),
-                        value = state.strokeWidth,
-                        range = 0f..10f,
-                        format = { String.format(Locale.getDefault(), "%.1f dp", it) },
-                        onValueChange = state::applyStrokeWidth
-                    )
-                    ColorField(
-                        title = stringResource(R.string.control_editor_fill),
-                        color = state.fillColor,
-                        alphaEnabled = true,
-                        onColor = state::applyFillColor
-                    )
-                    ColorField(
-                        title = stringResource(R.string.control_editor_border_colour),
-                        color = state.strokeColor,
-                        alphaEnabled = false,
-                        onColor = state::applyStrokeColor
-                    )
                 }
 
                 if (state.behaviourEditable) {

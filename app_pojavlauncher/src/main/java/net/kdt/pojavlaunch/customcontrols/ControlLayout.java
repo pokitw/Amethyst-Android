@@ -34,6 +34,7 @@ import net.kdt.pojavlaunch.customcontrols.buttons.ControlInterface;
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlJoystick;
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlSubButton;
 import net.kdt.pojavlaunch.customcontrols.handleview.ControlHandleView;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 
@@ -80,6 +81,13 @@ public class ControlLayout extends FrameLayout {
 	}
 
 	public void loadLayout(CustomControls controlLayout) {
+		// Every way of loading a layout arrives here, which makes this the one place the artwork
+		// has to be current: the buttons about to be built each take a reference to it, and the
+		// game re-runs this after a trip to Settings, where the style may well have changed.
+		// Keyed on the pack's name, so the ordinary case is a string comparison, and it cannot
+		// throw — a texture that will not load is a flat button, never a launch that fails.
+		ControlTextures.ensureLoaded(ControlSkin.texturePack());
+
 		boolean sanitizedModified = false;
 		if(controlLayout != null) {
 			sanitizedModified = LayoutSanitizer.sanitizeLayout(controlLayout);

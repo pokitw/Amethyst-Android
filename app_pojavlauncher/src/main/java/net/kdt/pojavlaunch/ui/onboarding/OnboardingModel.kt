@@ -107,6 +107,9 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_search, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_controls, Support.PARTIAL, Support.YES),
+    // Not a tie, unlike the screenshot: upstream has per-button colours, which is a different
+    // thing from wearing a picture, so the row says something.
+    ComparisonRow(R.string.onboarding_row_textures, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.NO),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )

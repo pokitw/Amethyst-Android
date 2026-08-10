@@ -377,7 +377,10 @@ cheaper than a screen recorder, which composites the whole display and re-encode
     read by `ControlInterface.setBackground()` and `ControlButton.onDraw`; the fill, stroke and
     radius the user saved stay in the file untouched. Baking the skin into the data would take
     someone's colours away permanently, which is the one thing a look-and-feel preference must
-    never do.
+    never do. **A texture pack obeys the same contract** — it draws instead of the fill and the
+    keyline and writes nothing — and `setBackground()` is where the three styles are chosen
+    between, because it re-runs on every layout pass and anything decided elsewhere is overwritten
+    by it a moment later.
 12. **`assets/default.json` is replaced, never merged.** Changing it hands existing users a
     `controlmap/new_default.json` and leaves their own default alone — that is `AsyncAssetManager`
     working as intended, not a bug to fix. Note `Tools.compareSHA1` "fake matches" on a read
@@ -554,6 +557,35 @@ re-litigated. The reasoning lives in the commit that made the change.
   an icon from **the key a button sends**, not its name, so old layouts gain icons with no
   migration; a button bound to two keys keeps its text. `assets/default.json` is a Pocket Edition
   shape written in the simple expression vocabulary so it can be read and checked (§19).
+- **Control textures** (`customcontrols/textures/`) — a folder of PNGs the buttons wear instead of
+  a fill and a keyline, so a Bedrock-style face is something a player can make rather than
+  something the launcher has to ship.
+  **One setting, not two.** The Pocket switch became a `Button style` choice — Layout colours,
+  Pocket, then the installed packs — because nobody thinks "Pocket on, and separately which
+  texture". Two controls would have needed a documented rule about which wins and would have left
+  the switch doing nothing whenever a pack was chosen. The old boolean is read once to migrate.
+  **The format is three files and stops there**: `button.png`, an optional `button_pressed.png`,
+  an optional `pack.json` carrying `slice`, `smooth` and `label`. Per-button artwork was designed
+  and cut. The obvious key for it is the button's *name*, and the name is the weakest identity in
+  the system — free text that can be empty, duplicated, translated, or literally `..` — and
+  freezing it into a format players share would be permanent. Icons are keyed on **the key a
+  button sends** for exactly this reason; if per-button art ever earns its place it goes there.
+  **`label` is not decoration.** The label and the glyph are white, which works over the
+  translucent dark fills the flat skins draw and disappears over the pale stone the headline use
+  case is made of. A pack that needs dark content says so and gets it, defaulting to today's
+  white. A glyph that cannot be read at a glance mid-fight is the one failure those icons exist to
+  prevent.
+  **A press and a latch wear the artwork's silhouette**, by redrawing the texture through a colour
+  filter rather than by the rounded rectangle the flat skins use — that rectangle's radius is the
+  layout's corner percentage, which is precisely the number a texture has stopped drawing, so it
+  would bleed past a rounded face or cut across a square one.
+  Packs live in `controltextures/`, **not** under `controlmap/`: the two surviving layout dialogs
+  list every directory there, so a folder inside it would appear in the layout picker forever.
+  There is an importer because there has to be one — `Android/data` is unbrowsable from Android 11
+  — and it takes a zip and looks inside it the way Game files does, canonicalising every entry
+  path because this is the launcher's second archive from a stranger.
+  The nine-slice geometry is checked by `scripts/check_textures.py` against the shipped Java: 8400
+  button sizes, that the cells tile exactly and that none is ever empty or inverted.
 - **Control layout editor** — hosts the same control center in editor mode, so the editor from
   Settings and the one from inside a game are one screen with two ways in.
 - **Editing a button** (`ui/controls/`) — the keycode spinners are gone: **you bind a key by
@@ -767,6 +799,19 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   the remapper's own capture UI, so search gets you as far as the row that opens them.
 - The new default control layout is checked from 80% to 175% button scale. Above that the top row
   runs out of screen on a small display — inherent to nineteen buttons, and the layout is editable.
+- A texture pack draws **every button the same**, because the format has no per-button artwork
+  (see §14 for why the button's name is the wrong key for it). A layout is told apart by its
+  glyphs and its labels, not by nineteen different faces.
+- The **joystick is not textured**. It is an external library view with its own three colour
+  setters and no drawable to replace; a pack applies to buttons, drawers and sub-buttons.
+- A pack is read **when the layout is loaded**, so a new one takes effect at the next launch or
+  the next return from Settings, not while a game is running.
+- A pack whose folder has been deleted leaves its name selected in Settings and draws flat. The
+  game process deliberately does not rewrite the preference to correct it: both processes cache
+  the whole preference file, and the launcher would be the one to lose the change.
+- Packs are capped at 1024px a side and **refused rather than downscaled** past it, because the
+  nine-slice inset is written in source pixels and a quietly halved bitmap would be sliced in the
+  wrong place.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
 - Voice typing **cannot open chat for you**. The chat key is rebindable and nothing on the

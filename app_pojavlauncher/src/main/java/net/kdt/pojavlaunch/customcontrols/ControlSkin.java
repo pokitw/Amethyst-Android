@@ -1,5 +1,6 @@
 package net.kdt.pojavlaunch.customcontrols;
 
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 
 /**
@@ -14,8 +15,17 @@ import net.kdt.pojavlaunch.prefs.LauncherPreferences;
  * The look itself is Minecraft on phones — a light translucent fill so the world stays readable
  * underneath, a dark keyline so the button still reads against snow or sky, and a corner radius
  * that lands between a square and a circle. Nothing here glows.
+ *
+ * <b>One choice, not two.</b> A texture pack is a third answer to the same question the Pocket
+ * skin answers — what do my buttons look like — so it is the same setting, with the packs listed
+ * after the two built-in styles. Two controls would have needed a documented rule about which
+ * wins, and would have left the Pocket switch sitting there doing nothing whenever a pack was on.
  */
 public final class ControlSkin {
+    /** The style the layout's own saved colours give, which is what upstream has always drawn. */
+    public static final String STYLE_LAYOUT = "layout";
+    /** The built-in Pocket Edition look. */
+    public static final String STYLE_POCKET = "pocket";
     /** White at 20%: present over dark terrain, not a hole punched in a bright one. */
     public static final int FILL = 0x33FFFFFF;
     /** The keyline. Dark rather than light, because bright backgrounds are the hard case. */
@@ -35,8 +45,40 @@ public final class ControlSkin {
 
     private ControlSkin() {}
 
+    /**
+     * The texture pack the style names, or null when it names one of the two built-in styles.
+     *
+     * A name that no longer has a folder is not an error here — it simply loads nothing, and the
+     * buttons come out flat. Settings keeps showing the missing name so it is obvious what
+     * happened; the game process never rewrites the preference, because both processes cache the
+     * whole preference file and the launcher would be the one to lose the change.
+     */
+    public static String texturePack() {
+        String style = LauncherPreferences.PREF_CONTROL_STYLE;
+        if (style == null || STYLE_LAYOUT.equals(style) || STYLE_POCKET.equals(style)) return null;
+        return style;
+    }
+
+    /**
+     * Whether a texture pack is actually drawing.
+     *
+     * Not the same as one being selected: a pack whose folder has been deleted, or whose face
+     * will not decode, leaves this false and the buttons fall back to the flat skin rather than
+     * to nothing.
+     */
+    public static boolean isTextured() {
+        return ControlTextures.isActive();
+    }
+
+    /**
+     * Whether the built-in Pocket look applies.
+     *
+     * False while a texture is drawing, because the fill and the keyline are exactly what the
+     * texture has replaced. The corner radius still comes through {@link #cornerPercent} for the
+     * things a texture does not cover.
+     */
     public static boolean isPocket() {
-        return LauncherPreferences.PREF_CONTROL_POCKET_SKIN;
+        return !isTextured() && STYLE_POCKET.equals(LauncherPreferences.PREF_CONTROL_STYLE);
     }
 
     public static boolean isGlyphs() {

@@ -21,6 +21,9 @@ import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTexture;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextureDrawable;
+import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures;
 
 import org.lwjgl.glfw.CallbackBridge;
 
@@ -109,6 +112,21 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
      */
     default void setBackground() {
         ControlData properties = getProperties();
+
+        // The texture branch comes first and replaces the background outright rather than
+        // recycling it. This method is re-run on every layout pass, so a branch that only reused
+        // a GradientDrawable when it found one would install a fresh flat background over the
+        // texture the moment the button was first laid out.
+        ControlTexture texture = ControlTextures.current();
+        if (texture != null) {
+            ControlTextureDrawable drawable =
+                    getControlView().getBackground() instanceof ControlTextureDrawable
+                            ? (ControlTextureDrawable) getControlView().getBackground()
+                            : new ControlTextureDrawable(texture);
+            getControlView().setBackground(drawable);
+            return;
+        }
+
         GradientDrawable gd = getControlView().getBackground() instanceof GradientDrawable
                 ? (GradientDrawable) getControlView().getBackground()
                 : new GradientDrawable();
