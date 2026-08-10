@@ -111,6 +111,37 @@ public class Harness {
         check(ModrinthMods.facets("1.20.1", "", "mod")
                         .equals("[[\"project_type:mod\"],[\"versions:1.20.1\"]]"),
                 "an empty loader should be left out rather than sent as an empty facet");
+        // A category is a second categories group, AND-ed with the loader's, which is exactly
+        // what "Fabric mods in this category" means to the search index.
+        check(ModrinthMods.facets("1.20.1", "fabric", "mod", "optimization").equals(
+                "[[\"project_type:mod\"],[\"versions:1.20.1\"],"
+                        + "[\"categories:fabric\"],[\"categories:optimization\"]]"),
+                "a category should ride as its own AND group");
+
+        // The project page: links, gallery, license and body all survive the parse, and a
+        // gallery entry with no URL is dropped rather than drawn as an empty tile.
+        String projectJson = new String(
+                Files.readAllBytes(Paths.get(args[0]).resolveSibling("project.json")),
+                StandardCharsets.UTF_8);
+        ModrinthMods.Project project = ModrinthMods.parseProject(
+                JsonParser.parseString(projectJson).getAsJsonObject());
+        check(project != null, "the project fixture should parse");
+        if (project != null) {
+            check("AANobbMI".equals(project.projectId), "project id was " + project.projectId);
+            check("sodium".equals(project.slug), "slug was " + project.slug);
+            check(project.body.contains("# Sodium"), "the body should arrive verbatim");
+            check(project.downloads == 12345678, "downloads were " + project.downloads);
+            check(project.followers == 24567, "followers were " + project.followers);
+            check("https://github.com/CaffeineMC/sodium".equals(project.sourceUrl),
+                    "source url was " + project.sourceUrl);
+            check(project.wikiUrl == null, "a JSON null wiki url should read as null");
+            check(project.gallery.size() == 2,
+                    "the entry with no url should be dropped, got " + project.gallery.size());
+            check(project.licenseName != null && project.licenseName.startsWith("GNU"),
+                    "license name was " + project.licenseName);
+            check(project.pageUrl().equals("https://modrinth.com/mod/sodium"),
+                    "page url was " + project.pageUrl());
+        }
 
         // File names come from a remote index, and this is the third place in the launcher that
         // writes one to disk from a stranger.

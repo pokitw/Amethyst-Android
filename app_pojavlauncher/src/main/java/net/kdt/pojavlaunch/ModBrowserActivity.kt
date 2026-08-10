@@ -19,7 +19,9 @@ import net.kdt.pojavlaunch.ui.mods.InstallState
 import net.kdt.pojavlaunch.ui.mods.ModBrowserScreen
 import net.kdt.pojavlaunch.ui.mods.ModBrowserState
 import net.kdt.pojavlaunch.ui.mods.ModRow
+import net.kdt.pojavlaunch.ui.mods.ModProjectScreen
 import net.kdt.pojavlaunch.ui.mods.ModTarget
+import net.kdt.pojavlaunch.ui.mods.ProjectPage
 import net.kdt.pojavlaunch.ui.mods.currentModTarget
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 
@@ -60,23 +62,55 @@ class ModBrowserActivity : BaseActivity() {
     private var icons: ModIconCache? = null
     private var iconsTried = false
 
+    /** Back closes the page before it closes the browser, so a mod page is not a one-way trip. */
+    private val pageBack = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            closePage()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        onBackPressedDispatcher.addCallback(this, pageBack)
         setContent {
             AmethystXTheme {
-                ModBrowserScreen(
-                    state = state,
-                    onQuery = { state = state.copy(query = it) },
-                    onSearch = { search(reset = true) },
-                    onToggleFilter = {
-                        state = state.copy(filtered = !state.filtered)
-                        search(reset = true)
-                    },
-                    onInstall = ::install,
-                    onNeedIcon = ::loadIcon,
-                    onLoadMore = { search(reset = false) },
-                    onBack = ::finish
-                )
+                val page = state.page
+                if (page != null) {
+                    ModProjectScreen(
+                        page = page,
+                        installEnabled = state.targetKnown && state.target.canRunMods,
+                        rowIcon = state.rows.firstOrNull {
+                            it.hit.projectId == page.hit.projectId
+                        }?.icon,
+                        onInstallBest = ::installBestFromPage,
+                        onInstallVersion = ::installVersionFromPage,
+                        onNeedGallery = ::loadGalleryImage,
+                        onBack = ::closePage
+                    )
+                } else {
+                    ModBrowserScreen(
+                        state = state,
+                        onQuery = { state = state.copy(query = it) },
+                        onSearch = { search(reset = true) },
+                        onToggleFilter = {
+                            state = state.copy(filtered = !state.filtered)
+                            search(reset = true)
+                        },
+                        onSort = {
+                            state = state.copy(sort = it)
+                            search(reset = true)
+                        },
+                        onCategory = {
+                            state = state.copy(category = it)
+                            search(reset = true)
+                        },
+                        onInstall = ::install,
+                        onOpen = ::openPage,
+                        onNeedIcon = ::loadIcon,
+                        onLoadMore = { search(reset = false) },
+                        onBack = ::finish
+                    )
+                }
             }
         }
         refreshTarget(thenSearch = true)
@@ -136,7 +170,8 @@ class ModBrowserActivity : BaseActivity() {
         searchJob = lifecycleScope.launch {
             val page = withContext(Dispatchers.IO) {
                 runCatching {
-                    ModrinthMods.search(query, mcVersion, loader, offset, "mod")
+                    ModrinthMods.search(query, mcVersion, loader, offset, "mod",
+                        state.sort.ifEmpty { null }, state.category.ifEmpty { null })
                 }.getOrNull()
             }
             if (page == null) {
@@ -301,6 +336,175 @@ class ModBrowserActivity : BaseActivity() {
                     ))
                 }
             }
+        }
+    }
+
+    /* ------------------------------------------------------------------ the project page */
+
+    /** Gallery URLs already asked for, so a recomposition cannot fetch a picture twice. */
+    private val galleryRequested = HashSet<String>()
+
+    private fun openPage(row: ModRow) {
+        state = state.copy(page = ProjectPage(hit = row.hit))
+        pageBack.isEnabled = true
+        val projectId = row.hit.projectId
+        val mcVersion = state.effectiveVersion
+        val loader = state.effectiveLoader
+        lifecycleScope.launch {
+            val project = withContext(Dispatchers.IO) {
+                runCatching { ModrinthMods.project(projectId) }.getOrNull()
+            }
+            updatePage(projectId) { it.copy(project = project, projectFailed = project == null) }
+            val versions = withContext(Dispatchers.IO) {
+                runCatching { ModrinthMods.versions(projectId, mcVersion, loader) }.getOrNull()
+            }
+            updatePage(projectId) {
+                it.copy(versions = versions.orEmpty(), versionsKnown = true)
+            }
+        }
+    }
+
+    private fun closePage() {
+        state = state.copy(page = null)
+        pageBack.isEnabled = false
+        galleryRequested.clear()
+        // The page may have installed something; the list's ticks should say so on the way back.
+        state.target.modsFolder?.let(::refreshInstalled)
+    }
+
+    /**
+     * Publish a change to the page, but only the page it was for.
+     *
+     * A fetch can outlive the page it was started from: close a mod and open another and the
+     * first one's project would otherwise land on the second one's screen.
+     */
+    private fun updatePage(projectId: String, change: (ProjectPage) -> ProjectPage) {
+        val page = state.page ?: return
+        if (page.hit.projectId != projectId) return
+        state = state.copy(page = change(page))
+    }
+
+    private fun installBestFromPage() {
+        val page = state.page ?: return
+        val best = ModrinthMods.best(page.versions)
+        if (best == null) {
+            updatePage(page.hit.projectId) {
+                it.copy(note = getString(R.string.mods_browse_no_version), noteIsError = true)
+            }
+            return
+        }
+        installVersionFromPage(best)
+    }
+
+    /** Install one exact version from the page's list, with the outcome written on the page. */
+    private fun installVersionFromPage(version: ModrinthMods.File) {
+        val page = state.page ?: return
+        val projectId = page.hit.projectId
+        if (!state.target.canRunMods) {
+            updatePage(projectId) {
+                it.copy(note = getString(R.string.mods_browse_no_loader_short), noteIsError = true)
+            }
+            return
+        }
+        val folder = state.target.modsFolder
+        if (folder == null) {
+            updatePage(projectId) {
+                it.copy(note = getString(R.string.mods_browse_no_profile), noteIsError = true)
+            }
+            return
+        }
+        if (page.installingVersion != null) return
+        updatePage(projectId) {
+            it.copy(installingVersion = version.versionId, note = null, noteIsError = false)
+        }
+        val mcVersion = state.effectiveVersion
+        val loader = state.effectiveLoader
+        lifecycleScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching { ModInstall.install(folder, version, mcVersion, loader) }.getOrNull()
+            }
+            updatePage(projectId) { current ->
+                val note: String
+                val isError: Boolean
+                when {
+                    outcome == null || !outcome.ok() -> {
+                        note = getString(R.string.mods_browse_install_failed); isError = true
+                    }
+                    outcome.complete() -> {
+                        val extra = outcome.installed.size - 1
+                        note = if (extra > 0) {
+                            resources.getQuantityString(
+                                R.plurals.mods_browse_with_dependencies, extra, extra)
+                        } else {
+                            getString(R.string.mods_page_installed, version.versionNumber)
+                        }
+                        isError = false
+                    }
+                    else -> {
+                        note = resources.getQuantityString(
+                            R.plurals.mods_browse_missing_dependencies,
+                            outcome.missing.size, outcome.missing.size)
+                        isError = false
+                    }
+                }
+                current.copy(installingVersion = null, note = note, noteIsError = isError)
+            }
+        }
+    }
+
+    /**
+     * One gallery picture, decoded small enough to be a strip thumbnail.
+     *
+     * Bounded on both ends: the bytes are capped before decoding (a gallery URL is a stranger's
+     * URL), and the decode is downsampled to roughly the strip's own size, because a 4K
+     * screenshot behind a 220dp tile is heap spent on nothing.
+     */
+    private fun loadGalleryImage(url: String) {
+        if (!galleryRequested.add(url)) return
+        val projectId = state.page?.hit?.projectId ?: return
+        lifecycleScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                runCatching { fetchScaledImage(url) }.getOrNull()
+            }
+            if (bitmap != null) {
+                updatePage(projectId) { it.copy(gallery = it.gallery + (url to bitmap)) }
+            }
+        }
+    }
+
+    private fun fetchScaledImage(url: String): androidx.compose.ui.graphics.ImageBitmap? {
+        val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        return try {
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            val bytes = connection.inputStream.use { stream ->
+                val out = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(65536)
+                var total = 0
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read == -1) break
+                    total += read
+                    // A gallery entry bigger than this is not a screenshot; stop rather than
+                    // buffer whatever it actually is.
+                    if (total > 15 * 1024 * 1024) return null
+                    out.write(buffer, 0, read)
+                }
+                out.toByteArray()
+            }
+            val bounds = android.graphics.BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            var sample = 1
+            while (bounds.outWidth / (sample * 2) >= 880) sample *= 2
+            val options = android.graphics.BitmapFactory.Options().apply {
+                inSampleSize = sample
+            }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                ?.asImageBitmap()
+        } finally {
+            connection.disconnect()
         }
     }
 

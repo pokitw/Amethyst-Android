@@ -25,6 +25,29 @@ data class ModRow(
     val note: String? = null
 )
 
+/**
+ * One project opened full, over the list.
+ *
+ * The [hit] is everything the search already knew, so the page can draw its header before any
+ * request comes back; the body, the gallery and the versions each arrive when they arrive and
+ * fill their own section in. Closing the page throws all of it away, deliberately: a page is a
+ * look at a mod, not a cache of one.
+ */
+@Immutable
+data class ProjectPage(
+    val hit: ModrinthMods.Hit,
+    val project: ModrinthMods.Project? = null,
+    val projectFailed: Boolean = false,
+    val versions: List<ModrinthMods.File> = emptyList(),
+    val versionsKnown: Boolean = false,
+    /** The version mid-install, so exactly one row spins. */
+    val installingVersion: String? = null,
+    val note: String? = null,
+    val noteIsError: Boolean = false,
+    /** Gallery pictures that have arrived, by URL; the strip draws what is here. */
+    val gallery: Map<String, ImageBitmap> = emptyMap()
+)
+
 /** Everything the browser draws. */
 @Immutable
 data class ModBrowserState(
@@ -61,9 +84,36 @@ data class ModBrowserState(
      * stopped by the launcher being careful on their behalf.
      */
     val filtered: Boolean = true,
+    /** Modrinth's sort index, or empty for the smart default the client picks. */
+    val sort: String = "",
+    /** One of Modrinth's category tags, or empty for all of them. */
+    val category: String = "",
+    /** The project opened over the list, or null while the list is what shows. */
+    val page: ProjectPage? = null,
     val nextOffset: Int = 0,
     val hasMore: Boolean = false
 ) {
     val effectiveVersion: String? get() = if (filtered) target.mcVersion else null
     val effectiveLoader: String? get() = if (filtered) target.loaderId else null
 }
+
+/** The sorts Modrinth's search takes, in the order the picker offers them. */
+val MOD_SORTS = listOf("", "downloads", "follows", "newest", "updated")
+
+/**
+ * Modrinth's mod category tags.
+ *
+ * A fixed list rather than a request: the tag set is stable for years at a stretch, the labels
+ * are the index's own names rather than launcher copy, and a picker that needs a network round
+ * trip before it can open is a worse picker. A tag Modrinth retires simply finds nothing, which
+ * the empty state already explains.
+ */
+val MOD_CATEGORIES = listOf(
+    "adventure", "cursed", "decoration", "economy", "equipment", "food", "game-mechanics",
+    "library", "magic", "management", "minigame", "mobs", "optimization", "social", "storage",
+    "technology", "transportation", "utility", "worldgen"
+)
+
+/** A category tag as a label: the index's own name, tidied, not translated. */
+fun categoryLabel(tag: String): String =
+    tag.replace('-', ' ').replaceFirstChar { it.uppercaseChar() }

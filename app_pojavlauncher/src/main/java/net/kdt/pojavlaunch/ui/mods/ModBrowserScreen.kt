@@ -44,6 +44,7 @@ import net.kdt.pojavlaunch.modloaders.modpacks.api.ModrinthMods
 import net.kdt.pojavlaunch.ui.common.AppEmptyState
 import net.kdt.pojavlaunch.ui.common.AppSearchField
 import net.kdt.pojavlaunch.ui.common.LazyAppScaffold
+import net.kdt.pojavlaunch.ui.settings.ChoiceRow
 import net.kdt.pojavlaunch.ui.settings.SettingsCard
 import net.kdt.pojavlaunch.ui.settings.SwitchRow
 import net.kdt.pojavlaunch.ui.settings.SectionLabel
@@ -75,7 +76,10 @@ fun ModBrowserScreen(
     onQuery: (String) -> Unit,
     onSearch: () -> Unit,
     onToggleFilter: () -> Unit,
+    onSort: (String) -> Unit,
+    onCategory: (String) -> Unit,
     onInstall: (ModRow) -> Unit,
+    onOpen: (ModRow) -> Unit,
     onNeedIcon: (ModRow) -> Unit,
     onLoadMore: () -> Unit,
     onBack: () -> Unit,
@@ -118,7 +122,7 @@ fun ModBrowserScreen(
                         onSubmit = { focus.clearFocus(); onSearch() }
                     )
                     Spacer(Modifier.height(12.dp))
-                    FilterRow(state, onToggleFilter)
+                    RefineCard(state, onToggleFilter, onSort, onCategory)
                     Spacer(Modifier.height(18.dp))
                 }
             }
@@ -179,7 +183,8 @@ fun ModBrowserScreen(
                         row = row,
                         shape = groupedShape(index, state.rows.size),
                         enabled = state.targetKnown && state.target.canRunMods,
-                        onInstall = { onInstall(row) }
+                        onInstall = { onInstall(row) },
+                        onOpen = { onOpen(row) }
                     )
                 }
             }
@@ -203,21 +208,52 @@ fun ModBrowserScreen(
  * the launcher goes.
  */
 @Composable
-private fun FilterRow(state: ModBrowserState, onToggle: () -> Unit) {
+private fun RefineCard(
+    state: ModBrowserState,
+    onToggle: () -> Unit,
+    onSort: (String) -> Unit,
+    onCategory: (String) -> Unit
+) {
     val label = state.target.filterLabel
-    if (label.isEmpty()) return
     SettingsCard {
-        SwitchRow(
-            title = stringResource(R.string.mods_browse_filter_title),
-            // The profile being filtered to goes in the description, since SwitchRow has no accent
-            // value line: it is the one fact worth reading here and it changes with the profile.
-            description = if (state.filtered) {
-                stringResource(R.string.mods_browse_filter_on, label)
-            } else {
-                stringResource(R.string.mods_browse_filter_description)
-            },
-            checked = state.filtered,
-            onCheckedChange = { onToggle() }
+        if (label.isNotEmpty()) {
+            SwitchRow(
+                title = stringResource(R.string.mods_browse_filter_title),
+                // The profile being filtered to goes in the description, since SwitchRow has no
+                // accent value line: it is the one fact worth reading and it moves with the
+                // profile.
+                description = if (state.filtered) {
+                    stringResource(R.string.mods_browse_filter_on, label)
+                } else {
+                    stringResource(R.string.mods_browse_filter_description)
+                },
+                checked = state.filtered,
+                onCheckedChange = { onToggle() }
+            )
+        }
+        ChoiceRow(
+            title = stringResource(R.string.mods_browse_sort_title),
+            names = listOf(
+                stringResource(R.string.mods_browse_sort_default),
+                stringResource(R.string.mods_browse_sort_downloads),
+                stringResource(R.string.mods_browse_sort_follows),
+                stringResource(R.string.mods_browse_sort_newest),
+                stringResource(R.string.mods_browse_sort_updated)
+            ),
+            values = MOD_SORTS,
+            selected = state.sort,
+            onSelect = onSort
+        )
+        ChoiceRow(
+            title = stringResource(R.string.mods_browse_category_title),
+            // The tags are the index's own names, tidied rather than translated: they are what
+            // the Modrinth site itself shows, and a picker that agrees with the site is the one
+            // that can be followed from a mod's own install instructions.
+            names = listOf(stringResource(R.string.mods_browse_category_all)) +
+                    MOD_CATEGORIES.map { categoryLabel(it) },
+            values = listOf("") + MOD_CATEGORIES,
+            selected = state.category,
+            onSelect = onCategory
         )
     }
 }
@@ -227,7 +263,8 @@ private fun ModResultRow(
     row: ModRow,
     shape: RoundedCornerShape,
     enabled: Boolean,
-    onInstall: () -> Unit
+    onInstall: () -> Unit,
+    onOpen: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Column(
@@ -235,6 +272,10 @@ private fun ModResultRow(
             .fillMaxWidth()
             .clip(shape)
             .background(colors.surfaceContainer)
+            // The whole row opens the mod's page; the install button on the end keeps its own
+            // click, which wins inside its own bounds. Two targets, one card, the same deal the
+            // control center's capture card struck.
+            .clickable(onClick = onOpen)
             .padding(horizontal = 15.dp, vertical = 13.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

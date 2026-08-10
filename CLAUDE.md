@@ -768,6 +768,19 @@ re-litigated. The reasoning lives in the commit that made the change.
   attribute later. The walk is breadth-first with a seen-set and a depth cap, because dependency
   graphs have cycles and the cost of being wrong is a phone downloading until it is full.
   Reached from Game files' add button, which now asks which of the two kinds of adding you meant.
+  **A row opens a page** (`ModProjectScreen.kt`), a route inside the activity so Back lands on
+  the results with the query and scroll intact, the same call the version picker made. The page
+  draws in arrival order: the header comes from the search hit before any request returns, and
+  the body, gallery and version list fill their sections as their own fetches land. Sorting and
+  a category filter ride the same facet machinery as the profile filter; category labels are the
+  index's own tags tidied rather than translated, because they are what the Modrinth site shows
+  and a picker that agrees with the site can be followed from a mod's install instructions.
+  **The description renders a documented subset of Markdown** (`ModMarkdown.kt`): headings,
+  paragraphs, lists, code, emphasis, links. A full renderer is a library this launcher does not
+  ship (no R8, so every dependency ships whole); everything outside the subset degrades to its
+  text, and "Open on Modrinth" is the honest way to the whole page. Gallery pictures are fetched
+  bounded and downsampled to the strip they sit in, and a page fetch that outlives its page is
+  dropped by id rather than landing on whichever mod was opened next.
 - **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
   because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
   flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and
@@ -1027,6 +1040,14 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   is ticked when the project's slug appears in a file name in the folder. A false tick means
   installing over the top, a missed one means a duplicate jar; neither is worth a request per row
   to avoid.
+- **The mod page's Markdown is a subset**, and says so in its own KDoc: headings, paragraphs,
+  lists, code, emphasis and links render; tables collapse to their cell text, HTML is stripped
+  to its words, and images inside the body become their alt text. The gallery is fetched; body
+  images are not. A page that leans hard on the exotic reads plainer in the launcher than on the
+  site, and "Open on Modrinth" exists for exactly that page.
+- **The version list has no dates.** Modrinth sends `date_published` and the parser does not
+  carry it yet; rows are told apart by version number, channel and file size, and the list is
+  already newest-first because the server sends it so.
 - The wire format is coded from the **documented** Modrinth v2 contract: `api.modrinth.com` is not
   reachable from the build container, so `scripts/modrinthsim/` drives the shipped parser against
   fixtures rather than against a captured response. It checks the things that break (primary file

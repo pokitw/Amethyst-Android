@@ -166,23 +166,88 @@ public final class ModrinthMods {
         public final String description;
         @Nullable public final String iconUrl;
         public final int downloads;
+        /** Who made it, as the search index credits them. Empty when the index does not say. */
+        public final String author;
         /** "mod", "shader", "resourcepack": what folder an install of this belongs in. */
         public final String projectType;
 
         Hit(String projectId, String slug, String title, String description,
-            @Nullable String iconUrl, int downloads, String projectType) {
+            @Nullable String iconUrl, int downloads, String author, String projectType) {
             this.projectId = projectId;
             this.slug = slug;
             this.title = title;
             this.description = description;
             this.iconUrl = iconUrl;
             this.downloads = downloads;
+            this.author = author;
             this.projectType = projectType;
         }
 
         /** The key the icon cache is keyed on, shared with the modpack browser's cache. */
         public String iconCacheTag() {
             return "modrinth_" + projectId;
+        }
+    }
+
+    /** One picture from a project's gallery. */
+    public static final class GalleryImage {
+        public final String url;
+        public final String title;
+
+        GalleryImage(String url, String title) {
+            this.url = url;
+            this.title = title;
+        }
+    }
+
+    /**
+     * A whole project page, which is a different request from a search hit.
+     *
+     * The search index carries what a row needs; the body, the gallery and the outbound links
+     * only exist on {@code /project/&lt;id&gt;}, which is why opening a mod costs one request and
+     * the list costs none of them.
+     */
+    public static final class Project {
+        public final String projectId;
+        public final String slug;
+        public final String title;
+        public final String description;
+        /** The full page, in Modrinth's markdown. Rendered by the launcher's small subset. */
+        public final String body;
+        @Nullable public final String iconUrl;
+        public final int downloads;
+        public final int followers;
+        @Nullable public final String sourceUrl;
+        @Nullable public final String issuesUrl;
+        @Nullable public final String wikiUrl;
+        @Nullable public final String discordUrl;
+        @Nullable public final String licenseName;
+        public final List<GalleryImage> gallery;
+
+        Project(String projectId, String slug, String title, String description, String body,
+                @Nullable String iconUrl, int downloads, int followers,
+                @Nullable String sourceUrl, @Nullable String issuesUrl,
+                @Nullable String wikiUrl, @Nullable String discordUrl,
+                @Nullable String licenseName, List<GalleryImage> gallery) {
+            this.projectId = projectId;
+            this.slug = slug;
+            this.title = title;
+            this.description = description;
+            this.body = body;
+            this.iconUrl = iconUrl;
+            this.downloads = downloads;
+            this.followers = followers;
+            this.sourceUrl = sourceUrl;
+            this.issuesUrl = issuesUrl;
+            this.wikiUrl = wikiUrl;
+            this.discordUrl = discordUrl;
+            this.licenseName = licenseName;
+            this.gallery = gallery;
+        }
+
+        /** The page on modrinth.com, for the link that hands over to a real browser. */
+        public String pageUrl() {
+            return "https://modrinth.com/mod/" + (slug.isEmpty() ? projectId : slug);
         }
     }
 
@@ -269,18 +334,24 @@ public final class ModrinthMods {
      * @param loaderId   restrict to this loader ("fabric", "forge", ...), or null for any
      * @param offset     how many results have already been seen
      * @param projectType "mod", "shader" or "resourcepack"
+     * @param sortIndex  Modrinth's sort ("relevance", "downloads", "newest", "updated",
+     *                   "follows"), or null for the default: downloads for an empty query,
+     *                   relevance once something is typed
+     * @param category   one of Modrinth's category tags to narrow to, or null for all
      * @return the page, or null when the request failed
      */
     @Nullable
     public static Page search(@NonNull String query, @Nullable String mcVersion,
                               @Nullable String loaderId, int offset,
-                              @NonNull String projectType) {
+                              @NonNull String projectType,
+                              @Nullable String sortIndex, @Nullable String category) {
         HashMap<String, Object> params = new HashMap<>();
         params.put("query", query);
         params.put("limit", PAGE_SIZE);
         params.put("offset", offset);
-        params.put("index", query.isEmpty() ? "downloads" : "relevance");
-        params.put("facets", facets(mcVersion, loaderId, projectType));
+        params.put("index", isSet(sortIndex) ? sortIndex
+                : (query.isEmpty() ? "downloads" : "relevance"));
+        params.put("facets", facets(mcVersion, loaderId, projectType, category));
 
         JsonObject response = GsonJsonUtils.getJsonObjectSafe(
                 getJson(withQuery(BASE + "/search", params)));
@@ -304,6 +375,7 @@ public final class ModrinthMods {
                     orEmpty(GsonJsonUtils.getStringSafe(hit, "description")),
                     GsonJsonUtils.getStringSafe(hit, "icon_url"),
                     GsonJsonUtils.getIntSafe(hit, "downloads", 0),
+                    orEmpty(GsonJsonUtils.getStringSafe(hit, "author")),
                     orEmpty(GsonJsonUtils.getStringSafe(hit, "project_type"))
             ));
         }
@@ -322,6 +394,12 @@ public final class ModrinthMods {
     @NonNull
     static String facets(@Nullable String mcVersion, @Nullable String loaderId,
                          @NonNull String projectType) {
+        return facets(mcVersion, loaderId, projectType, null);
+    }
+
+    @NonNull
+    static String facets(@Nullable String mcVersion, @Nullable String loaderId,
+                         @NonNull String projectType, @Nullable String category) {
         StringBuilder facets = new StringBuilder("[");
         facets.append(String.format("[\"project_type:%s\"]", projectType));
         if (isSet(mcVersion)) {
@@ -329,6 +407,11 @@ public final class ModrinthMods {
         }
         if (isSet(loaderId)) {
             facets.append(String.format(",[\"categories:%s\"]", loaderId));
+        }
+        // A category rides the same categories key the loader does; two separate groups AND
+        // together, which is exactly what "Fabric mods in this category" means.
+        if (isSet(category)) {
+            facets.append(String.format(",[\"categories:%s\"]", category));
         }
         return facets.append("]").toString();
     }
@@ -357,6 +440,59 @@ public final class ModrinthMods {
     public static File version(@NonNull String versionId) {
         return parseVersion(GsonJsonUtils.getJsonObjectSafe(
                 getJson(BASE + "/version/" + versionId)));
+    }
+
+    /** The whole project page: body, gallery, links. One request, made only when a row is opened. */
+    @Nullable
+    public static Project project(@NonNull String projectId) {
+        return parseProject(GsonJsonUtils.getJsonObjectSafe(
+                getJson(BASE + "/project/" + projectId)));
+    }
+
+    /** Parse a {@code /project} object. Split out so the fixture harness can drive it. */
+    @Nullable
+    static Project parseProject(@Nullable JsonObject project) {
+        if (project == null) return null;
+        String id = GsonJsonUtils.getStringSafe(project, "id");
+        String title = GsonJsonUtils.getStringSafe(project, "title");
+        if (id == null || title == null) return null;
+
+        List<GalleryImage> gallery = new ArrayList<>();
+        JsonArray galleryArray = GsonJsonUtils.getJsonArraySafe(project, "gallery");
+        if (galleryArray != null) {
+            for (JsonElement element : galleryArray) {
+                JsonObject image = GsonJsonUtils.getJsonObjectSafe(element);
+                if (image == null) continue;
+                String url = GsonJsonUtils.getStringSafe(image, "url");
+                if (url == null || url.isEmpty()) continue;
+                gallery.add(new GalleryImage(url,
+                        orEmpty(GsonJsonUtils.getStringSafe(image, "title"))));
+            }
+        }
+
+        JsonObject license = GsonJsonUtils.getJsonObjectSafe(project, "license");
+        String licenseName = license == null ? null
+                : GsonJsonUtils.getStringSafe(license, "name");
+        if (licenseName == null && license != null) {
+            licenseName = GsonJsonUtils.getStringSafe(license, "id");
+        }
+
+        return new Project(
+                id,
+                orEmpty(GsonJsonUtils.getStringSafe(project, "slug")),
+                title,
+                orEmpty(GsonJsonUtils.getStringSafe(project, "description")),
+                orEmpty(GsonJsonUtils.getStringSafe(project, "body")),
+                GsonJsonUtils.getStringSafe(project, "icon_url"),
+                GsonJsonUtils.getIntSafe(project, "downloads", 0),
+                GsonJsonUtils.getIntSafe(project, "followers", 0),
+                GsonJsonUtils.getStringSafe(project, "source_url"),
+                GsonJsonUtils.getStringSafe(project, "issues_url"),
+                GsonJsonUtils.getStringSafe(project, "wiki_url"),
+                GsonJsonUtils.getStringSafe(project, "discord_url"),
+                licenseName,
+                gallery
+        );
     }
 
     /**

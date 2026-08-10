@@ -1,0 +1,46 @@
+{
+  "id": "AANobbMI",
+  "slug": "sodium",
+  "project_type": "mod",
+  "team": "4reLOAKe",
+  "title": "Sodium",
+  "description": "A modern rendering engine for Minecraft which greatly improves performance",
+  "body": "# Sodium\n\nSodium is a **free and open-source** rendering engine for *Minecraft* with `advanced` internals.\n\n## Features\n\n- Greatly improved frame rates\n- [Our wiki](https://github.com/CaffeineMC/sodium/wiki) has more\n- ![A screenshot](https://cdn.modrinth.com/screenshot.png) inline pictures become their words\n\n```\njava -jar example.jar\n```\n\n<center>HTML is stripped, its words kept</center>\n\n| column | table |\n|--------|-------|\n| cell   | text  |\n",
+  "published": "2021-01-03T00:53:34+00:00",
+  "updated": "2024-05-01T00:00:00+00:00",
+  "status": "approved",
+  "license": {
+    "id": "LGPL-3.0-only",
+    "name": "GNU Lesser General Public License v3 only",
+    "url": null
+  },
+  "downloads": 12345678,
+  "followers": 24567,
+  "categories": ["optimization"],
+  "versions": ["vRELEASE1"],
+  "icon_url": "https://cdn.modrinth.com/data/AANobbMI/icon.png",
+  "issues_url": "https://github.com/CaffeineMC/sodium/issues",
+  "source_url": "https://github.com/CaffeineMC/sodium",
+  "wiki_url": null,
+  "discord_url": "https://discord.gg/example",
+  "gallery": [
+    {
+      "url": "https://cdn.modrinth.com/data/AANobbMI/images/one.png",
+      "featured": true,
+      "title": "Base game",
+      "description": null,
+      "created": "2023-01-01T00:00:00+00:00"
+    },
+    {
+      "url": "https://cdn.modrinth.com/data/AANobbMI/images/two.png",
+      "featured": false,
+      "title": null,
+      "description": null,
+      "created": "2023-01-02T00:00:00+00:00"
+    },
+    {
+      "featured": false,
+      "title": "No url, dropped"
+    }
+  ]
+}
