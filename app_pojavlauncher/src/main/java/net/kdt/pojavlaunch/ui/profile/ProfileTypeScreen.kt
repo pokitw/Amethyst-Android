@@ -25,7 +25,7 @@ import net.kdt.pojavlaunch.ui.common.AppScaffold
 import net.kdt.pojavlaunch.ui.settings.SectionLabel
 
 /** Which kind of profile is being created. The host maps this back to the install fragments. */
-enum class ProfileType { VANILLA, FABRIC, QUILT, FORGE, NEOFORGE, OPTIFINE, LWJGL3IFY, BTA, MODPACK }
+enum class ProfileType { VANILLA, LOADERS, FABRIC, QUILT, FORGE, NEOFORGE, OPTIFINE, LWJGL3IFY, BTA, MODPACK }
 
 @Immutable
 class ProfileTypeEntry(
@@ -41,6 +41,12 @@ private val VANILLA_LIKE = listOf(
 )
 
 private val MODDED = listOf(
+    // First, because it answers the question the four below it make you answer backwards: they
+    // ask which loader before anything can tell you what that loader supports. They stay, because
+    // somebody who already knows exactly which build they want should not be made to search for
+    // a Minecraft version to reach it.
+    ProfileTypeEntry(ProfileType.LOADERS, R.string.profile_type_loaders,
+        R.string.profile_type_loaders_blurb),
     ProfileTypeEntry(ProfileType.FABRIC, R.string.profile_type_fabric, R.string.profile_type_fabric_blurb),
     ProfileTypeEntry(ProfileType.QUILT, R.string.profile_type_quilt, R.string.profile_type_quilt_blurb),
     ProfileTypeEntry(ProfileType.FORGE, R.string.profile_type_forge, R.string.profile_type_forge_blurb),

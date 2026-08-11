@@ -145,6 +145,10 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // editor makes a skin, this finds one that already exists. Both are NO for upstream, which
     // is only worth two rows because they answer different questions.
     ComparisonRow(R.string.onboarding_row_skinfind, Support.NO, Support.YES),
+    // "Part" for upstream, and it has to be: it installs all four loaders perfectly well. What it
+    // does not do is let you see which ones support a version before you have picked one, or find
+    // that version without scrolling a spinner of seven hundred entries.
+    ComparisonRow(R.string.onboarding_row_loaders, Support.PARTIAL, Support.YES),
     // "Part" rather than "No", and the row is worth more for it: upstream does pick a resolution
     // and a heap size from the device on first run, which is device-specific automatic
     // configuration by any honest reading. What it has never had is a renderer chosen for the

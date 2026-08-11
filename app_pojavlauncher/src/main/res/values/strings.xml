@@ -709,6 +709,7 @@
     <string name="onboarding_row_turnip">Import Vulkan drivers</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_skinfind">Look up any player\'s skin</string>
+    <string name="onboarding_row_loaders">Install any loader from one screen</string>
     <string name="onboarding_row_performance">One switch for frame rate</string>
     <string name="onboarding_row_size">Smaller download</string>
 
@@ -1296,4 +1297,27 @@
     <string name="skin_browse_worn_now">Worn now</string>
     <string name="skin_browse_worn_before">Worn before</string>
     <string name="skin_find">Find skins</string>
+
+    <!-- Installing a mod loader, asked from the Minecraft version rather than the loader. -->
+    <string name="loader_install_title">Install a mod loader</string>
+    <string name="loader_install_subtitle">Pick a Minecraft version, then a loader</string>
+    <string name="loader_install_search_hint">Search a Minecraft version</string>
+    <string name="loader_install_snapshots">Include snapshots</string>
+    <string name="loader_install_snapshot_badge">SNAPSHOT</string>
+    <string name="loader_install_have">Already installed</string>
+    <string name="loader_install_action">Install</string>
+    <string name="loader_install_recommended">Recommended</string>
+    <string name="loader_install_prerelease">Prerelease</string>
+    <string name="loader_install_retry">Try again</string>
+    <string name="loader_install_sheet_title">%1$s for %2$s</string>
+    <string name="loader_install_sheet_hint">The recommended build is first. Anything below it is older or a prerelease.</string>
+    <string name="loader_install_sheet_have">You already have a profile for this. Installing again makes a second one.</string>
+    <string name="loader_install_unavailable">Could not reach: %1$s. The rest are listed below.</string>
+    <string name="loader_install_none_title">Nothing matches</string>
+    <string name="loader_install_none_body">No Minecraft version here matches what you typed. Turn on snapshots if you are looking for one.</string>
+    <string name="loader_install_failed_title">Could not fetch the version lists</string>
+    <string name="loader_install_failed_body">None of the loader services could be reached. Check your connection and try again.</string>
+    <string name="loader_install_no_build">That build is not available to download.</string>
+    <string name="profile_type_loaders">Any mod loader</string>
+    <string name="profile_type_loaders_blurb">Pick a Minecraft version and see every loader that supports it, with the build it will install.</string>
 </resources>

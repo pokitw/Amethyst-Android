@@ -821,6 +821,35 @@ re-litigated. The reasoning lives in the commit that made the change.
   looks like, so an offline account has nothing to ask about, which is exactly what the community
   thread concluded before this was built. The editor still works for them and the screen explains
   why that is all it can do, rather than appearing to work.
+- **Installing a mod loader** (`modloaders/LoaderIndex.java` + `ui/loaders/` +
+  `fragments/LoaderInstallFragment.kt`) — one screen for Fabric, Quilt, Forge and NeoForge, asked
+  from the Minecraft version rather than the loader.
+  **The old flow has the question inside out.** It makes you choose a loader before it can tell
+  you what that loader supports, then find your Minecraft version in a spinner of seven hundred
+  entries, then a build in a second list, on one of four near-identical screens. Nobody thinks "I
+  want Forge, and separately, for what version?" They think "I want to play 1.20.1 with mods", and
+  which loaders can do that is a single fact that was never shown anywhere. So a row is a Minecraft
+  version and the loaders sit on it, each already naming the build it would install.
+  **Everything is fetched once.** Six requests: a game list and a loader list each for Fabric and
+  Quilt, and one maven-metadata.xml each for Forge and NeoForge, which is every version they have
+  ever released. After that, typing filters an in-memory list. The flow this replaces fetched
+  loader versions *per selected game version*, so changing the version cost a round trip every
+  time.
+  **Fabric's matrix is not a matrix**, which is what makes that possible: its loader is independent
+  of the game version, which is why the meta API serves the loader list with no game version in the
+  URL. Asking per version was always answering a question with one answer.
+  **The install machinery is untouched.** The same `FabriclikeDownloadTask`, `ForgeDownloadTask`
+  and `NeoForgeDownloadTask`, the same listener proxy, the same handoff of the Forge and NeoForge
+  installer jars to `JavaGUILauncherActivity`. Only the choosing changed. **The four old fragments
+  stay wired up**, deliberately: none of this can be tested on a device from the build container,
+  and a new way in should not be the only way in.
+  Two version rules are stated because they cannot be derived. Forge's maven id splits on its
+  **first** hyphen, since `1.7.10-10.13.4.1614-1.7.10` splits on its last into a Minecraft version
+  of "1614". NeoForge states its Minecraft version nowhere and encodes it in the build number,
+  `21.1.66` meaning 1.21.1 and `21.0.167` meaning 1.21 with the trailing zero dropped, except for
+  their first line which kept Forge's numbering and is `47.x` for 1.20.1. `scripts/loadersim`
+  pins both.
+
 - **Finding skins** (`skin/MojangSkins.java` + `ui/skin/SkinBrowseScreen.kt` +
   `ui/skin/SkinHistory.kt`) — any player's skin by name, what Mojang says is on the account, and
   a record of what has been worn.
@@ -1225,6 +1254,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - **Nothing is preloaded.** The thread asked for skins to come with it, and shipping a library
   of them is a licensing question about other people's artwork rather than an engineering one.
   Importing a PNG is one tap, which is the honest version of the same thing.
+- The loader installer covers **Fabric, Quilt, Forge and NeoForge**. OptiFine, BTA and LWJGL3ify
+  keep their own screens: OptiFine's list is scraped from a download page rather than fetched from
+  an index, and the other two are their own shapes. The four old per-loader fragments also stay,
+  so nothing that worked before stops working.
+- Whether a loader is **already installed is a guess**, read out of the profile's version id the
+  same way the mod browser guesses at installed mods. Being wrong only means a pill does not say
+  so, which costs a duplicate profile rather than a crash.
+- The index is fetched **once per visit to the screen** and not cached across them. Six requests
+  is a second or two on a phone connection, and a stale list of loader builds is worse than a
+  short wait.
+- **Forge and NeoForge still hand off to the Java installer.** They ship an installer jar rather
+  than a profile, so the last step is `JavaGUILauncherActivity` running it, exactly as before. That
+  screen is untouched and is still the old one.
+- The list is capped at **400 Minecraft versions** after filtering, which is every release Fabric
+  has ever supported and then some. Snapshots are behind a switch because there are thousands of
+  them and they are not what anybody is looking for by default.
 - The mod browser is **Modrinth only**. CurseForge needs an API key, and the one this repo has is
   a build config value for the modpack search; adding a second index is a bigger question than
   making the first one work.
@@ -1368,6 +1413,10 @@ Before pushing:
 - **Run `sh scripts/modrinthsim/run.sh`** if the Modrinth client changed. It compiles the shipped
   `ModrinthMods` and `ModInstall` against stubs at source 8 and drives them with fixtures, which
   is the only check available: the API is not reachable from the build container.
+- **Run `sh scripts/loadersim/run.sh`** if the loader index changed. It drives the shipped
+  parsers against the shapes those four APIs send, including the historical Forge id that splits
+  wrongly on its last hyphen and NeoForge's undeclared Minecraft version. None of those hosts is
+  reachable from the build container, so the parse is the only checkable part.
 - **Run `sh scripts/skinapisim/run.sh`** if the Mojang skin client changed. It compiles the
   shipped `MojangSkins` at source 8 and drives its parsers with fixtures: the base64 textures blob,
   a slim skin, a classic one with no metadata at all, `textures` not being the first property, a

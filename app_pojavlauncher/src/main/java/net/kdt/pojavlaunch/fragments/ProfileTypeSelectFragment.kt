@@ -55,6 +55,8 @@ class ProfileTypeSelectFragment : Fragment() {
         // NOTE: these are deliberately not added to the back stack by their own installers; see
         // the comment in FabricInstallFragment.onDownloadFinished() before changing that.
         val target: Pair<Class<out Fragment>, String> = when (type) {
+            ProfileType.LOADERS ->
+                LoaderInstallFragment::class.java to LoaderInstallFragment.TAG
             ProfileType.FABRIC -> FabricInstallFragment::class.java to FabricInstallFragment.TAG
             ProfileType.QUILT -> QuiltInstallFragment::class.java to QuiltInstallFragment.TAG
             ProfileType.FORGE -> ForgeInstallFragment::class.java to ForgeInstallFragment.TAG
