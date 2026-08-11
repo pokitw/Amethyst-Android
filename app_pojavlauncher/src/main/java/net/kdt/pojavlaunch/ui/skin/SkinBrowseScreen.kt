@@ -62,7 +62,15 @@ class BrowsedSkin(
     val image: ImageBitmap?,
     val slim: Boolean,
     /** The line under the name: a UUID, a variant, or where it came from. */
-    val detail: String
+    val detail: String,
+    /**
+     * Whether Mojang has a skin for this player at all.
+     *
+     * Separate from [image] being null on purpose: a player on a default skin and a texture that
+     * would not download look identical on screen and are not the same fact, and saying the first
+     * when the second happened is how a real bug reads as an answer about somebody's account.
+     */
+    val hasTexture: Boolean = true
 )
 
 // A data class, because the activity copies it on every keystroke. @Immutable is a promise to
@@ -230,9 +238,13 @@ private fun FoundCard(found: BrowsedSkin, onSave: (BrowsedSkin) -> Unit) {
                     )
                 } else {
                     Text(
-                        stringResource(R.string.skin_browse_no_texture),
+                        stringResource(
+                            if (found.hasTexture) R.string.skin_browse_texture_missing
+                            else R.string.skin_browse_no_texture
+                        ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp)
                     )
                 }
             }

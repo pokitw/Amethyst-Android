@@ -440,7 +440,15 @@ class SkinActivity : BaseActivity() {
                 )
                 else -> browse?.copy(
                     searching = false,
-                    message = null,
+                    // "Wearing a default skin" is only true when Mojang returned no skin at all.
+                    // Saying it whenever the picture is missing is a specific failure hidden
+                    // behind a generic sentence, which is the mistake the upload already made
+                    // once: it turned a texture that would not download into an answer about
+                    // that player, and the actual bug went unseen for a build.
+                    message = if (player.skinUrl != null && bitmap == null)
+                        getString(R.string.skin_browse_texture_failed, player.name.ifEmpty { name })
+                    else null,
+                    messageIsError = player.skinUrl != null && bitmap == null,
                     found = BrowsedSkin(
                         name = player.name.ifEmpty { name },
                         image = bitmap?.asImageBitmap(),
@@ -448,7 +456,8 @@ class SkinActivity : BaseActivity() {
                         detail = getString(
                             if (player.slim) R.string.skin_browse_variant_slim
                             else R.string.skin_browse_variant_classic
-                        )
+                        ),
+                        hasTexture = player.skinUrl != null
                     )
                 )
             }

@@ -1056,6 +1056,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     A remote failure that cannot be reproduced locally is worth the code that makes it explain
     itself, and that code pays for itself the first time it runs.
 
+20. **A fixture that only carries the shape you expect agrees with your bug.** Mojang hands out
+    texture URLs as `http://textures.minecraft.net/...`, in plain HTTP, inside a response fetched
+    over HTTPS. `MojangSkins.texture` required `https://` and rejected every real one, so no skin
+    ever loaded. Every fixture in `skinapisim` used `https://`, which is why 57 checks passed on
+    a client that could not fetch a single picture: the harness was written from the same
+    assumption as the code, so it confirmed the assumption instead of testing it. **When a
+    harness and the code it checks are written by the same hand in the same hour, the fixtures
+    have to come from what the API sends, not from what the code expects.**
+    It also shipped with the symptom disguised. The picture was missing, and the screen said
+    "this player is wearing a default skin", which is a real answer to a different question:
+    a default skin and a failed download look identical and are not the same fact. That is the
+    second time in this feature that a specific failure hid behind a generic sentence (see 19),
+    and the two are now told apart on the card as well as in the message.
+
 ---
 
 ## 17. Known limitations

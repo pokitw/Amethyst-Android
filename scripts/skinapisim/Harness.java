@@ -58,6 +58,51 @@ public class Harness {
 
     // ---------------------------------------------------------------- the public lookup
 
+    /**
+     * The URL scheme, which is the one that shipped broken.
+     *
+     * <b>Mojang hands out texture URLs over plain http</b>, inside a response fetched over https.
+     * The first version of this client required https and rejected every real one, and because
+     * the only symptom was a missing picture it surfaced as "this player is wearing a default
+     * skin". Every fixture here used https, so the harness agreed with the bug: it tested the
+     * shape expected rather than the shape sent.
+     */
+    private static void textureScheme() {
+        String inner = "{\"textures\":{\"SKIN\":{\"url\":"
+                + "\"http://textures.minecraft.net/texture/real\"}}}";
+        Player player = MojangSkins.parsePlayer("069a79f444e94726a5befca90e38aaf5",
+                sessionProfile("KaiCenat", inner, true));
+        check(player.skinUrl != null, "an http texture url was dropped entirely");
+        check("https://textures.minecraft.net/texture/real".equals(player.skinUrl),
+                "an http texture url was not upgraded: " + player.skinUrl);
+
+        // The same on the account path, which reads a different document with the same hosts.
+        JsonObject own = json("{\"skins\":[{\"id\":\"1\",\"state\":\"ACTIVE\","
+                + "\"url\":\"http://textures.minecraft.net/texture/mine\",\"variant\":\"CLASSIC\"}]}");
+        List<Entry> entries = MojangSkins.parseOwnSkins(own);
+        check(entries.size() == 1, "an http url cost the account its only skin");
+        check("https://textures.minecraft.net/texture/mine".equals(entries.get(0).url),
+                "the account's http url was not upgraded: " + entries.get(0).url);
+
+        // A cape arrives by the same route and through the same rule.
+        String withCape = "{\"textures\":{\"SKIN\":{\"url\":\"http://textures.minecraft.net/a\"},"
+                + "\"CAPE\":{\"url\":\"http://textures.minecraft.net/b\"}}}";
+        Player caped = MojangSkins.parsePlayer("069a79f444e94726a5befca90e38aaf5",
+                sessionProfile("Caped", withCape, true));
+        check("https://textures.minecraft.net/b".equals(caped.capeUrl),
+                "the cape url was not upgraded: " + caped.capeUrl);
+
+        // And the rule itself, including what it must still refuse.
+        check("https://x/y".equals(MojangSkins.secureUrl("http://x/y")), "http was not upgraded");
+        check("https://x/y".equals(MojangSkins.secureUrl("https://x/y")), "https was altered");
+        check("https://x/y".equals(MojangSkins.secureUrl("  http://x/y  ")),
+                "a padded url was not handled");
+        check(MojangSkins.secureUrl("ftp://x/y") == null, "a non http scheme was accepted");
+        check(MojangSkins.secureUrl("javascript:alert(1)") == null, "a script url was accepted");
+        check(MojangSkins.secureUrl("/relative") == null, "a relative url was accepted");
+        check(MojangSkins.secureUrl(null) == null, "a null url was accepted");
+    }
+
     private static void classicPlayer() {
         String inner = "{\"timestamp\":1667000000000,"
                 + "\"profileId\":\"069a79f444e94726a5befca90e38aaf5\","
@@ -208,6 +253,7 @@ public class Harness {
     }
 
     public static void main(String[] args) {
+        textureScheme();
         classicPlayer();
         slimPlayer();
         texturesNotFirst();

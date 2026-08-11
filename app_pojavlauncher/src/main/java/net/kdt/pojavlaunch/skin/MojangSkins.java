@@ -155,7 +155,9 @@ public final class MojangSkins {
         for (JsonElement element : skins) {
             if (element == null || !element.isJsonObject()) continue;
             JsonObject skin = element.getAsJsonObject();
-            String url = string(skin, "url");
+            // Normalised here rather than at the fetch, so every reader of an Entry has a URL it
+            // can actually use and there is one place this rule lives.
+            String url = secureUrl(string(skin, "url"));
             if (url == null || url.isEmpty()) continue;
             // "SLIM" here, "slim" in the public API's metadata. Compared case insensitively so
             // one spelling cannot quietly become a classic model on the other path.
@@ -232,8 +234,8 @@ public final class MojangSkins {
         }
         JsonObject skin = object(textures, "SKIN");
         JsonObject cape = object(textures, "CAPE");
-        String skinUrl = skin == null ? null : string(skin, "url");
-        String capeUrl = cape == null ? null : string(cape, "url");
+        String skinUrl = skin == null ? null : secureUrl(string(skin, "url"));
+        String capeUrl = cape == null ? null : secureUrl(string(cape, "url"));
         boolean slim = false;
         if (skin != null) {
             JsonObject metadata = object(skin, "metadata");
@@ -292,9 +294,11 @@ public final class MojangSkins {
      * thread it wants to and this stays testable without a graphics stack.
      */
     @Nullable
-    public static byte[] texture(@NonNull String url) {
-        if (!url.startsWith("https://")) {
+    public static byte[] texture(@NonNull String rawUrl) {
+        String url = secureUrl(rawUrl);
+        if (url == null) {
             lastFailure = Failure.SERVER;
+            Log.w(TAG, "Refusing a texture url that is not https: " + rawUrl);
             return null;
         }
         HttpURLConnection connection = null;
@@ -332,6 +336,31 @@ public final class MojangSkins {
     }
 
     /* ------------------------------------------------------------------ plumbing */
+
+    /**
+     * A texture URL, over https.
+     *
+     * <b>Mojang hands these out as {@code http://textures.minecraft.net/texture/...}</b>, in plain
+     * HTTP, inside a response fetched over HTTPS. That is not a mistake to route around quietly:
+     * from Android 9 cleartext is blocked by default, so an http URL taken at face value is a skin
+     * that silently never loads, and the host serves the identical bytes over https. Upgrading it
+     * is what every tool that reads this API does.
+     *
+     * This cost a user-visible bug. The first version required https and rejected everything
+     * Mojang actually sends, and because the only symptom was a missing picture it surfaced as
+     * "this player is wearing a default skin", which was the wrong answer to a question nobody
+     * had asked.
+     *
+     * @return the URL to fetch, or null when it is not one worth fetching at all
+     */
+    @Nullable
+    static String secureUrl(@Nullable String url) {
+        if (url == null) return null;
+        String trimmed = url.trim();
+        if (trimmed.startsWith("http://")) trimmed = "https://" + trimmed.substring(7);
+        if (!trimmed.startsWith("https://")) return null;
+        return trimmed;
+    }
 
     /**
      * A name Mojang could plausibly have.

@@ -1283,6 +1283,8 @@
     <string name="skin_browse_empty_title">Type a player name</string>
     <string name="skin_browse_empty_body">Every account that has ever uploaded a skin can be looked up by name, straight from Mojang. Save one to your library and it is yours to wear or edit.</string>
     <string name="skin_browse_no_texture">This player is wearing a default skin, so there is nothing to save.</string>
+    <string name="skin_browse_texture_failed">Found %1$s, but their skin image could not be downloaded.</string>
+    <string name="skin_browse_texture_missing">Their skin could not be downloaded.</string>
     <string name="skin_browse_not_found">No player called %1$s.</string>
     <string name="skin_browse_rate_limited">Mojang is asking for a pause. Try again in a minute.</string>
     <string name="skin_browse_offline">Could not reach Mojang. Check your connection.</string>
