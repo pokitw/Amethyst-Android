@@ -59,6 +59,10 @@ public class TestStorageActivity extends Activity {
     private void exit() {
         if(!Tools.checkStorageRoot(this)) {
             startActivity(new Intent(this, MissingStorageActivity.class));
+            // Finish, as the success branch below and Tools.checkStorageInteractive both do.
+            // Left alive, backing out of the storage notice resumed this content-less window,
+            // which now wears the splash background and would read as a splash that hung.
+            finish();
             return;
         }
         //Initialize constants (implicitly) and preferences after we confirm that we have storage.

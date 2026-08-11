@@ -526,7 +526,8 @@ re-litigated. The reasoning lives in the commit that made the change.
   folder mixing the two sources should not also mix quality unless someone asked for that — and
   the JPEG quality slider only appears once JPEG is chosen, because a slider that does nothing is
   the one thing a settings screen must never show.
-  It gets **no comparison-table row**, which is the one deliberate exception to the rule above.
+  It gets **no comparison-table row**, which was the first deliberate exception to the rule
+  above; the opening choreography is the second, on the same reasoning.
   Upstream can bind F2 exactly as this can, so every honest mark would be a tie, and a table row
   that says nothing is worse than no row — the table is only worth reading because it is edited.
 - **Gallery export** (`media/GalleryExport.java`) — everything the launcher writes lives under
@@ -850,6 +851,10 @@ re-litigated. The reasoning lives in the commit that made the change.
   where the colour budget already is (8). Everything else fades and settles a few dp on the
   handbook's 300ms and FastOutSlowInEasing; the whole sequence is over before it could be waited
   on.
+  **The entrance never blocks input.** Compose hit-testing ignores layer alpha, so the controls
+  are live while they fade in, and that is kept rather than gated: an opening that ate taps
+  would trade a real half second of responsiveness for a theoretical mis-tap in a window shorter
+  than a reaction time. Decorative motion must never make the app slower.
   It gets **no onboarding page and no comparison row**, on the screenshot's precedent: an opening
   is not a capability, every honest mark would be taste, and the table is only worth reading
   because it is edited.
