@@ -843,6 +843,12 @@ re-litigated. The reasoning lives in the commit that made the change.
   installer jars to `JavaGUILauncherActivity`. Only the choosing changed. **The four old fragments
   stay wired up**, deliberately: none of this can be tested on a device from the build container,
   and a new way in should not be the only way in.
+  **The Install tile on home is what this is for**, and pointing it here was the whole point of
+  building it: it was labelled "Forge, Fabric" and opened a file picker asking for an installer
+  jar, which is asking somebody to supply the thing they came to fetch. Running a jar is still
+  offered, from inside the screen rather than as the only thing the tile could do, because it is
+  the only route for anything the index does not carry: an OptiFine build, a modpack's own
+  installer, a file from a friend. The tile's long press keeps the custom arguments dialog.
   Two version rules are stated because they cannot be derived. Forge's maven id splits on its
   **first** hyphen, since `1.7.10-10.13.4.1614-1.7.10` splits on its last into a Minecraft version
   of "1614". NeoForge states its Minecraft version nowhere and encodes it in the build number,

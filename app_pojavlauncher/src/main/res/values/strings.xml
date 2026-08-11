@@ -624,7 +624,7 @@
         <item quantity="other">%d clips</item>
     </plurals>
     <string name="home_tile_install">Install</string>
-    <string name="home_tile_install_sub">Forge, Fabric jars</string>
+    <string name="home_tile_install_sub">Fabric, Forge, NeoForge</string>
     <string name="home_tile_files">Game files</string>
     <string name="home_tile_files_sub">Worlds, mods, packs</string>
 
@@ -1318,6 +1318,7 @@
     <string name="loader_install_failed_title">Could not fetch the version lists</string>
     <string name="loader_install_failed_body">None of the loader services could be reached. Check your connection and try again.</string>
     <string name="loader_install_no_build">That build is not available to download.</string>
+    <string name="loader_install_run_jar">Run an installer jar instead</string>
     <string name="profile_type_loaders">Any mod loader</string>
     <string name="profile_type_loaders_blurb">Pick a Minecraft version and see every loader that supports it, with the build it will install.</string>
 </resources>

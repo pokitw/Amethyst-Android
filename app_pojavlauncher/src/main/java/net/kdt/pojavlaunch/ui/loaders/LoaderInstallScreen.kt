@@ -108,6 +108,7 @@ fun LoaderInstallScreen(
     onDismiss: () -> Unit,
     onInstall: (LoaderRow, LoaderOption, LoaderBuild) -> Unit,
     onRetry: () -> Unit,
+    onRunJar: () -> Unit,
     onBack: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -176,7 +177,23 @@ fun LoaderInstallScreen(
                     Spacer(Modifier.height(8.dp))
                 }
             }
-            item { Spacer(Modifier.height(28.dp)) }
+            // The old behaviour of the Install tile, kept and made findable rather than left on a
+            // long press nobody announces. It is the only route for an installer jar the index
+            // does not carry: an OptiFine build, a modpack's own installer, something handed over
+            // by a friend.
+            item {
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    stringResource(R.string.loader_install_run_jar),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onRunJar)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                )
+                Spacer(Modifier.height(28.dp))
+            }
         }
 
         val chosen = state.chosen

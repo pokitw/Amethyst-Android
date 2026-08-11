@@ -177,7 +177,7 @@ class MainMenuFragment : Fragment() {
         onControls = { startActivity(Intent(requireContext(), CustomControlsActivity::class.java)) },
         onRecordings = { startActivity(Intent(requireContext(), RecordingsActivity::class.java)) },
         onSkins = { startActivity(Intent(requireContext(), SkinActivity::class.java)) },
-        onInstall = { runInstaller(false) },
+        onInstall = ::openLoaderInstaller,
         onInstallWithArguments = { runInstaller(true) },
         onFiles = ::openGameFiles,
         onWiki = { Tools.openURL(requireActivity(), Tools.URL_HOME) },
@@ -206,6 +206,32 @@ class MainMenuFragment : Fragment() {
         } else {
             ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true)
         }
+    }
+
+    /**
+     * The Install tile, which used to open a file picker and ask for an installer jar.
+     *
+     * That is the wrong first question. Somebody tapping a tile labelled "Forge, Fabric" has not
+     * got a jar; they want one, and being asked to supply what they came to fetch is the whole
+     * complaint. It opens the loader screen now, which finds the build and downloads it, and
+     * offers running a jar from there for the cases the index cannot cover.
+     *
+     * The online-profile guard and the ongoing-task guard stay exactly where they were: those
+     * installers download from services that will not serve an offline account, and the launch
+     * path refuses while anything else is downloading.
+     */
+    private fun openLoaderInstaller() {
+        if (!Tools.hasOnlineProfile()) {
+            Tools.hasNoOnlineProfileDialog(requireActivity())
+            return
+        }
+        if (ProgressKeeper.getTaskCount() != 0) {
+            Toast.makeText(requireContext(), R.string.tasks_ongoing, Toast.LENGTH_LONG).show()
+            return
+        }
+        Tools.swapFragment(
+            requireActivity(), LoaderInstallFragment::class.java, LoaderInstallFragment.TAG, null
+        )
     }
 
     private fun runInstaller(customJavaArgs: Boolean) {

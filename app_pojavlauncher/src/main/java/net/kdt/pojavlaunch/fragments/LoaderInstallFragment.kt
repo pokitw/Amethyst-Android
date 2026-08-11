@@ -75,6 +75,9 @@ class LoaderInstallFragment : Fragment(), ModloaderDownloadListener {
                     onDismiss = { state = copyOf(chosen = null) },
                     onInstall = ::install,
                     onRetry = ::load,
+                    // The same call the Install tile used to make on its own. Nothing about the
+                    // jar path changed; it stopped being the only thing the tile could do.
+                    onRunJar = { Tools.installMod(requireActivity(), false) },
                     onBack = { Tools.removeCurrentFragment(requireActivity()) }
                 )
             }
