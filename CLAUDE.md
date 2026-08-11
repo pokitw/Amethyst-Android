@@ -828,6 +828,32 @@ re-litigated. The reasoning lives in the commit that made the change.
   looks like, so an offline account has nothing to ask about, which is exactly what the community
   thread concluded before this was built. The editor still works for them and the screen explains
   why that is all it can do, rather than appearing to work.
+- **The opening** (`AmethystXSplashTheme` + the entrance choreography in `ui/home/HomeScreen.kt`)
+  — a cold start now shows the gem centred on the launcher's own ground, and the home screen
+  assembles in the order it is used: brand settles from the top, the Play card rises to meet the
+  eye, then the tiles, then the links, all inside about half a second.
+  **The splash is resources only, and that is the design.** The launch window is drawn by the
+  system before any of our code runs, which is what makes it instant and what makes it unable to
+  crash; the startup path is where this app has been burned twice (16.4, 16.7), and a splash
+  library that throws when the theme is not its own is exactly the attach-time contract class
+  those lessons are about. Per API level: 21 and 22 keep the plain dark window, because a
+  layer-list cannot centre a drawable there and a stretched gem is worse than none; 23 to 30 get
+  the gem in the window background; 31 up hand the job to the system splash and take the
+  background gem back out, or the system icon would be followed by a second, different gem for a
+  frame.
+  **The choreography plays once per process.** MainMenuFragment's composition is rebuilt on every
+  return from Settings and every rotation, and an entrance that replayed each time would stop
+  meaning "the launcher is opening" and start meaning nothing. A process-level latch, not
+  remembered state, because the composition does not live as long as the answer. It also skips
+  itself when the platform reports animations off, read once at composition.
+  **The hero carries the one scale settle** and the largest rise, which is the motion budget spent
+  where the colour budget already is (8). Everything else fades and settles a few dp on the
+  handbook's 300ms and FastOutSlowInEasing; the whole sequence is over before it could be waited
+  on.
+  It gets **no onboarding page and no comparison row**, on the screenshot's precedent: an opening
+  is not a capability, every honest mark would be taste, and the table is only worth reading
+  because it is edited.
+
 - **Installing a mod loader** (`modloaders/LoaderIndex.java` + `ui/loaders/` +
   `fragments/LoaderInstallFragment.kt`) — one screen for Fabric, Quilt, Forge and NeoForge, asked
   from the Minecraft version rather than the loader.

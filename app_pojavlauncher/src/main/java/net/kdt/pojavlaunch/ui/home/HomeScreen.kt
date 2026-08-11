@@ -1,5 +1,9 @@
 package net.kdt.pojavlaunch.ui.home
 
+import android.provider.Settings
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,11 +43,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -81,6 +89,79 @@ class HomeActions(
 )
 
 /**
+ * Whether the opening choreography has already played in this process.
+ *
+ * A process-level latch rather than remembered state, because the composition does not live as
+ * long as the answer: MainMenuFragment's view is recreated on every return from Settings and on
+ * every rotation, and an entrance that replayed each time would stop meaning "the launcher is
+ * opening" and start meaning nothing. A new process is the next genuine opening, which is
+ * exactly when this resets.
+ */
+private var homeEntrancePlayed = false
+
+/** Whether this composition should play the opening, decided once and then latched. */
+@Immutable
+private class HomeEntrance(val animate: Boolean)
+
+@Composable
+private fun rememberHomeEntrance(): HomeEntrance {
+    val context = LocalContext.current
+    return remember {
+        // The platform's reduced-motion signal. Read once when home composes, never per frame
+        // (handbook 16.11), and a settings provider that throws means "animate" rather than a
+        // launcher that cannot start.
+        val reduced = runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+            ) == 0f
+        }.getOrDefault(false)
+        val entrance = HomeEntrance(!homeEntrancePlayed && !reduced)
+        homeEntrancePlayed = true
+        entrance
+    }
+}
+
+/**
+ * One element's share of the opening: a fade, a settle from [rise], and its place in the stagger.
+ *
+ * The screen assembles in the order it is read and used: the brand settles down from the top,
+ * then the Play card rises to meet the eye, then the tiles, then the links. Each element gets
+ * roughly the handbook's 300ms entrance, offset far enough apart to read as a sequence and close
+ * enough to be over in about half a second. The hero also carries the one scale settle, because
+ * spending motion in a single place is the same rule as spending colour in one (handbook 8).
+ *
+ * When the entrance is not playing, every animation below starts at its target: an
+ * [animateFloatAsState] first composed at 1f draws frame one at 1f, so the quiet path costs a
+ * no-op graphicsLayer and nothing else.
+ */
+@Composable
+private fun HomeEntrance.element(
+    delayMillis: Int,
+    durationMillis: Int,
+    rise: Dp,
+    settleScale: Float = 1f,
+    label: String
+): Modifier {
+    var settled by remember { mutableStateOf(!animate) }
+    LaunchedEffect(Unit) { settled = true }
+    val progress by animateFloatAsState(
+        targetValue = if (settled) 1f else 0f,
+        animationSpec = tween(durationMillis, delayMillis, FastOutSlowInEasing),
+        label = label
+    )
+    val risePx = with(LocalDensity.current) { rise.toPx() }
+    return Modifier.graphicsLayer {
+        alpha = progress
+        translationY = (1f - progress) * risePx
+        if (settleScale != 1f) {
+            val scale = settleScale + (1f - settleScale) * progress
+            scaleX = scale
+            scaleY = scale
+        }
+    }
+}
+
+/**
  * The launcher's home screen.
  *
  * Three things happen here, and they happen at wildly different rates: you press Play every single
@@ -104,6 +185,19 @@ fun HomeScreen(
     val selected = profiles.firstOrNull { it.key == selectedKey } ?: profiles.firstOrNull()
     val account = accounts.firstOrNull { it.username == currentAccount }
 
+    // In one fixed order before the layout branches, so rotation swapping the branch cannot
+    // reorder the remembered states underneath them.
+    val entrance = rememberHomeEntrance()
+    val enterHeader = entrance.element(
+        delayMillis = 0, durationMillis = 300, rise = (-10).dp, label = "homeEnterHeader")
+    val enterHero = entrance.element(
+        delayMillis = 70, durationMillis = 340, rise = 22.dp, settleScale = 0.98f,
+        label = "homeEnterHero")
+    val enterManage = entrance.element(
+        delayMillis = 150, durationMillis = 300, rise = 18.dp, label = "homeEnterManage")
+    val enterFooter = entrance.element(
+        delayMillis = 230, durationMillis = 260, rise = 0.dp, label = "homeEnterFooter")
+
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Column(
             Modifier
@@ -115,11 +209,13 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(16.dp))
-            HomeHeader(
-                account = account,
-                onAccount = { accountSheet = true },
-                onSettings = actions.onSettings
-            )
+            Box(enterHeader) {
+                HomeHeader(
+                    account = account,
+                    onAccount = { accountSheet = true },
+                    onSettings = actions.onSettings
+                )
+            }
             Spacer(Modifier.height(20.dp))
 
             // The middle scrolls so the header and the links stay put on short screens, and so a
@@ -128,22 +224,26 @@ fun HomeScreen(
             if (landscape) {
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        LaunchCard(selected, progress, { versionSheet = true }, actions.onPlay)
+                        Box(enterHero) {
+                            LaunchCard(selected, progress, { versionSheet = true }, actions.onPlay)
+                        }
                     }
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                        ManageSection(recordingCount, actions)
+                        Box(enterManage) { ManageSection(recordingCount, actions) }
                     }
                 }
             } else {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                    LaunchCard(selected, progress, { versionSheet = true }, actions.onPlay)
+                    Box(enterHero) {
+                        LaunchCard(selected, progress, { versionSheet = true }, actions.onPlay)
+                    }
                     Spacer(Modifier.height(24.dp))
-                    ManageSection(recordingCount, actions)
+                    Box(enterManage) { ManageSection(recordingCount, actions) }
                     Spacer(Modifier.height(16.dp))
                 }
             }
 
-            FooterLinks(actions)
+            Box(enterFooter) { FooterLinks(actions) }
             Spacer(Modifier.height(12.dp))
         }
     }

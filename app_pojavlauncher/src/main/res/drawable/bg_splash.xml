@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The launch window: the gem, centred on the launcher's own ground.
+
+    This is a windowBackground, not a screen. It is drawn by the system while the process is
+    still starting, which is why it appears with no delay and why it can contain no code, and it
+    is replaced the moment the first activity draws. Referenced only from values-v23: the gravity
+    that centres the gem is ignored below API 23, where an intrinsically small drawable would be
+    stretched across the whole window instead, so 21 and 22 keep the plain dark ground they have
+    always had.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/background_app"/>
+    <item
+        android:drawable="@drawable/ic_splash_gem"
+        android:gravity="center"/>
+</layer-list>

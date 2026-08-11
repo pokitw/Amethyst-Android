@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        From API 31 the system draws its own splash, the launcher icon on the colour named here,
+        and dismisses it when the first frame lands. The window behind it goes back to the plain
+        ground: keeping the v23 gem there would show a second, differently sized gem for the
+        frame between the system splash and the home screen.
+    -->
+    <style name="AmethystXSplashTheme" parent="AmethystXBaseTheme">
+        <item name="android:windowBackground">@color/background_app</item>
+        <item name="android:windowSplashScreenBackground">@color/background_app</item>
+    </style>
+</resources>

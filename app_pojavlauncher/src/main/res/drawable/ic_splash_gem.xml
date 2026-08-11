@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        The brand gem at splash size: the same cut and the same four facets as ic_x_gem, restated
+        at 96dp intrinsic because a layer-list centres a drawable at its intrinsic bounds and the
+        24dp original would sit as a speck in the middle of the launch window. Kept as a copy
+        rather than scaled at draw time so the splash needs nothing but resources: the launch
+        window is drawn by the system before any of our code runs, which is the whole reason it
+        appears instantly.
+    -->
+    <path
+        android:pathData="M12,3L7,8H17Z"
+        android:fillColor="#E3CAF0"/>
+    <path
+        android:pathData="M7,8H17L21,11H3Z"
+        android:fillColor="#C08CE8"/>
+    <path
+        android:pathData="M3,11H21L12,21Z"
+        android:fillColor="#9649B8"/>
+    <path
+        android:pathData="M3,11H12L12,21Z"
+        android:fillColor="#A855F7"/>
+</vector>

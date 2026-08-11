@@ -41,6 +41,16 @@
     </style>
 
     <!--
+        The theme of the launch trampoline, which is the window the system draws during a cold
+        start. The base is deliberately empty: on API 21 and 22 the splash is the plain dark
+        ground the base theme already paints, because a layer-list cannot centre a drawable
+        there. values-v23 puts the gem in that window, and values-v31 takes it back out again in
+        favour of the system splash, which draws the launcher icon itself and would otherwise be
+        followed by a second, different gem for a frame on the way in.
+    -->
+    <style name="AmethystXSplashTheme" parent="AmethystXBaseTheme"/>
+
+    <!--
         The dialog look. Applied by theme rather than at the call sites on purpose: the launcher
         still raises a couple of dozen AlertDialogs from its pre-Compose half, and several of them
         are the last thing standing when something has already gone wrong — the crash fallback, the
