@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+        The corner grip for resizing a control.
+
+        A control glyph rather than an ic_x_ one, by the rule in the handbook (9): it is drawn
+        thumb-sized over a bright preview world, where a 1.8dp hairline disappears against sky and
+        a filled shape does not. The shape it replaces was an upstream blob tinted with
+        colorControlActivated, which on this theme resolved to a colour the palette does not own.
+
+        Three bars lying along the corner's own diagonal and stepping into it, over a squarish
+        slot face. The dark keyline is what keeps it readable over grass as well as over sky.
+    -->
+    <path
+        android:pathData="M4,7C4,5.34 5.34,4 7,4H17C18.66,4 20,5.34 20,7V17C20,18.66 18.66,20 17,20H7C5.34,20 4,18.66 4,17Z"
+        android:fillColor="#0E0B12"
+        android:fillAlpha="0.55"/>
+    <path
+        android:pathData="M5.2,7.6C5.2,6.28 6.28,5.2 7.6,5.2H16.4C17.72,5.2 18.8,6.28 18.8,7.6V16.4C18.8,17.72 17.72,18.8 16.4,18.8H7.6C6.28,18.8 5.2,17.72 5.2,16.4Z"
+        android:fillColor="#C08CE8"/>
+    <!-- The three bars, stepped so the grip reads as a diagonal pull. -->
+    <path
+        android:pathData="M15.6,8.2L8.2,15.6L9.9,15.6L15.6,9.9Z"
+        android:fillColor="#3B1B52"/>
+    <path
+        android:pathData="M15.6,11.6L11.6,15.6L13.3,15.6L15.6,13.3Z"
+        android:fillColor="#3B1B52"/>
+    <path
+        android:pathData="M15.6,15L15,15.6L15.6,15.6Z"
+        android:fillColor="#3B1B52"/>
+</vector>

@@ -717,6 +717,37 @@ re-litigated. The reasoning lives in the commit that made the change.
   needs a different refresh call and getting one wrong is invisible until a slider does nothing.
   This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
   `colorselector` package with it.
+- **The editor's ground and its grip** (`ControlLayout.dispatchDraw` +
+  `handleview/ControlHandleView` + `ic_ctrl_resize_grip.xml`) — what arranging a layout actually
+  feels like, which until now was: near-black, silent, and a resize that could destroy a button.
+  **The backdrop is sky and grass, and it is not decoration.** Controls are translucent, so the
+  only question worth answering while placing one is whether it will still be legible over a
+  bright world, and a dark editor is the single background that flatters every button and tells
+  you nothing. The texture pack picker settled this argument already (previews there are drawn
+  over a world for the same reason), so these are that picker's exact colours and the two places
+  the launcher previews a control now agree. It is **painted, not a background drawable, and
+  gated on `mModifiable`**: the same class sits over the GL surface in a running game, where it
+  must stay completely transparent, and a backdrop set unconditionally would cover Minecraft
+  with a picture of a hill.
+  **All three editor decorations draw rather than being views.** A layout is a thing you drag
+  buttons around on, and every view added over it is a view that can swallow a drag (12.9); an
+  overlay that only ever draws cannot take a touch from anything. That is also why the size
+  readout is drawn by the layout and not inside the grip: the grip is a 34dp square pinned to a
+  corner, and a readout in it would either be illegible or need the view grown into something
+  that starts blocking its neighbours.
+  **The resize handle had no weight to it at all.** No press state, no haptic, no readout and no
+  floor: the size followed the finger exactly, printed both dimensions to stdout on every move
+  event, and would take a button to zero by zero, at which point it is still in the layout and
+  can never be grabbed again. It now has a floor, a 4dp step, a tick when it is taken hold of and
+  one per step crossed, and the size on screen while it changes. The step is what makes a drag
+  feel like it is moving through something rather than sliding on glass.
+  Two things about it are load-bearing. The drag is measured in **raw screen coordinates against
+  the size at grab time**, never as a delta from where the grip currently sits: the grip is placed
+  at whatever corner the button actually ended up with, so once a floor exists it stops being
+  under the finger, and deriving the next size from its position rubber-bands. And the size is
+  **snapped then floored**, which at the shipped constants is indistinguishable from the reverse
+  because the floor is a whole number of steps; `scripts/resizesim` sweeps off-grid floors
+  precisely so that the day either constant changes, the order is still checked.
 - **Game files** (`ui/content/`) — worlds, mods, resource packs, shader packs and screenshots as
   **one screen**, reached from the home tile and from Settings. Both used to hand the player to a
   file manager and a path under `Android/data`.
@@ -1222,6 +1253,17 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   wrong place.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- The editor's sky and grass is **a flat backdrop, not a screenshot of your world**. It answers
+  the one question a dark editor could not, which is whether a translucent button stays legible
+  over something bright; it is not a preview of the game, and a layout that reads well on it can
+  still land on a nether ceiling.
+- The resize grip is **the corner only**, and its floor of 20dp is smaller than the handbook's
+  48dp touch target on purpose. That is a floor against loss rather than a recommendation: a
+  control shrunk to nothing stays in the layout, draws nothing and can never be selected again,
+  and somebody may still genuinely want a small button.
+- A resize **steps in 4dp**, so a size between two steps is not reachable by dragging. The
+  editor's own width and height sliders still set any value; the step is the grip's feel, not a
+  rule about what a button may measure.
 - The typing preview shows **what you typed, not what the field holds**. A field that already had
   text in it, or one edited with the arrow keys, is text it never saw; it marks that with a leading
   ellipsis rather than pretending otherwise. It also cannot move the caret, and deliberately draws
@@ -1489,6 +1531,11 @@ Before pushing:
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
   can emit HTML and be screenshotted, which is how a row that does not line up gets caught.
+- **Run `sh scripts/resizesim/run.sh`** if the resize grip's floor, step or snapping changed. It
+  pulls `resolveSize` and both constants verbatim out of the shipped file, so the harness cannot
+  drift from the code, and sweeps **off-grid floors** as well as the shipped pair: with the
+  shipped constants alone, reversing the snap and the floor is invisible, which is exactly the
+  mutation that got through the first draft.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

@@ -4,6 +4,12 @@ import static android.content.Context.INPUT_METHOD_SERVICE;
 import static org.lwjgl.glfw.CallbackBridge.isGrabbing;
 
 import android.annotation.SuppressLint;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Shader;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -57,6 +63,26 @@ public class ControlLayout extends FrameLayout {
 
 	private ControlEditorHost mControlEditor = null;
 	private ControlHandleView mHandleView;
+
+	/* ---------------------------------------------------------------- the editor's own drawing.
+	 *
+	 * All three of these are drawn AFTER the children, in dispatchDraw, and none of them is a
+	 * view. That is deliberate: a control layout is a thing you drag buttons around on, and every
+	 * view added over it is a view that can swallow a drag (12.9). An overlay that only ever
+	 * draws cannot take a touch from anything.
+	 *
+	 * They also only draw while modifiable. In a game this same class sits over the GL surface
+	 * and must stay completely transparent, so a backdrop painted unconditionally would cover
+	 * Minecraft with a picture of a hill.
+	 */
+	private final Paint mEditorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+	private final RectF mEditorRect = new RectF();
+	private Shader mSkyShader;
+	private int mSkyShaderHeight = -1;
+	/** The control the handle is attached to, outlined so the selection is visible on the layout. */
+	private ControlInterface mSelected;
+	private boolean mShowingResize;
+	private float mResizeWidthDp, mResizeHeightDp;
 	private ControlButtonMenuListener mMenuListener;
 	public String mLayoutFileName;
 
@@ -264,6 +290,9 @@ public class ControlLayout extends FrameLayout {
 			removeEditWindow();
 		}
 		mModifiable = isModifiable;
+		// The backdrop and the overlay are both gated on this flag, so the moment it changes the
+		// layout has to be redrawn or the editor opens onto the game's transparent ground.
+		invalidate();
 		if(isModifiable){
 			// In edit mode, all controls have to be shown
 			for(ControlInterface button : getButtonChildren()){
@@ -274,6 +303,93 @@ public class ControlLayout extends FrameLayout {
 
 	public boolean getModifiable(){
 		return mModifiable;
+	}
+
+	/**
+	 * The world the controls are arranged against.
+	 *
+	 * <b>The editor used to be near-black, which is the one background that flatters every
+	 * button and tells you nothing.</b> Controls are translucent, and what matters when placing
+	 * them is whether they will still be legible over a bright world: the same argument the
+	 * texture pack picker already settled (14), where the previews are drawn over sky and grass
+	 * because against a dark surface every pack read as the same dark rectangle. These are that
+	 * picker's exact colours, so the two places the launcher previews controls agree.
+	 *
+	 * Drawn rather than set as a background drawable so it costs nothing in a game, where this
+	 * method is never reached.
+	 */
+	private void drawEditorBackdrop(Canvas canvas) {
+		int width = getWidth();
+		int height = getHeight();
+		if (width <= 0 || height <= 0) return;
+		float horizon = height * 0.70f;
+
+		if (mSkyShader == null || mSkyShaderHeight != height) {
+			mSkyShader = new LinearGradient(0, 0, 0, horizon,
+					0xFF63819C, 0xFF8FAAC2, Shader.TileMode.CLAMP);
+			mSkyShaderHeight = height;
+		}
+		mEditorPaint.setShader(mSkyShader);
+		mEditorPaint.setStyle(Paint.Style.FILL);
+		canvas.drawRect(0, 0, width, horizon, mEditorPaint);
+		mEditorPaint.setShader(null);
+		mEditorPaint.setColor(0xFF4C6438);
+		canvas.drawRect(0, horizon, width, height, mEditorPaint);
+		// The one line that is not in the picker: a horizon needs an edge or the two flat bands
+		// read as a colour bug rather than as ground meeting sky.
+		mEditorPaint.setColor(0xFF3E542D);
+		canvas.drawRect(0, horizon, width, horizon + Tools.dpToPx(1.5f), mEditorPaint);
+	}
+
+	/** The selected control, outlined, and the size while it is being dragged. */
+	private void drawEditorOverlay(Canvas canvas) {
+		if (mSelected != null && mSelected.getControlView().isShown()) {
+			View view = mSelected.getControlView();
+			float inset = Tools.dpToPx(2);
+			mEditorRect.set(view.getX() - inset, view.getY() - inset,
+					view.getX() + view.getWidth() + inset,
+					view.getY() + view.getHeight() + inset);
+			float radius = Tools.dpToPx(6);
+			mEditorPaint.setStyle(Paint.Style.STROKE);
+			// A dark keyline under the accent one, so the selection is visible over both the sky
+			// and the grass rather than only over whichever the button happens to sit on.
+			mEditorPaint.setStrokeWidth(Tools.dpToPx(3.5f));
+			mEditorPaint.setColor(0x8C0E0B12);
+			canvas.drawRoundRect(mEditorRect, radius, radius, mEditorPaint);
+			mEditorPaint.setStrokeWidth(Tools.dpToPx(1.8f));
+			mEditorPaint.setColor(0xFFC08CE8);
+			canvas.drawRoundRect(mEditorRect, radius, radius, mEditorPaint);
+			mEditorPaint.setStyle(Paint.Style.FILL);
+		}
+
+		if (!mShowingResize) return;
+		String text = Math.round(mResizeWidthDp) + " x " + Math.round(mResizeHeightDp);
+		mEditorPaint.setTextSize(Tools.dpToPx(15));
+		float padding = Tools.dpToPx(10);
+		float textWidth = mEditorPaint.measureText(text);
+		Paint.FontMetrics metrics = mEditorPaint.getFontMetrics();
+		float pillHeight = (metrics.descent - metrics.ascent) + padding;
+		float pillWidth = textWidth + padding * 2;
+		// Top centre: the corner being dragged is under a thumb, and anywhere near it would be
+		// under the hand doing the dragging.
+		float left = (getWidth() - pillWidth) / 2f;
+		float top = Tools.dpToPx(16);
+		mEditorRect.set(left, top, left + pillWidth, top + pillHeight);
+		float radius = pillHeight / 2f;
+		mEditorPaint.setColor(0xF01D1826);
+		canvas.drawRoundRect(mEditorRect, radius, radius, mEditorPaint);
+		mEditorPaint.setColor(0xFFC08CE8);
+		canvas.drawText(text, left + padding, top + padding / 2f - metrics.ascent, mEditorPaint);
+	}
+
+	@Override
+	protected void dispatchDraw(Canvas canvas) {
+		// The backdrop cannot go here: dispatchDraw runs after the view's own background and
+		// before the children, so painting it at the top of this method is what puts it behind
+		// the buttons. The overlay goes after them.
+		if (mModifiable) drawEditorBackdrop(canvas);
+		super.dispatchDraw(canvas);
+		if (mModifiable) drawEditorOverlay(canvas);
 	}
 
 	public void setModified(boolean isModified) {
@@ -331,6 +447,23 @@ public class ControlLayout extends FrameLayout {
 			addView(mHandleView);
 		}
 		mHandleView.setControlButton(button);
+		mSelected = button;
+		invalidate();
+	}
+
+	/**
+	 * The size a resize is passing through, shown while the finger is still down.
+	 *
+	 * Drawn here rather than by the grip because this is the canvas that is always the right size
+	 * and is already on top of everything; the grip is a 34dp square pinned to a corner, and a
+	 * readout drawn inside it would either be illegible or would need the view enlarged into
+	 * something that starts blocking touches on its neighbours.
+	 */
+	public void showResizeReadout(float widthPx, float heightPx, boolean visible) {
+		mShowingResize = visible;
+		mResizeWidthDp = Tools.pxToDp(widthPx);
+		mResizeHeightDp = Tools.pxToDp(heightPx);
+		invalidate();
 	}
 
 	/** Swap the panel if the button position requires it */
@@ -363,7 +496,8 @@ public class ControlLayout extends FrameLayout {
 
 		//Optimization pass to avoid looking at all children again
 		if (lastControlButton != null) {
-			System.out.println("last control button check" + ev.getX() + "-" + ev.getY() + "-" + lastControlButton.getControlView().getX() + "-" + lastControlButton.getControlView().getY());
+			// The line that was here printed four floats to stdout on every move event of every
+			// swipe, which is the hot path of a running game. Whatever it was for, it was left in.
 			if (ev.getX() > lastControlButton.getControlView().getX()
 					&& ev.getX() < lastControlButton.getControlView().getX() + lastControlButton.getControlView().getWidth()
 					&& ev.getY() > lastControlButton.getControlView().getY()
@@ -420,6 +554,9 @@ public class ControlLayout extends FrameLayout {
 		imm.hideSoftInputFromWindow(getWindowToken(), 0);
 		if(mControlEditor != null) mControlEditor.close();
 		if(mHandleView != null) mHandleView.hide();
+		mSelected = null;
+		mShowingResize = false;
+		invalidate();
 	}
 
 	public void save(String path){
