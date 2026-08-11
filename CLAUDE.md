@@ -821,6 +821,40 @@ re-litigated. The reasoning lives in the commit that made the change.
   looks like, so an offline account has nothing to ask about, which is exactly what the community
   thread concluded before this was built. The editor still works for them and the screen explains
   why that is all it can do, rather than appearing to work.
+- **Finding skins** (`skin/MojangSkins.java` + `ui/skin/SkinBrowseScreen.kt` +
+  `ui/skin/SkinHistory.kt`) — any player's skin by name, what Mojang says is on the account, and
+  a record of what has been worn.
+  **Mojang keeps no skin history, and that is the fact the whole thing is built around.** There is
+  no endpoint for it and there never has been; the profile response carries a `skins` array with a
+  `state` of ACTIVE or INACTIVE which looks exactly like one and in practice holds the skin being
+  worn now. The name history endpoint that did exist was withdrawn in 2022. So a history has to be
+  kept by whatever applies the skins, the screen says so in as many words rather than implying the
+  list is complete, and the two things that genuinely can be read are read: the live skin on the
+  account, and any inactive entries where Mojang does return them.
+  **A history entry owns its pixels.** The PNG is copied into the history folder when it is
+  recorded, never referenced where it already sits, because the library file is one the editor
+  writes to in place: a reference would turn "the skin I wore in March" into "whatever that file
+  says today". It is **recorded only on a successful apply**, that being the single point at which
+  a skin actually goes onto an account and therefore the only place that can honestly claim one
+  was worn.
+  **Any player's skin is the catalogue, and it is Mojang's own public API.** A name gives a UUID
+  (`api.mojang.com`), a UUID gives a profile whose `textures` property is a base64 blob holding the
+  skin URL (`sessionserver.mojang.com`). No key, no account, and every account that has ever
+  uploaded a skin is in it, which makes it the largest skin database there is and the one every
+  skin site is built on top of. It is a **lookup and not a browsable catalogue**, which is a real
+  difference and is stated rather than dressed up: see the limitations for why there is no third
+  option.
+  **The parse is split from the fetch** (`parseOwnSkins`, `parsePlayer`), because Mojang is not
+  reachable from the build container and the parse is both the only checkable part and the part
+  that fails silently. The slim flag is at `textures.SKIN.metadata.model` and is **absent rather
+  than false** for a classic skin; the variant on the account path is `SLIM` in upper case and
+  `slim` in lower on the public one; and `textures` is not promised to be the first property in
+  the array. `scripts/skinapisim` drives all three, and every one of them was made to fail on
+  purpose before being trusted.
+  **One definition of slim on disk.** `writeArmWidth` is shared by the gallery's model switch and
+  by saving a skin found on another player, so a slim skin cannot arrive wearing classic arms
+  through the second door.
+
 - **Gyro aiming** (`customcontrols/mouse/GyroControl.java` + `GyroSmoother.java`) — rewritten
   because it stepped. The old one **held movement back behind a 1.13–1.3 unit threshold and then
   flushed the whole accumulator**, which at a slow aiming speed meant freezing for up to 80ms and
@@ -1139,6 +1173,29 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   phone, and the fallback to the system driver is what makes trying one safe.
 - A driver import is a **copy into internal storage**, so it spends real megabytes, and an
   import with the same name replaces the previous one rather than piling up beside it.
+- **There is no skin history to read.** Mojang does not keep one and never has, so "recently worn"
+  is the launcher's own record and starts from the first skin applied through it. A skin set from
+  the Minecraft website or another device shows up as the account's current skin and not in the
+  record, because the launcher was not there when it happened.
+- **There is no browsable skin catalogue, because there is no licensed API for one.** NameMC, the
+  Skindex and Planet Minecraft have no public API and their terms forbid automated access, and
+  shipping a library of other people's artwork is the licensing question the editor already
+  declined. What is offered instead is Mojang's own public lookup, which is a name at a time.
+- The session server rate limits **per profile per minute**, so looking the same player up twice in
+  a row can come back as a pause request rather than a skin. It is reported as one.
+- A player who has never uploaded a skin has **nothing to save**: Mojang serves them a default
+  rather than storing one, so the profile is real and the textures are empty. The screen says that
+  rather than showing a failure.
+- Capes are **read and not used**. The lookup carries the cape URL because the profile does, and
+  nothing in the launcher wears one; a cape is Mojang's to grant and not something a launcher can
+  apply.
+- The wire format is coded from the **documented** contract. None of `api.mojang.com`,
+  `sessionserver.mojang.com` or `api.minecraftservices.com` is reachable from the build container,
+  so `scripts/skinapisim` drives the shipped parsers against fixtures rather than against a
+  captured response. It checks the things that break silently, not that the endpoints still answer
+  in that shape.
+- The history is capped at **40 entries**, oldest dropped first, and dropping one deletes its
+  picture. A record that grows forever on a phone is a bug with a nice name.
 - A skin can only be **applied** to a Microsoft account. Mojang's profile is the only thing a
   server reads a skin from, so an offline account has nowhere to put one. It can still be made,
   kept and previewed here, and the gallery says why in a sentence rather than failing at the
@@ -1297,6 +1354,10 @@ Before pushing:
 - **Run `sh scripts/modrinthsim/run.sh`** if the Modrinth client changed. It compiles the shipped
   `ModrinthMods` and `ModInstall` against stubs at source 8 and drives them with fixtures, which
   is the only check available: the API is not reachable from the build container.
+- **Run `sh scripts/skinapisim/run.sh`** if the Mojang skin client changed. It compiles the
+  shipped `MojangSkins` at source 8 and drives its parsers with fixtures: the base64 textures blob,
+  a slim skin, a classic one with no metadata at all, `textures` not being the first property, a
+  player with no textures, and a handful of responses designed to make a parser throw.
 - **Run `python3 scripts/check_skin_uv.py`** if the skin atlas table changed. It checks the
   UV rectangles against independently written ground truth, at both arm widths, plus bounds,
   overlap and the columns the slim guess reads. A wrong rectangle is a leg wearing a sleeve

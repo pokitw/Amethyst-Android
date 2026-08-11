@@ -708,6 +708,7 @@
     <string name="onboarding_row_sequence">Timed key sequences</string>
     <string name="onboarding_row_turnip">Import Vulkan drivers</string>
     <string name="onboarding_row_skin">Skin editor</string>
+    <string name="onboarding_row_skinfind">Look up any player\'s skin</string>
     <string name="onboarding_row_performance">One switch for frame rate</string>
     <string name="onboarding_row_size">Smaller download</string>
 
@@ -1268,4 +1269,29 @@
     <string name="performance_mod_modernfix">Faster loading and a shorter wait at the world screen.</string>
     <string name="performance_mod_embeddium">Rewrites how chunks are drawn. Sodium, for Forge.</string>
     <string name="performance_mod_canary">Speeds up the game\'s own logic. Lithium, for Forge.</string>
+
+    <!-- Finding skins: any player, the account, and the launcher's own record. -->
+    <string name="skin_browse_title">Find skins</string>
+    <string name="skin_browse_subtitle">Any player, your account, and what you have worn</string>
+    <string name="skin_browse_search_hint">Search a player name</string>
+    <string name="skin_browse_save">Save</string>
+    <string name="skin_browse_account">On your account</string>
+    <string name="skin_browse_account_offline">This account has never signed in to Microsoft, so there is no Mojang profile to read a skin from.</string>
+    <string name="skin_browse_history">Recently worn</string>
+    <string name="skin_browse_history_empty">Nothing yet. Every skin you apply from here is kept, so you can go back to it.</string>
+    <string name="skin_browse_history_note">Kept by the launcher, because Mojang does not keep a skin history. It starts from the first skin you apply here. Long press to forget one.</string>
+    <string name="skin_browse_empty_title">Type a player name</string>
+    <string name="skin_browse_empty_body">Every account that has ever uploaded a skin can be looked up by name, straight from Mojang. Save one to your library and it is yours to wear or edit.</string>
+    <string name="skin_browse_no_texture">This player is wearing a default skin, so there is nothing to save.</string>
+    <string name="skin_browse_not_found">No player called %1$s.</string>
+    <string name="skin_browse_rate_limited">Mojang is asking for a pause. Try again in a minute.</string>
+    <string name="skin_browse_offline">Could not reach Mojang. Check your connection.</string>
+    <string name="skin_browse_failed">Mojang could not answer that just now.</string>
+    <string name="skin_browse_saved">Saved %1$s to your skins.</string>
+    <string name="skin_browse_save_failed">That skin could not be saved.</string>
+    <string name="skin_browse_variant_slim">Slim arms</string>
+    <string name="skin_browse_variant_classic">Classic arms</string>
+    <string name="skin_browse_worn_now">Worn now</string>
+    <string name="skin_browse_worn_before">Worn before</string>
+    <string name="skin_find">Find skins</string>
 </resources>

@@ -141,6 +141,10 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     ComparisonRow(R.string.onboarding_row_turnip, Support.PARTIAL, Support.YES),
     // Was NO/NO for as long as this table has existed, which is what made it worth building.
     ComparisonRow(R.string.onboarding_row_skin, Support.NO, Support.YES),
+    // Its own row rather than folded into the editor's, because it is a different thing: the
+    // editor makes a skin, this finds one that already exists. Both are NO for upstream, which
+    // is only worth two rows because they answer different questions.
+    ComparisonRow(R.string.onboarding_row_skinfind, Support.NO, Support.YES),
     // "Part" rather than "No", and the row is worth more for it: upstream does pick a resolution
     // and a heap size from the device on first run, which is device-specific automatic
     // configuration by any honest reading. What it has never had is a renderer chosen for the

@@ -103,6 +103,7 @@ fun SkinGalleryScreen(
     onSlim: (Boolean) -> Unit,
     onNew: () -> Unit,
     onImport: () -> Unit,
+    onFind: () -> Unit,
     onBack: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
@@ -256,6 +257,9 @@ fun SkinGalleryScreen(
             ) {
                 AddChoice(R.drawable.ic_x_pencil, R.string.skin_new) { adding = false; onNew() }
                 AddChoice(R.drawable.ic_x_files, R.string.skin_import) { adding = false; onImport() }
+                // Third, and last, because it is the one that needs a network and a name. The
+                // other two work on a plane.
+                AddChoice(R.drawable.ic_x_skin, R.string.skin_find) { adding = false; onFind() }
             }
             Spacer(Modifier.height(16.dp))
         }
