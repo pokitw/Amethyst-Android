@@ -13,6 +13,7 @@ import net.kdt.pojavlaunch.extra.ExtraCore
 import net.kdt.pojavlaunch.ui.auth.AuthChooserScreen
 import net.kdt.pojavlaunch.ui.auth.NameError
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
+import net.kdt.pojavlaunch.ui.common.ChromeOwner
 import java.io.File
 
 /**
@@ -24,7 +25,7 @@ import java.io.File
  * raising [ExtraConstants.MOJANG_LOGIN_TODO] for the account spinner to pick up, because the
  * spinner stays the source of truth for who is logged in while the launch path reads it.
  */
-class SelectAuthFragment : Fragment() {
+class SelectAuthFragment : Fragment(), ChromeOwner {
     companion object {
         const val TAG = "AUTH_SELECT_FRAGMENT"
 
@@ -79,4 +80,10 @@ class SelectAuthFragment : Fragment() {
         File(Tools.DIR_ACCOUNT_NEW, "$name.json").exists() -> NameError.TAKEN
         else -> null
     }
+
+    /** The sign-in chooser draws its own header, and an account bar above a screen for choosing an
+     * account would be saying the same thing twice. */
+    override fun drawsOwnHeader(): Boolean = true
+
+    override fun drawsOwnProgress(): Boolean = false
 }

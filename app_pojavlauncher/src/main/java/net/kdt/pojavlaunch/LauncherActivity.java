@@ -50,6 +50,7 @@ import net.kdt.pojavlaunch.modloaders.modpacks.api.NotificationDownloadListener;
 import net.kdt.pojavlaunch.modloaders.modpacks.imagecache.IconCacheJanitor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.fragments.SettingsFragment;
+import net.kdt.pojavlaunch.ui.common.ChromeOwner;
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper;
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener;
 import net.kdt.pojavlaunch.services.ProgressServiceKeeper;
@@ -141,10 +142,13 @@ public class LauncherActivity extends BaseActivity {
             boolean atHome = f instanceof MainMenuFragment;
             mSettingsButton.setImageDrawable(ContextCompat.getDrawable(getBaseContext(), atHome
                     ? R.drawable.ic_menu_settings : R.drawable.ic_menu_home));
-            // Settings draws its own header, including who is signed in, so it gets the chrome
-            // out of the way as well. It keeps the progress bar, because a download started
-            // elsewhere has nowhere else to report from while it is open.
-            setChromeHidden(atHome || f instanceof SettingsFragment, atHome);
+            // Asked of the fragment rather than decided from a list of class names here. The list
+            // named home and Settings and was written when they were the only two Compose screens
+            // this activity hosted; every one added since drew its own header underneath the
+            // account bar, which is the old design sitting on top of the new one.
+            boolean ownsHeader = f instanceof ChromeOwner && ((ChromeOwner) f).drawsOwnHeader();
+            boolean ownsProgress = f instanceof ChromeOwner && ((ChromeOwner) f).drawsOwnProgress();
+            setChromeHidden(ownsHeader, ownsProgress);
         }
     };
 

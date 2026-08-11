@@ -39,6 +39,7 @@ import net.kdt.pojavlaunch.ui.home.recordingCount
 import net.kdt.pojavlaunch.ui.home.rememberLaunchProgress
 import net.kdt.pojavlaunch.ui.home.selectProfile
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
+import net.kdt.pojavlaunch.ui.common.ChromeOwner
 
 /**
  * The launcher's home screen.
@@ -48,7 +49,7 @@ import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
  * Everything it triggers goes through the launcher's existing seams — the launch event, the
  * profile editor, the account spinner — so nothing about how the game starts has moved.
  */
-class MainMenuFragment : Fragment() {
+class MainMenuFragment : Fragment(), ChromeOwner {
     companion object {
         const val TAG = "MainMenuFragment"
     }
@@ -258,4 +259,9 @@ class MainMenuFragment : Fragment() {
     }
 
     private fun launcherActivity(): LauncherActivity? = activity as? LauncherActivity
+
+    /** The home screen draws its own header and reports downloads inside its Play button. */
+    override fun drawsOwnHeader(): Boolean = true
+
+    override fun drawsOwnProgress(): Boolean = true
 }

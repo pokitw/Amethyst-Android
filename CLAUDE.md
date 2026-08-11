@@ -417,10 +417,17 @@ Full screens share `AppScaffold` (`ui/common/`) for the back bar, the title that
 and the 20dp gutters. Settings hoists its scroll state through it, because search scrolls to a row.
 
 The launcher's chrome (`activity_pojav_launcher.xml`: account bar, settings button, progress bar)
-is **hidden while the home screen or Settings is showing**, because both draw their own header.
-Settings keeps the progress bar — a download started elsewhere has nowhere else to report from
-while it is open — so `setChromeHidden` takes the two decisions separately.
-`ProgressLayout.setSuppressed(boolean)` exists for this.
+is **hidden by the fragment asking for it, through `ui/common/ChromeOwner`**, because a screen
+that draws its own header must not have the old one above it. Settings keeps the progress bar — a
+download started elsewhere has nowhere else to report from while it is open — so the interface
+takes the two decisions separately, and `ProgressLayout.setSuppressed(boolean)` exists for that.
+
+**It used to be a list of class names in `LauncherActivity`, and the list drifted.** It named home
+and Settings, which was every Compose screen this activity hosted when it was written; the profile
+editor, the profile type picker, the sign-in chooser and the loader installer were all added
+afterwards and all drew an `AppScaffold` back bar and large title *underneath* the account bar.
+Nobody saw it, because a class name in an activity is not somewhere anybody looks while writing a
+screen. Declaring it on the fragment puts the decision next to the thing that makes it true.
 
 ---
 

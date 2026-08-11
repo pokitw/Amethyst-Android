@@ -35,6 +35,7 @@ import net.kdt.pojavlaunch.ui.loaders.LoaderOption
 import net.kdt.pojavlaunch.ui.loaders.LoaderRow
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles
+import net.kdt.pojavlaunch.ui.common.ChromeOwner
 import java.io.File
 import java.util.Locale
 
@@ -48,7 +49,7 @@ import java.util.Locale
  * old fragments are still wired up and still work, which is deliberate: nothing here can be tested
  * on a device from the build container, and a new way in should not be the only way in.
  */
-class LoaderInstallFragment : Fragment(), ModloaderDownloadListener {
+class LoaderInstallFragment : Fragment(), ChromeOwner, ModloaderDownloadListener {
     companion object {
         const val TAG = "LoaderInstallFragment"
         private const val EXTRA_PROXY = "LoaderInstallFragment_proxy"
@@ -309,4 +310,8 @@ class LoaderInstallFragment : Fragment(), ModloaderDownloadListener {
         net.kdt.pojavlaunch.extra.ExtraCore.setValue(EXTRA_PROXY, proxy)
     }
 
+    /** The loader screen draws its own back bar, title and search field. */
+    override fun drawsOwnHeader(): Boolean = true
+
+    override fun drawsOwnProgress(): Boolean = false
 }

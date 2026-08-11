@@ -39,6 +39,7 @@ import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 import net.kdt.pojavlaunch.utils.CropperUtils
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles
 import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile
+import net.kdt.pojavlaunch.ui.common.ChromeOwner
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -54,7 +55,7 @@ import java.nio.charset.StandardCharsets
  * that is the contract the rest of the launcher has with this screen — an argument bundle instead
  * means "create a new one".
  */
-class ProfileEditorFragment : Fragment(), CropperUtils.CropperListener {
+class ProfileEditorFragment : Fragment(), ChromeOwner, CropperUtils.CropperListener {
     companion object {
         const val TAG = "ProfileEditorFragment"
         const val DELETED_PROFILE = "deleted_profile"
@@ -272,4 +273,9 @@ class ProfileEditorFragment : Fragment(), CropperUtils.CropperListener {
     override fun onFailed(exception: Exception) {
         Tools.showErrorRemote(exception)
     }
+
+    /** The editor draws its own back bar and title, and the version and icon are its header. */
+    override fun drawsOwnHeader(): Boolean = true
+
+    override fun drawsOwnProgress(): Boolean = false
 }

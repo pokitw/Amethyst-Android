@@ -59,6 +59,7 @@ import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.settings.SettingsScreen
 import net.kdt.pojavlaunch.ui.settings.rememberSettingsStore
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
+import net.kdt.pojavlaunch.ui.common.ChromeOwner
 
 /**
  * Settings.
@@ -67,7 +68,7 @@ import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
  * their own thing — the runtime manager, the gamepad remapper, the MobileGlues tuning — are still
  * the screens they always were; this owns the grouping and every plain preference.
  */
-class SettingsFragment : Fragment() {
+class SettingsFragment : Fragment(), ChromeOwner {
     companion object {
         const val TAG = "SettingsFragment"
     }
@@ -643,4 +644,10 @@ class SettingsFragment : Fragment() {
             else -> Tools.openPath(context, currentGameDirectory(), false)
         }
     }
+
+    /** Settings draws its own account header. It keeps the progress bar, because a download started
+     * elsewhere has nowhere else to report from while this is open. */
+    override fun drawsOwnHeader(): Boolean = true
+
+    override fun drawsOwnProgress(): Boolean = false
 }

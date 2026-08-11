@@ -11,6 +11,7 @@ import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.ui.profile.ProfileType
 import net.kdt.pojavlaunch.ui.profile.ProfileTypeScreen
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
+import net.kdt.pojavlaunch.ui.common.ChromeOwner
 
 /**
  * What kind of profile to create.
@@ -20,7 +21,7 @@ import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
  * same reason it was there before: those installers download from services that will not serve an
  * offline account.
  */
-class ProfileTypeSelectFragment : Fragment() {
+class ProfileTypeSelectFragment : Fragment(), ChromeOwner {
     companion object {
         const val TAG = "ProfileTypeSelectFragment"
     }
@@ -78,4 +79,9 @@ class ProfileTypeSelectFragment : Fragment() {
         }
         Tools.swapFragment(requireActivity(), target.first, target.second, null)
     }
+
+    /** The type picker draws its own back bar and title. */
+    override fun drawsOwnHeader(): Boolean = true
+
+    override fun drawsOwnProgress(): Boolean = false
 }
