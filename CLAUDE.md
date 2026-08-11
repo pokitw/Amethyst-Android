@@ -690,6 +690,33 @@ re-litigated. The reasoning lives in the commit that made the change.
   in-order are mutually exclusive in the editor**: one holds keys until the next tap, the other
   releases them on a clock, and a written combination has no meaning a switch label could
   predict. The fields are additive, so old layouts deserialise untouched.
+- **Slide to repeat** (`ControlData.slideRepeat` + `ControlButton.maybeArmRepeat`) — a button that
+  is an ordinary button when tapped and keeps firing while you hold it and slide. Asked for in
+  those words: place a single block with a tap, clutch by spam clicking with the same button.
+  **It is one control, not two, and that is the whole feature.** The repeating on its own is
+  nothing new; holding a stay-pressed button already makes the game place blocks over and over.
+  What has never existed is getting it without giving up the tap: every other route is a second
+  button somewhere else on the screen, or a toggle that has to be turned off again afterwards,
+  and both mean the thumb leaves the place button at the exact moment it must not. So the second
+  job hangs off a gesture on the first button.
+  **The gesture is a slide because a slide is the one thing a button is otherwise deaf to.** A
+  long press is taken twice over (it opens the editor, and it holds a dictation), and a double
+  tap would cost every ordinary tap a delay before it could be sure it was not the first of two,
+  which is a real cost paid by everyone to give a feature to some.
+  Four decisions hold it up. **Release stops it**, always, with no latch: an autoclicker you
+  cannot turn off is a bug however good it feels, and a clutch is held anyway. **The threshold is
+  radial** (`pastSlideThreshold`, squared on both sides so nothing takes a square root on the
+  touch path), because comparing the axes separately arms at 1.41 times the distance along a
+  diagonal, which the player experiences as a gesture that works when they slide down and not
+  when they slide diagonally. **The repeat leaves the pressed state alone** and wears a steady
+  accent wash instead: `sendKeyPresses` sets it, and driven at twenty edges a second that is a
+  strobe. And **four other behaviours are mutually exclusive with it**, enforced in the editor
+  where the switches visibly move and again in `canRepeat` where a hand-edited file lands: a
+  toggle has no press for a slide to modify, a sequence is already a clock on the same keys, and
+  swipe and pass-through have both already spent the slide.
+  The gap floors at one game tick for the same reason the sequence's does: Minecraft samples
+  input once a tick, so a faster setting would be a number that does nothing. The fields are
+  additive, so old layouts deserialise untouched.
 - **Turnip driver manager** (`utils/TurnipDrivers.java` + `egl_bridge.c` + the Performance
   screen) — import adrenotools driver zips and pick which Vulkan driver Zink renders through.
   Upstream declined this (their issue 224, "PR it"); the loader machinery was already here,
@@ -1295,6 +1322,24 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   from a finger would.
 - A sequence button held down does **not** repeat, and a toggle cannot be a sequence. Both are
   the same decision from two sides: one press, one run.
+- A slide-to-repeat button **stops the moment the finger comes off**, and cannot be latched. That
+  is deliberate rather than missing: it is the line between a control scheme and an autoclicker,
+  and it is also the only arrangement in which the feature cannot be left running by accident.
+- **Nothing on the button says it can do this.** The gesture is invisible until it arms, at which
+  point there is a haptic and an accent wash. A permanent corner marker was considered and
+  dropped: on a 46dp button it is clutter, and over a texture pack it reads as a defect in the
+  artwork. Which buttons have it is answered in the editor, where it was turned on.
+- Repeating sends the **whole button**, all four key slots, exactly as an ordinary press does. It
+  cannot repeat one key of a button that holds several, and it cannot repeat a sequence.
+- A repeat is **twenty presses a second at its fastest**, which is one per game tick and as fast
+  as Minecraft can register a click at all. A slider that offered more would be a number that
+  does nothing.
+- Sliding off a repeating button onto a **swipeable** one presses that button, which is what
+  sliding onto a swipeable button has always done. Nothing about the repeat changes it, and the
+  repeating button carries on until the finger lifts.
+- The arithmetic is **verified by simulation, not on hardware** (`scripts/repeatsim`). The
+  threshold and the gap are checked; the touch lifecycle around them lives in a View and cannot
+  be lifted out of one, so what a slide feels like under a thumb is not checked by anything.
 - The Turnip driver picker is **Adreno only, by presence**: on any other GPU the rows are not
   shown, search does not find them, and nothing is disabled because nothing is there. An
   imported driver is validated as an arm64 ELF in an adrenotools-shaped zip, and nothing more:
@@ -1531,6 +1576,10 @@ Before pushing:
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
   can emit HTML and be screenshotted, which is how a row that does not line up gets caught.
+- **Run `sh scripts/repeatsim/run.sh`** if slide to repeat changed. It lifts the four statics out
+  of the shipped `ControlData` and drives them, and the check worth keeping is the one that
+  binary-searches the arming radius around a whole circle: an axis-wise threshold is right along
+  both axes and wrong only between them, which is exactly where a handful of test points are not.
 - **Run `sh scripts/resizesim/run.sh`** if the resize grip's floor, step or snapping changed. It
   pulls `resolveSize` and both constants verbatim out of the shipped file, so the harness cannot
   drift from the code, and sweeps **off-grid floors** as well as the shipped pair: with the

@@ -95,8 +95,85 @@ public class ControlData {
     public boolean sequence;
     /** Milliseconds between sequence steps. 0 means the default; one game tick (50) is the floor. */
     public int sequenceGap;
+    /**
+     * Tap it as a button; hold it and slide, and it keeps firing until the finger comes off.
+     *
+     * One control doing the two things a place button is asked to do. Placing a single block is a
+     * tap, and there is no way to make that faster or better. Clutching is the same key sent as
+     * fast as the game will take it, and every existing way to get that is a different button:
+     * a toggle that has to be turned off again, a second control somewhere else on the screen, or
+     * a finger. So the second job hangs off a gesture on the first button rather than off a
+     * control of its own, which is the only arrangement where the thumb never has to move.
+     *
+     * The gesture is a slide because a slide is the one thing a button is otherwise deaf to. A
+     * long press is taken (it is how the editor is opened, and how dictation is held), a double
+     * tap costs every ordinary tap a delay before it can be sure, and both are far too easy to do
+     * by accident with a thumb that is already pressing something.
+     *
+     * Absent from old layouts, so Gson leaves it false and every existing button behaves exactly
+     * as before.
+     */
+    public boolean slideRepeat;
+    /** How far the finger travels before a repeat arms, in dp. 0 means {@link #DEFAULT_SLIDE_DP}. */
+    public float slideDistance;
+    /** Milliseconds between repeated presses. 0 means the default; one game tick is the floor. */
+    public int repeatGap;
     private float width;         //Dp instead of Px now
     private float height;        //Dp instead of Px now
+
+    /**
+     * How far a finger slides before a repeat arms, when the button does not say.
+     *
+     * Far enough to be a movement somebody meant rather than a thumb settling on the glass, and
+     * short enough to be reachable from the middle of a default 50dp button without the finger
+     * having to leave it, which is the size most of the shipped controls are.
+     */
+    public static final float DEFAULT_SLIDE_DP = 20f;
+
+    /**
+     * The floor, and the default, for the gap between repeated presses.
+     *
+     * One game tick. Minecraft samples input once a tick, so presses closer together than this are
+     * presses the game cannot see, and offering a faster setting would be offering a number that
+     * does nothing. The same reasoning, and the same floor, as {@link #sequenceGap}.
+     */
+    public static final int REPEAT_GAP_FLOOR_MS = 50;
+
+    /** The slide a button asks for, or the default when it asks for nothing sensible. */
+    public static float slideDistanceDp(float configured) {
+        return configured > 0 ? configured : DEFAULT_SLIDE_DP;
+    }
+
+    /** The gap a repeat runs at: what the button asks for, never under one game tick. */
+    public static int repeatGapMs(int configured) {
+        return Math.max(REPEAT_GAP_FLOOR_MS, configured);
+    }
+
+    /**
+     * How long until the next edge of a repeat.
+     *
+     * Half the gap, so a press and a release each take half and press-to-press spacing is exactly
+     * the gap. It needs no floor of its own: {@link #repeatGapMs} cannot return under one tick, so
+     * half of it cannot come out under half a tick.
+     */
+    public static int repeatHalfGapMs(int configured) {
+        return repeatGapMs(configured) / 2;
+    }
+
+    /**
+     * Whether a drag has travelled far enough to arm a repeat.
+     *
+     * <b>Radially, and squared.</b> The obvious spelling of this compares the two axes separately,
+     * which quietly makes the gesture easier along a diagonal than along either axis and is a
+     * different distance depending on which way the player happened to slide. Squaring both sides
+     * keeps it a real distance without a square root on the touch path, and taking dx and dy as
+     * they come means sliding left or up arms it exactly as sliding right or down does.
+     *
+     * Strictly greater, so a threshold of zero cannot arm on a move event that has not moved.
+     */
+    public static boolean pastSlideThreshold(float dx, float dy, float thresholdPx) {
+        return dx * dx + dy * dy > thresholdPx * thresholdPx;
+    }
 
     public ControlData() {
         this("button");
@@ -185,6 +262,9 @@ public class ControlData {
         // fields ride along here so a duplicated button keeps its sequence behaviour.
         this.sequence = controlData.sequence;
         this.sequenceGap = controlData.sequenceGap;
+        this.slideRepeat = controlData.slideRepeat;
+        this.slideDistance = controlData.slideDistance;
+        this.repeatGap = controlData.repeatGap;
     }
 
     public static ControlData[] getSpecialButtons() {

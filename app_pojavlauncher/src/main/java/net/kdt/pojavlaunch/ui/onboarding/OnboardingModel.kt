@@ -135,6 +135,12 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // is press them one after another, which is the half a combo move actually needs. Upstream
     // said no to macros in as many words, so this row is a real difference, not a tie.
     ComparisonRow(R.string.onboarding_row_sequence, Support.PARTIAL, Support.YES),
+    // Beside the sequence row rather than folded into it: one is several keys on a clock, this is
+    // one key on a clock, and the useful half is the gesture that starts it. "No" for upstream and
+    // it survives the fairest reading available: holding a stay-pressed button there does make
+    // Minecraft place blocks over and over, so the repeating is not the difference. Doing it from
+    // a button that is still an ordinary button when tapped is, and there is no way to get that.
+    ComparisonRow(R.string.onboarding_row_repeat, Support.NO, Support.YES),
     // "Part" for upstream because it ships one Turnip build and loads it automatically on
     // Adreno; what it declined (their issue 224) is letting you import a newer one. On any
     // other GPU neither side offers anything, which is the row's honest scope.

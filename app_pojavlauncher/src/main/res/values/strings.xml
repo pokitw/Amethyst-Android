@@ -706,6 +706,7 @@
     <string name="onboarding_row_textures">Button texture packs</string>
     <string name="onboarding_row_bedrock">Ready-made Bedrock layout</string>
     <string name="onboarding_row_sequence">Timed key sequences</string>
+    <string name="onboarding_row_repeat">Slide a button into repeating</string>
     <string name="onboarding_row_turnip">Import Vulkan drivers</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_skinfind">Look up any player\'s skin</string>
@@ -910,6 +911,10 @@
     <string name="control_editor_sequence">Press keys in order</string>
     <string name="control_editor_sequence_description">One tap presses each bound key in turn, with a pause between. Bind the pearl slot, right click, the wind charge slot, right click, and one button does the whole move.</string>
     <string name="control_editor_sequence_gap">Pause between keys</string>
+    <string name="control_editor_slide_repeat">Slide to repeat</string>
+    <string name="control_editor_slide_repeat_description">Tap it for one press, exactly as now. Hold it and slide, and it keeps pressing until you lift your thumb, which is what clutching and bridging need. Turns off stay pressed, press in order, release on slide and pass through, since each of those already uses the press or the slide.</string>
+    <string name="control_editor_slide_distance">How far to slide</string>
+    <string name="control_editor_repeat_speed">Repeat speed</string>
     <string name="control_editor_swipe">Release when you slide off</string>
     <string name="control_editor_swipe_description">Sliding your thumb off the button lets the key up, so you can run your finger across a row of them.</string>
     <string name="control_editor_passthrough">Pass touches through</string>

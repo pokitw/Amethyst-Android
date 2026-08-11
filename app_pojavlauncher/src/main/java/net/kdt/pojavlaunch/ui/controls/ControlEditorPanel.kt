@@ -229,6 +229,34 @@ fun ControlEditorPanel(
                             )
                         }
                         SwitchRow(
+                            stringResource(R.string.control_editor_slide_repeat),
+                            stringResource(R.string.control_editor_slide_repeat_description),
+                            state.slideRepeat,
+                            onCheckedChange = state::applySlideRepeat
+                        )
+                        if (state.slideRepeat) {
+                            LiveSlider(
+                                title = stringResource(R.string.control_editor_slide_distance),
+                                value = state.slideDistance,
+                                range = 8f..64f,
+                                format = { "${it.roundToInt()} dp" },
+                                onValueChange = state::applySlideDistance
+                            )
+                            // Presses a second as well as milliseconds, because that is the
+                            // number a player has an opinion about; the floor is one game tick,
+                            // which is as fast as Minecraft can see a click at all.
+                            LiveSlider(
+                                title = stringResource(R.string.control_editor_repeat_speed),
+                                value = state.repeatGap.toFloat(),
+                                range = 50f..500f,
+                                format = {
+                                    val ms = it.roundToInt()
+                                    "$ms ms, ${(1000f / ms).roundToInt()} a second"
+                                },
+                                onValueChange = { state.applyRepeatGap(it.roundToInt()) }
+                            )
+                        }
+                        SwitchRow(
                             stringResource(R.string.control_editor_swipe),
                             stringResource(R.string.control_editor_swipe_description),
                             state.isSwipeable,

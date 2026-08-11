@@ -13,6 +13,7 @@ import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.TextView;
@@ -70,7 +71,19 @@ public class ControlButton extends TextView implements ControlInterface {
             LwjglGlfwKeycode.GLFW_KEY_T, LwjglGlfwKeycode.GLFW_KEY_SLASH
     };
 
+    /**
+     * How strongly the accent washes a button that is repeating.
+     *
+     * Stronger than the press flash (60) and than the toggle wash (128), because it is saying
+     * something louder than either: this button is firing on its own and will keep doing it until
+     * the finger comes off.
+     */
+    private static final int REPEAT_ALPHA = 150;
+
     private final Paint mRectPaint = new Paint();
+    /** The accent wash a repeating button wears. Separate from {@link #mRectPaint}, which is the
+     * press flash on an ordinary button and the latch tint on a toggle. */
+    private final Paint mRepeatPaint = new Paint();
     protected ControlData mProperties;
     private final ControlLayout mControlLayout;
 
@@ -127,14 +140,17 @@ public class ControlButton extends TextView implements ControlInterface {
 
         if (mProperties.isToggle) {
             //For the toggle layer
-            final TypedValue value = new TypedValue();
-            getContext().getTheme().resolveAttribute(R.attr.colorAccent, value, true);
-            mRectPaint.setColor(value.data);
+            mRectPaint.setColor(accentColor());
             mRectPaint.setAlpha(128);
         } else {
             mRectPaint.setColor(Color.WHITE);
             mRectPaint.setAlpha(ControlSkin.isPocket() ? ControlSkin.PRESS_ALPHA : 60);
         }
+        // Always the accent, whatever the press wash above turned out to be. A repeat and a
+        // toggle are mutually exclusive, so the two washes can never be on the same button at
+        // the same moment and there is nothing to tell apart.
+        mRepeatPaint.setColor(accentColor());
+        mRepeatPaint.setAlpha(REPEAT_ALPHA);
 
         mGlyph = resolveGlyph(properties);
         // A button showing an icon shows nothing else: two things fighting for the same 50dp is
@@ -142,6 +158,13 @@ public class ControlButton extends TextView implements ControlInterface {
         setText(mGlyph == null ? properties.name : "");
         applyContentTone();
         fitTextSize(properties);
+    }
+
+    /** The launcher's accent, from the theme, which is where the controls' one colour lives. */
+    private int accentColor() {
+        final TypedValue value = new TypedValue();
+        getContext().getTheme().resolveAttribute(R.attr.colorAccent, value, true);
+        return value.data;
     }
 
     /**
@@ -221,25 +244,31 @@ public class ControlButton extends TextView implements ControlInterface {
             mGlyph.setBounds(left, top, left + size, top + size);
             mGlyph.draw(canvas);
         }
-        if (!(mIsToggled || (!mProperties.isToggle && isActivated()))) return;
+        if (!(mIsToggled || mRepeating || (!mProperties.isToggle && isActivated()))) return;
+
+        // A repeat outranks the press flash under it. The flash is already steady rather than
+        // blinking — sendRepeatEdge deliberately leaves the activated state alone, because a
+        // press state driven at twenty a second is a strobe — so without this the button would
+        // wear the ordinary held look and say nothing about what it is doing.
+        Paint paint = mRepeating ? mRepeatPaint : mRectPaint;
 
         // Over a texture the highlight has to wear the artwork's silhouette, not a rounded
         // rectangle: mComputedRadius is the layout's own corner percentage, which is exactly the
         // number the texture stopped drawing, so the rectangle would bleed past a rounded face or
         // cut across a square one. The drawable redraws itself in one colour instead.
         //
-        // Only for the latch. A press is already the drawable's own business — it swaps to the
-        // pack's pressed face, or tints itself — and drawing this on top as well would light the
-        // button twice.
+        // Only for the latch and the repeat. A press is already the drawable's own business — it
+        // swaps to the pack's pressed face, or tints itself — and drawing this on top as well
+        // would light the button twice.
         Drawable background = getBackground();
         if (background instanceof ControlTextureDrawable) {
-            if (mIsToggled) {
+            if (mIsToggled || mRepeating) {
                 ((ControlTextureDrawable) background)
-                        .drawOverlay(canvas, mRectPaint.getColor(), mRectPaint.getAlpha());
+                        .drawOverlay(canvas, paint.getColor(), paint.getAlpha());
             }
             return;
         }
-        canvas.drawRoundRect(0, 0, getWidth(), getHeight(), mComputedRadius, mComputedRadius, mRectPaint);
+        canvas.drawRoundRect(0, 0, getWidth(), getHeight(), mComputedRadius, mComputedRadius, paint);
     }
 
 
@@ -261,6 +290,11 @@ public class ControlButton extends TextView implements ControlInterface {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        // Read before anything else touches the event. ControlLayout.onTouch, which the
+        // out-of-bounds path below hands it to, calls offsetLocation on it.
+        final float x = event.getX();
+        final float y = event.getY();
+
         switch (event.getActionMasked()){
             case MotionEvent.ACTION_MOVE:
                 //Send the event to be taken as a mouse action
@@ -268,6 +302,11 @@ public class ControlButton extends TextView implements ControlInterface {
                     View gameSurface = getControlLayoutParent().getGameSurface();
                     if(gameSurface != null) gameSurface.dispatchTouchEvent(event);
                 }
+
+                // Before the bounds check, and deliberately not inside it: the slide that arms a
+                // repeat is often longer than the button is wide, so on anything but a large
+                // button the finger has left by the time the threshold is passed.
+                maybeArmRepeat(x, y);
 
                 //If out of bounds
                 if(event.getX() < getControlView().getLeft() || event.getX() > getControlView().getRight() ||
@@ -299,6 +338,8 @@ public class ControlButton extends TextView implements ControlInterface {
 
             case MotionEvent.ACTION_DOWN: // 0
             case MotionEvent.ACTION_POINTER_DOWN: // 5
+                mDownX = x;
+                mDownY = y;
                 if(!getProperties().isToggle){
                     sendKeyPresses(true);
                 }
@@ -315,6 +356,9 @@ public class ControlButton extends TextView implements ControlInterface {
                 if(mIsPointerOutOfBounds) getControlLayoutParent().onTouch(this, event);
                 mIsPointerOutOfBounds = false;
 
+                // Before the release below, so the cycle cannot post another edge behind it.
+                // Both run on the main thread, so removeCallbacks here is the whole guarantee.
+                stopRepeat();
                 endDictation();
                 if(!triggerToggle()) {
                     sendKeyPresses(false);
@@ -371,6 +415,11 @@ public class ControlButton extends TextView implements ControlInterface {
             mSequenceHeldKey = GLFW_KEY_UNKNOWN;
         }
         mSequenceRunning = false;
+        // And a repeat, which is the same hazard: this is the one path that cancels it without an
+        // ACTION_UP behind it, so whichever edge the cycle was left on has to be given back here
+        // or the key stays down in the game with nothing remaining that could release it.
+        if(mRepeating && mRepeatDown) sendRepeatEdge(false);
+        stopRepeat();
         super.onDetachedFromWindow();
     }
 
@@ -468,6 +517,100 @@ public class ControlButton extends TextView implements ControlInterface {
         sendSingleKey(keycode, true);
         mSequenceHeldKey = keycode;
         postDelayed(mSequenceAdvance, half);
+    }
+
+    /* ------------------------------------------------------------------ slide to repeat.
+     *
+     * Where the press started, so the slide can be measured from it. In this view's coordinates,
+     * which is what the bounds check above already uses; the button does not move under the
+     * finger in a game, so a view-relative delta and a screen-relative one are the same number.
+     */
+    private float mDownX, mDownY;
+    /** Whether this press has turned into a repeat, and which edge the cycle is currently on. */
+    private boolean mRepeating, mRepeatDown;
+    private final Runnable mRepeatAdvance = this::advanceRepeat;
+
+    /**
+     * Whether this button is one a slide may turn into a repeat.
+     *
+     * The four exclusions are enforced in the editor as well, where turning this on visibly turns
+     * them off. They are repeated here because a layout file is a file: it can be hand-edited, and
+     * it can be shared by someone whose launcher wrote it before a rule existed. A button carrying
+     * a contradiction stays an ordinary button, which is the failure that cannot surprise anybody.
+     *
+     * A <b>toggle</b> holds its keys until the next tap, so there is no press for a slide to
+     * modify. A <b>sequence</b> is already a clock running on one press, and two clocks driving
+     * the same keys is a combination with no meaning a switch label could predict. <b>Swipe</b>
+     * and <b>pass-through</b> both already spend the slide: one releases the keys when the finger
+     * leaves, the other hands every move event to the game as mouse-look, so on either of them
+     * every ordinary use of the button would arm a repeat by accident.
+     */
+    private boolean canRepeat(){
+        ControlData p = getProperties();
+        return p.slideRepeat && !p.isToggle && !p.sequence && !p.isSwipeable && !p.passThruEnabled;
+    }
+
+    /** Start repeating if the finger has slid far enough since it went down. */
+    private void maybeArmRepeat(float x, float y){
+        if(mRepeating || !canRepeat()) return;
+        float threshold = Tools.dpToPx(ControlData.slideDistanceDp(getProperties().slideDistance));
+        if(!ControlData.pastSlideThreshold(x - mDownX, y - mDownY, threshold)) return;
+
+        mRepeating = true;
+        // The key went down when the finger did and is still down, so the cycle picks up from
+        // there: the first thing owed is a release, half a gap from now, and from then on the
+        // spacing is regular.
+        mRepeatDown = true;
+        // A hold that has become a slide is no longer a hold, so a dictation waiting behind it
+        // must not still be counting down.
+        endDictation();
+        // The one confirmation that it armed. Everything else about this gesture is invisible
+        // until the button starts firing, and a thumb mid-clutch is not looking at the button.
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        invalidate();
+        postDelayed(mRepeatAdvance, ControlData.repeatHalfGapMs(getProperties().repeatGap));
+    }
+
+    /**
+     * One edge of the repeat, and the booking for the next.
+     *
+     * The same shape as {@link #advanceSequence()} and for the same reason: the whole run is one
+     * self-advancing runnable, so {@link #stopRepeat()} can take it back with a single
+     * removeCallbacks where a queue of anonymous lambdas could not.
+     */
+    private void advanceRepeat(){
+        if(!mRepeating) return;
+        mRepeatDown = !mRepeatDown;
+        sendRepeatEdge(mRepeatDown);
+        postDelayed(mRepeatAdvance, ControlData.repeatHalfGapMs(getProperties().repeatGap));
+    }
+
+    /**
+     * Stop the cycle. Releasing the key is the caller's job, and both callers do it.
+     *
+     * Kept out of here on purpose: ACTION_UP releases everything a moment later whatever the
+     * cycle was doing, and the detach path has to release the exact edge it was left on. A
+     * release in the middle would be right for neither and invisible in both.
+     */
+    private void stopRepeat(){
+        removeCallbacks(mRepeatAdvance);
+        if(!mRepeating) return;
+        mRepeating = false;
+        mRepeatDown = false;
+        invalidate();
+    }
+
+    /**
+     * The bound keys, pressed or released, without touching the activated state.
+     *
+     * That omission is the point. {@link #sendKeyPresses(boolean)} sets it, and driven at twenty
+     * edges a second it would make the button strobe; the steady accent wash in
+     * {@link #onDraw(Canvas)} says what is happening instead, once.
+     */
+    private void sendRepeatEdge(boolean isDown){
+        for(int keycode : mProperties.keycodes){
+            sendSingleKey(keycode, isDown);
+        }
     }
 
     private void sendSpecialKey(int keycode, boolean isDown){

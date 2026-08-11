@@ -103,6 +103,14 @@ class ControlEditorState(val button: ControlInterface) {
         private set
     var passThrough by mutableStateOf(data.passThruEnabled)
         private set
+    var slideRepeat by mutableStateOf(data.slideRepeat)
+        private set
+    // Through the same defaults the button reads, so the panel opens showing the value that would
+    // actually be used rather than a zero that means "whatever the code decides".
+    var slideDistance by mutableStateOf(ControlData.slideDistanceDp(data.slideDistance))
+        private set
+    var repeatGap by mutableStateOf(ControlData.repeatGapMs(data.repeatGap))
+        private set
     var showInGame by mutableStateOf(data.displayInGame)
         private set
     var showInMenu by mutableStateOf(data.displayInMenu)
@@ -205,7 +213,10 @@ class ControlEditorState(val button: ControlInterface) {
         // a sequence presses and releases them on a clock. Turning one on turns the other off,
         // visibly in the panel, rather than leaving a written combination whose meaning nobody
         // could predict from the two switch labels.
-        if (value && sequence) applySequence(false)
+        if (value) {
+            if (sequence) applySequence(false)
+            if (slideRepeat) applySlideRepeat(false)
+        }
         // The toggle overlay is tinted differently from the press flash, and that colour is
         // chosen in setProperties.
         button.setProperties(data, false)
@@ -215,7 +226,10 @@ class ControlEditorState(val button: ControlInterface) {
         sequence = value
         data.sequence = value
         data.sequenceGap = sequenceGap
-        if (value && isToggle) applyToggle(false)
+        if (value) {
+            if (isToggle) applyToggle(false)
+            if (slideRepeat) applySlideRepeat(false)
+        }
     }
 
     fun applySequenceGap(value: Int) {
@@ -226,11 +240,48 @@ class ControlEditorState(val button: ControlInterface) {
     fun applySwipeable(value: Boolean) {
         isSwipeable = value
         data.isSwipeable = value
+        if (value && slideRepeat) applySlideRepeat(false)
     }
 
     fun applyPassThrough(value: Boolean) {
         passThrough = value
         data.passThruEnabled = value
+        if (value && slideRepeat) applySlideRepeat(false)
+    }
+
+    /**
+     * Turn a button into one that can be tapped once or slid into repeating.
+     *
+     * Four other behaviours are turned off with it, because each of them has already spent either
+     * the press or the slide: see [net.kdt.pojavlaunch.customcontrols.buttons.ControlButton]'s
+     * canRepeat for which and why. Doing it here rather than only in the button is what makes it
+     * visible: the switches move in the panel, so nobody is left with two things on and no way to
+     * tell which one won.
+     *
+     * The two numbers are written along with the switch, so a button saved with the mode on
+     * carries the values the panel was showing rather than zeroes.
+     */
+    fun applySlideRepeat(value: Boolean) {
+        slideRepeat = value
+        data.slideRepeat = value
+        data.slideDistance = slideDistance
+        data.repeatGap = repeatGap
+        if (value) {
+            if (isToggle) applyToggle(false)
+            if (sequence) applySequence(false)
+            if (isSwipeable) applySwipeable(false)
+            if (passThrough) applyPassThrough(false)
+        }
+    }
+
+    fun applySlideDistance(value: Float) {
+        slideDistance = value
+        data.slideDistance = value
+    }
+
+    fun applyRepeatGap(value: Int) {
+        repeatGap = value
+        data.repeatGap = value
     }
 
     fun applyShowInGame(value: Boolean) {
