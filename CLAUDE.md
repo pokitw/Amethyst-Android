@@ -717,6 +717,13 @@ re-litigated. The reasoning lives in the commit that made the change.
   The gap floors at one game tick for the same reason the sequence's does: Minecraft samples
   input once a tick, so a faster setting would be a number that does nothing. The fields are
   additive, so old layouts deserialise untouched.
+  **The distance is drawn, not just numbered.** "20 dp" is a figure nobody has an intuition for,
+  and the question actually being asked of that slider is whether the gesture fits inside this
+  button or runs off it, which is a distance next to a size and therefore a picture. The editor
+  rings the selected control at the real radius while the mode is on. It is centred, which is the
+  honest average rather than the truth: the gesture is measured from wherever the thumb landed,
+  so a press near an edge arms sooner on one side, and drawing every possible circle would say
+  less than drawing one.
 - **Turnip driver manager** (`utils/TurnipDrivers.java` + `egl_bridge.c` + the Performance
   screen) — import adrenotools driver zips and pick which Vulkan driver Zink renders through.
   Upstream declined this (their issue 224, "PR it"); the loader machinery was already here,
@@ -756,12 +763,14 @@ re-litigated. The reasoning lives in the commit that made the change.
   gated on `mModifiable`**: the same class sits over the GL surface in a running game, where it
   must stay completely transparent, and a backdrop set unconditionally would cover Minecraft
   with a picture of a hill.
-  **All three editor decorations draw rather than being views.** A layout is a thing you drag
-  buttons around on, and every view added over it is a view that can swallow a drag (12.9); an
-  overlay that only ever draws cannot take a touch from anything. That is also why the size
-  readout is drawn by the layout and not inside the grip: the grip is a 34dp square pinned to a
-  corner, and a readout in it would either be illegible or need the view grown into something
-  that starts blocking its neighbours.
+  **The editor decorations draw rather than being views.** A layout is a thing you drag buttons
+  around on, and every view added over it is a view that can swallow a drag (12.9); an overlay
+  that only ever draws cannot take a touch from anything. That is also why the size readout is
+  drawn by the layout and not inside the grip: the grip is a 34dp square pinned to a corner, and a
+  readout in it would either be illegible or need the view grown into something that starts
+  blocking its neighbours. The price is that **anything drawn about a child has to be invalidated
+  when that child moves** (16.21), which is what `mSelectionWatcher` is for: a drawn outline does
+  not follow a view the way a view does.
   **The resize handle had no weight to it at all.** No press state, no haptic, no readout and no
   floor: the size followed the finger exactly, printed both dimensions to stdout on every move
   event, and would take a button to zero by zero, at which point it is still in the layout and
@@ -1201,6 +1210,19 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     second time in this feature that a specific failure hid behind a generic sentence (see 19),
     and the two are now told apart on the card as well as in the message.
 
+21. **Moving a child does not re-record its parent's display list.** The editor's selection
+    outline is drawn by `ControlLayout.dispatchDraw`, and dragging a button left the outline
+    behind at the position it had just been dragged away from. Nothing about the drawing was
+    wrong: on the hardware path `setX` transforms the child's own render node and damages the
+    parent, but the parent's display list is not re-recorded, so `dispatchDraw` never runs again
+    and the last thing it drew is still what is on screen. Anything a `ViewGroup` draws *about* a
+    child has to be invalidated when that child moves, and doing it on the drag path is not
+    enough: the editor's own sliders and a snap both move a control with no touch event reaching
+    the layout at all. The fix is a pre-draw watcher on the layout that compares the selection's
+    bounds against what it last drew, which is the one point every mover has to pass through.
+    The grip did not have this bug and that is why it went unnoticed: `ControlHandleView` is a
+    *view*, so moving it works, and only the drawn decoration was stale.
+
 ---
 
 ## 17. Known limitations
@@ -1325,6 +1347,10 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A slide-to-repeat button **stops the moment the finger comes off**, and cannot be latched. That
   is deliberate rather than missing: it is the line between a control scheme and an autoclicker,
   and it is also the only arrangement in which the feature cannot be left running by accident.
+- The slide ring in the editor is **centred on the control and the real gesture is not**. It
+  measures from wherever the thumb went down, so a press near one edge reaches the threshold
+  sooner on that side than the ring suggests. The ring answers how far the distance is against
+  the size of the button, which is the question the slider is being asked.
 - **Nothing on the button says it can do this.** The gesture is invisible until it arms, at which
   point there is a haptic and an accent wash. A permanent corner marker was considered and
   dropped: on a 46dp button it is clutter, and over a texture pack it reads as a defect in the

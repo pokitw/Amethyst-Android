@@ -6,8 +6,10 @@ import static org.lwjgl.glfw.CallbackBridge.isGrabbing;
 import android.annotation.SuppressLint;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.PathEffect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.app.Activity;
@@ -20,6 +22,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -83,6 +86,50 @@ public class ControlLayout extends FrameLayout {
 	private ControlInterface mSelected;
 	private boolean mShowingResize;
 	private float mResizeWidthDp, mResizeHeightDp;
+	/** The slide-to-repeat threshold, ringed around the selected control while it is being set. */
+	private boolean mShowingSlide;
+	private float mSlideRadiusPx;
+	private PathEffect mSlideDash;
+	/** Where the selection outline was last drawn, so a control that has moved can be spotted. */
+	private float mSelectionX, mSelectionY;
+	private int mSelectionWidth, mSelectionHeight;
+
+	/**
+	 * Redraw the overlay when the selected control moves or changes size.
+	 *
+	 * <b>Without this the outline is left behind at the position the control has just been dragged
+	 * away from.</b> A hardware-accelerated view moved with setX has only its own render node
+	 * transformed; the parent's display list is not re-recorded, so whatever this class drew last
+	 * time is still what it is showing. The child moves and the ring around it does not.
+	 *
+	 * A watcher rather than an invalidate on the drag path, because the drag path is not the only
+	 * thing that moves a control: the editor panel's position and size sliders move one with no
+	 * touch event reaching this layout at all, and so does a snap. Everything that can move a
+	 * control has to draw it before the next frame, and this is the last point common to all of
+	 * them. It costs four comparisons per frame, and only while something is selected.
+	 *
+	 * The cache is updated here rather than in the draw, so a selection that is invisible or
+	 * offscreen cannot leave it stale and ask for a redraw on every frame forever.
+	 */
+	private final ViewTreeObserver.OnPreDrawListener mSelectionWatcher =
+			new ViewTreeObserver.OnPreDrawListener() {
+		@Override
+		public boolean onPreDraw() {
+			if (mSelected == null) return true;
+			View view = mSelected.getControlView();
+			if (view.getX() == mSelectionX && view.getY() == mSelectionY
+					&& view.getWidth() == mSelectionWidth
+					&& view.getHeight() == mSelectionHeight) {
+				return true;
+			}
+			mSelectionX = view.getX();
+			mSelectionY = view.getY();
+			mSelectionWidth = view.getWidth();
+			mSelectionHeight = view.getHeight();
+			invalidate();
+			return true;
+		}
+	};
 	private ControlButtonMenuListener mMenuListener;
 	public String mLayoutFileName;
 
@@ -341,10 +388,45 @@ public class ControlLayout extends FrameLayout {
 		canvas.drawRect(0, horizon, width, horizon + Tools.dpToPx(1.5f), mEditorPaint);
 	}
 
+	/**
+	 * How far the finger has to slide to start a repeat, drawn at its real size.
+	 *
+	 * A slider that says "20 dp" is a number nobody has an intuition for, and the question it is
+	 * actually being asked is whether the gesture fits inside the button or runs off it. That is a
+	 * question about a distance next to a size, so it is answered by drawing both.
+	 *
+	 * Centred on the control, which is the honest average rather than the truth: the real gesture
+	 * is measured from wherever the thumb landed, so a press near an edge reaches the threshold
+	 * sooner on one side. Drawing every possible circle would say less than drawing one.
+	 */
+	private void drawSlideRing(Canvas canvas, View view) {
+		if (mSlideDash == null) {
+			mSlideDash = new DashPathEffect(
+					new float[]{Tools.dpToPx(7), Tools.dpToPx(5)}, 0);
+		}
+		float cx = view.getX() + view.getWidth() / 2f;
+		float cy = view.getY() + view.getHeight() / 2f;
+		mEditorPaint.setStyle(Paint.Style.STROKE);
+		mEditorPaint.setPathEffect(mSlideDash);
+		// Dashed, because a solid ring reads as a boundary the control has and this is a distance
+		// the finger travels. Same two-pass keyline as the selection, for the same reason.
+		mEditorPaint.setStrokeWidth(Tools.dpToPx(3.4f));
+		mEditorPaint.setColor(0x8C0E0B12);
+		canvas.drawCircle(cx, cy, mSlideRadiusPx, mEditorPaint);
+		mEditorPaint.setStrokeWidth(Tools.dpToPx(1.6f));
+		mEditorPaint.setColor(0xFFC08CE8);
+		canvas.drawCircle(cx, cy, mSlideRadiusPx, mEditorPaint);
+		// The paint is shared with the backdrop and the readout pill, so both of these have to go
+		// back or the next thing drawn with it comes out dashed and hollow.
+		mEditorPaint.setPathEffect(null);
+		mEditorPaint.setStyle(Paint.Style.FILL);
+	}
+
 	/** The selected control, outlined, and the size while it is being dragged. */
 	private void drawEditorOverlay(Canvas canvas) {
 		if (mSelected != null && mSelected.getControlView().isShown()) {
 			View view = mSelected.getControlView();
+			if (mShowingSlide) drawSlideRing(canvas, view);
 			float inset = Tools.dpToPx(2);
 			mEditorRect.set(view.getX() - inset, view.getY() - inset,
 					view.getX() + view.getWidth() + inset,
@@ -440,6 +522,11 @@ public class ControlLayout extends FrameLayout {
 	/** Open the editor on one control, and put the resize handles around it. */
 	public void editControlButton(ControlInterface button){
 		if(mControlEditor == null) return;
+
+		// Before open, not after: the editor state is built synchronously in there and asks for
+		// the slide ring from its constructor, so a reset afterwards would wipe it again.
+		mSelected = button;
+		mShowingSlide = false;
 		mControlEditor.open(button);
 
 		if(mHandleView == null){
@@ -447,7 +534,22 @@ public class ControlLayout extends FrameLayout {
 			addView(mHandleView);
 		}
 		mHandleView.setControlButton(button);
-		mSelected = button;
+		// Removed first because addOnPreDrawListener does not deduplicate, and selecting a second
+		// control without closing the panel comes straight back through here.
+		getViewTreeObserver().removeOnPreDrawListener(mSelectionWatcher);
+		getViewTreeObserver().addOnPreDrawListener(mSelectionWatcher);
+		invalidate();
+	}
+
+	/**
+	 * Show or hide the ring that says how far a slide has to go to start a repeat.
+	 *
+	 * Driven from the editor panel rather than from the control's own data, because the point of
+	 * it is to answer the slider while the slider is being dragged.
+	 */
+	public void showSlideRadius(float radiusPx, boolean visible) {
+		mShowingSlide = visible;
+		mSlideRadiusPx = radiusPx;
 		invalidate();
 	}
 
@@ -554,8 +656,10 @@ public class ControlLayout extends FrameLayout {
 		imm.hideSoftInputFromWindow(getWindowToken(), 0);
 		if(mControlEditor != null) mControlEditor.close();
 		if(mHandleView != null) mHandleView.hide();
+		getViewTreeObserver().removeOnPreDrawListener(mSelectionWatcher);
 		mSelected = null;
 		mShowingResize = false;
+		mShowingSlide = false;
 		invalidate();
 	}
 

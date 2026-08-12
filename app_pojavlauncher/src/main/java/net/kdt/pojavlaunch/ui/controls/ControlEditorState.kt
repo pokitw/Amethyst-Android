@@ -4,6 +4,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.customcontrols.ControlData
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData
@@ -123,6 +124,13 @@ class ControlEditorState(val button: ControlInterface) {
         (button as? ControlDrawer)?.drawerData?.orientation ?: ControlDrawerData.Orientation.RIGHT
     )
         private set
+
+    init {
+        // A control that already repeats shows its ring the moment the panel opens, rather than
+        // only once the slider is touched. The layout keeps the ring hidden by default, so the
+        // controls that do not repeat need nothing said about them.
+        showSlideRing()
+    }
 
     fun applyName(value: String) {
         name = value
@@ -272,11 +280,24 @@ class ControlEditorState(val button: ControlInterface) {
             if (isSwipeable) applySwipeable(false)
             if (passThrough) applyPassThrough(false)
         }
+        showSlideRing()
     }
 
     fun applySlideDistance(value: Float) {
         slideDistance = value
         data.slideDistance = value
+        showSlideRing()
+    }
+
+    /**
+     * Draw the slide threshold around the control at its real size, or take it away.
+     *
+     * The number on the slider is in dp, which nobody has an intuition for, and the question being
+     * asked of it is whether the gesture fits inside this particular button. The layout owns the
+     * canvas, so it draws it; this only says how big and whether.
+     */
+    private fun showSlideRing() {
+        button.controlLayoutParent?.showSlideRadius(Tools.dpToPx(slideDistance), slideRepeat)
     }
 
     fun applyRepeatGap(value: Int) {
