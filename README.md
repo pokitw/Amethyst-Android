@@ -1,153 +1,292 @@
-<h1 align="center">Angel Aura Amethyst</h1>
+<p align="center">
+  <img src=".github/amethyst-x.png" width="120" height="120" alt="Amethyst X">
+</p>
 
-<img src="https://github.com/AngelAuraMC/Amethyst-Android/blob/v3_openjdk/app_pojavlauncher/src/main/assets/amethyst.png" align="left" width="130" height="130" alt="Amethyst logo">
+<h1 align="center">Amethyst X</h1>
 
-[![Android CI](https://github.com/AngelAuraMC/Amethyst-Android/workflows/Android%20CI/badge.svg)](https://github.com/AngelAuraMC/Amethyst-Android/actions)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/AngelAuraMC/Amethyst-Android)](https://github.com/AngelAuraMC/Amethyst-Android/actions)
-[![Crowdin](https://badges.crowdin.net/pojavlauncher/localized.svg)](https://crowdin.com/project/pojavlauncher)
-[![Discord](https://img.shields.io/discord/724163890803638273.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/5ptqkyZxEy)
+<p align="center">
+  <b>Minecraft: Java Edition on Android, in a launcher that was designed rather than assembled.</b>
+</p>
 
-*From [Boardwalk](https://github.com/zhuowei/Boardwalk)'s ashes and [PojavLauncher](https://github.com/PojavLauncherTeam/PojavLauncher)'s ruined reputation, here comes Amethyst!*
+<p align="center">
+  <a href="https://github.com/pokitw/Amethyst-Android/actions"><img src="https://github.com/pokitw/Amethyst-Android/workflows/Android%20CI/badge.svg" alt="Android CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-LGPL--3.0-C08CE8" alt="LGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/Android-5.0%2B-C08CE8" alt="Android 5.0+">
+</p>
 
-Amethyst is a launcher that allows you to play Minecraft: Java Edition on your Android and [iOS](https://github.com/AngelAuraMC/Amethyst-iOS) devices.
+---
 
-For more details, check out our [wiki](https://wiki.angelauramc.dev)!
+Amethyst X runs a real JVM on your phone and translates the game's OpenGL calls to OpenGL ES, so
+it is a launcher and a compatibility layer at once. It is a fork of
+[Amethyst](https://github.com/AngelAuraMC/Amethyst-Android), which is itself a fork of
+[PojavLauncher](https://github.com/PojavLauncherTeam/PojavLauncher).
 
-## Table of Contents
+Two things separate it from upstream.
 
-* [Introduction](#introduction)
-* [Getting Amethyst](#getting-amethyst)
+**A gameplay recorder that captures inside the GL pipeline** rather than through the screen, so it
+records the game and nothing else. No control buttons, no notifications, no system bars. The
+recorder was offered upstream and declined, and that refusal is the origin of this fork: rather
+than maintain a patch, make it a better tool.
+
+**A ground-up interface redesign in Jetpack Compose**, aimed at flagship Android app quality.
+Nearly every screen has been rewritten, from the home screen to the crash report, and each was
+designed against what people actually do rather than converted from the layout that happened to
+exist.
+
+## Contents
+
+* [What Amethyst X adds](#what-amethyst-x-adds)
+* [Compared to upstream](#compared-to-upstream)
+* [Getting Amethyst X](#getting-amethyst-x)
 * [Building](#building)
-    * [Quick Build (Recommended)](#quick-build-recommended)
-    * [Detailed Build](#detailed-build)
-* [Current Status](#current-status)
-* [Known Issues](#known-issues)
-* [FAQ](#faq)
+* [Design principles](#design-principles)
+* [Known limitations](#known-limitations)
 * [Contributing](#contributing)
-* [Support](#support)
 * [License](#license)
-* [Credits & Dependencies](#credits--dependencies)
-* [Roadmap](#roadmap)
+* [Credits and dependencies](#credits-and-dependencies)
 
-## Introduction
+## What Amethyst X adds
 
-* Amethyst is a Minecraft: Java Edition launcher for Android and iOS based on [Boardwalk](https://github.com/zhuowei/Boardwalk) and [PojavLauncher](https://github.com/PojavLauncherTeam/PojavLauncher)
-* This launcher can launch almost all available Minecraft versions ranging from rd-132211 to 1.21 snapshots (including Combat Test versions)
-* Modding via Forge and Fabric are also supported.
-* This repository contains source code for Android. For iOS/iPadOS, check out [Amethyst-iOS](https://github.com/AngelAuraMC/Amethyst-iOS).
+### Recording and screenshots
 
-## Getting Amethyst
+The recorder hooks the frame just before it is presented, sharing a second GL context with the
+game and blitting into a hardware encoder surface. That is roughly one extra full-screen blit and
+a hardware encode per frame, far cheaper than a screen recorder, which composites the whole
+display and re-encodes it.
 
-You can get Amethyst via two methods:
+* Records the game framebuffer, so overlays and system UI never appear in the output
+* Game audio via playback capture, optionally mixed with the microphone
+* A JSON sidecar next to each clip recording version, resolution, frame rate and audio
+* **In-game screenshots** taken at the same seam, so the controls are not in the picture, with a
+  draggable floating shutter or a tap in the control center
+* Clips and screenshots are copied to an **Amethyst X album** in your gallery, because everything
+  the launcher writes lives under `Android/data`, which no gallery or share sheet can see
 
-1. **Releases:** Download the latest prebuilt app from [nightly.link](https://nightly.link/AngelAuraMC/Amethyst-Android/workflows/android/v3_openjdk/app-debug%20%28recommended%29.zip) or select an older version from our [automatic builds](https://github.com/AngelAuraMC/Amethyst-Android/actions).
-2. **Build from Source:** Follow the [building instructions](#building) below.
+### Controls
+
+* **In-game control center**, a sheet from the bottom where thumbs already are, with recording as
+  the card at the top
+* **On-screen keyboard** built for the game, replacing the keycode dialog. Any key can be latched
+  by long press, which is the only way F3 + G was ever reachable
+* **Voice typing** straight into chat, through the bound speech recogniser so the game never pauses
+* **Typing preview**, a strip at the top showing what you have typed, because the pan that lifts a
+  text field clear of the keyboard pushes it off a short landscape screen instead
+* **Rewritten layout editor**: bind a key by pressing it on a keyboard rather than picking a
+  keycode from a spinner, edit live on the button behind the panel, arrange over a bright preview
+  world so you can see whether a translucent button will still be legible
+* **Button texture packs**, eleven shipped, plus an importer and an exporter for making your own
+* **A ready-made Bedrock layout**, joystick left and the staggered action cluster right
+* **Timed key sequences**: one button fires its keys in order a tick or more apart, which is how a
+  pearl then wind charge move actually works
+* **Slide to repeat**: tap for one press, hold and slide to keep it firing, so one button both
+  places a block and clutches
+* **Gyro aiming rewritten** to read raw angular velocity in player space at 1:1, replacing an
+  implementation that held movement behind a threshold and then jumped
+
+### Getting the game to run well
+
+* **Performance mode**, one switch that reads what your phone actually is and sets the renderer,
+  the resolution, the heap, Minecraft's own graphics settings and a mod set to match. It shows the
+  whole plan before applying it and every value can be put back
+* **Turnip driver manager** for importing adrenotools Vulkan drivers on Adreno devices
+* **Crash diagnosis** that reads the log and names the failure in words, quoting the line it
+  concluded from, instead of handing you a stack trace
+
+### Content, without leaving the app
+
+* **Game files**: worlds, mods, resource packs, shader packs and screenshots on one screen. The add
+  button takes any file and works out where it goes from what it is
+* **Mod browser** searching Modrinth, filtered to your profile's Minecraft version and loader
+  before you type a character, with required dependencies resolved
+* **Loader installer** for Fabric, Quilt, Forge and NeoForge, asked from the Minecraft version
+  rather than from the loader, so you can see which loaders support a version before choosing one
+* **Skin editor** with a live software-rendered model, plus a lookup for any player's skin through
+  Mojang's own public API
+
+### Everywhere else
+
+* Settings grouped by intent, each destination carrying a live summary of its own state, and a
+  search that scrolls to the row it found and lights it up
+* An onboarding flow that ends in an honest side-by-side against upstream, including the rows
+  where this fork loses
+* Dark only, one accent, no dynamic colour. The amethyst is the brand and does not get replaced by
+  your wallpaper
+
+## Compared to upstream
+
+This is the same table the app shows on first run, measured against the fork point. It is only
+worth reading because it loses rows.
+
+| | Amethyst | Amethyst X |
+| --- | :---: | :---: |
+| Plays Minecraft: Java Edition | Yes | Yes |
+| Built-in gameplay recorder | No | Yes |
+| Smooth gyro aiming | Part | Yes |
+| Voice typing in chat | No | Yes |
+| On-screen keyboard | No | Yes |
+| See what you are typing | No | Yes |
+| Worlds and mods in the app | No | Yes |
+| Install mods in the app | Part | Yes |
+| Crash cause explained | No | Yes |
+| Searchable settings | No | Yes |
+| Redesigned controls | Part | Yes |
+| Button texture packs | No | Yes |
+| Ready-made Bedrock layout | Part | Yes |
+| Timed key sequences | Part | Yes |
+| Slide a button into repeating | No | Yes |
+| Import Vulkan drivers | Part | Yes |
+| Skin editor | No | Yes |
+| Look up any player's skin | No | Yes |
+| Install any loader from one screen | Part | Yes |
+| One switch for frame rate | Part | Yes |
+| Smaller download | Yes | Part |
+
+"Part" means upstream has something that answers the same question less completely. Gyro aiming is
+the clearest example: upstream has one, and it steps.
+
+## Getting Amethyst X
+
+Builds come from CI, one per push.
+
+1. Open [the Actions tab](https://github.com/pokitw/Amethyst-Android/actions) and pick the most
+   recent green run.
+2. Download the **app-debug (recommended)** artifact and install the APK inside it.
+
+GitHub only lets signed-in users download artifacts. If you would rather not sign in,
+[nightly.link](https://nightly.link/pokitw/Amethyst-Android) mirrors the same files with no account
+needed.
+
+Requires **Android 5.0 or later**.
+
+One thing worth knowing before you install. CI publishes a **debug** build, and debug builds carry
+a `.debug` suffix on the application ID. That means the artifact above installs beside an existing
+Amethyst rather than over it, and keeps its own game folder at
+`Android/data/org.angelauramc.amethyst.debug/files`, so worlds and versions from another install
+will not appear in it. A release build keeps the plain `org.angelauramc.amethyst` that upstream
+Amethyst uses, and upgrades one in place. That ID has deliberately never been changed, because it
+is what decides where the game folder lives.
 
 ## Building
 
-### Quick Build (Recommended)
+There is no Android SDK requirement beyond the usual. The submodules matter.
 
-The easiest way to build Amethyst is to use the pre-built JREs provided by our CI.
+```bash
+git clone --recursive https://github.com/pokitw/Amethyst-Android.git
+cd Amethyst-Android
+./gradlew :app_pojavlauncher:assembleDebug
+```
 
-1. Clone the repository: `git clone --recursive https://github.com/AngelAuraMC/Amethyst-Android.git`
-2. Build the launcher: `./gradlew :app_pojavlauncher:assembleDebug` (Use `gradlew.bat` on Windows)
+The APK lands in `app_pojavlauncher/build/outputs/apk/debug/`. Use `gradlew.bat` on Windows.
 
-The built APK will be located in `app_pojavlauncher/build/outputs/apk/debug/`.
+<details>
+<summary>Building the runtime and native pieces yourself</summary>
 
-### Detailed Build
+The quick build above uses the pre-built JREs that CI provides. If you want to build them:
 
-If you need more control over the build process, follow these steps:
+1. **Java runtime.** Download the `jre8-pojav` artifact from the
+   [openjdk-build-multiarch CI](https://github.com/AngelAuraMC/openjdk-build-multiarch/actions),
+   which contains pre-built JREs for every supported architecture. To build it yourself, follow
+   the instructions in that repository.
+2. **LWJGL.** Build instructions live in the [LWJGL repository](https://github.com/AngelAuraMC/lwjgl3).
+3. **Language list.** Languages are added automatically by Crowdin, so the list has to be
+   regenerated before building:
+   * Linux and macOS: `bash scripts/languagelist_updater.sh`
+   * Windows: `scripts\languagelist_updater.bat`
+4. **GLFW stub:** `./gradlew :jre_lwjgl3glfw:build`
+5. **Launcher:** `./gradlew :app_pojavlauncher:assembleDebug`
 
-1. **Java Runtime Environment (JRE):** Download the `jre8-pojav` artifact from our [CI auto builds](https://github.com/AngelAuraMC/openjdk-build-multiarch/actions).  This package contains pre-built JREs for all supported architectures.  If you need to build the JRE yourself, follow the instructions in the [android-openjdk-build-multiarch](https://github.com/AngelAuraMC/openjdk-build-multiarch) repository.
+</details>
 
-2. **LWJGL:** The build instructions for the custom LWJGL are available over the [LWJGL repository](https://github.com/AngelAuraMC/lwjgl3).
+### Verification
 
-3. **Language List:** Because languages are auto-added by Crowdin, you need to run the language list generator before building. In the project directory, run:
-   * Linux/macOS:
-     ```bash
-     chmod +x scripts/languagelist_updater.sh
-     bash scripts/languagelist_updater.sh
-     ```
-   * Windows:
-     ```batch
-     scripts\languagelist_updater.bat
-     ```
+There is no device in CI, so anything that can be checked without one is checked by a script in
+[`scripts/`](scripts/). Each harness drives the shipped source rather than a copy of it: control
+layouts are evaluated across a grid of screen sizes and button scales, the Modrinth and Mojang
+parsers run against fixtures, performance mode's plan is a pure function driven by a simulator,
+and the gyro maths is compiled and fed synthetic motion. `CLAUDE.md` lists which to run when.
 
-4. **Build GLFW stub:** `./gradlew :jre_lwjgl3glfw:build`
+## Design principles
 
-5. **Build the launcher:** `./gradlew :app_pojavlauncher:assembleDebug` (Replace `gradlew` with `gradlew.bat` on Windows).
+The full handbook is in [`CLAUDE.md`](CLAUDE.md), which is the source of truth for why this
+project is built the way it is. The short version:
 
-## Current Status
+* **Rank by what people actually do, not by what the code contains.** The old home screen gave the
+  account bar, set once and then ignored for months, the largest element on the screen, while Play
+  sat at the bottom sharing weight with a version dropdown.
+* **Merge decisions that are really one decision.** Nobody thinks "select 1.20.1" and then
+  separately "launch". Version and Play are one object.
+* **Show state before the action, not after the failure.** The launch card names the renderer,
+  memory, mod loader and whether the version is downloaded, so a profile on the wrong renderer is
+  visible before it fails.
+* **Spend boldness in one place.** Exactly one element per screen carries a gradient.
+* **Destructive actions do not get prime real estate.** Force close used to be the first row of the
+  in-game menu.
+* **Minecraft personality, not a Minecraft costume.** Inventory-slot geometry for icon wells,
+  slightly chunkier proportions than stock Material, and no pixel-art chrome anywhere.
 
-* [x] OpenJDK 8 Mobile port: ARM32, ARM64, x86, x86_64
-* [x] OpenJDK 17 Mobile port: ARM32, ARM64, x86, x86_64
-* [x] OpenJDK 21 Mobile port: ARM32, ARM64, x86, x86_64
-* [x] Headless mod installer
-* [x] Mod installer with GUI
-* [x] OpenGL in OpenJDK environment
-* [x] OpenAL (works on most devices)
-* [x] Support for Minecraft 1.12.2 and below
-* [x] Support for Minecraft 1.13 and above
-* [x] Support for Minecraft 1.17 (22w13a) and above
-* [x] Game surface zooming
-* [x] New input pipe rewritten to native code
-* [x] Rewritten entire controls system
-* [ ] More to come!
+## Known limitations
 
-## Known Issues
+Stated rather than discovered. [`CLAUDE.md`](CLAUDE.md) carries the full list.
 
-See our [issue tracker](https://github.com/AngelAuraMC/Amethyst-Android/issues) for a list of known issues and their current status.
-
-## FAQ
-
-See our [wiki](https://wiki.angelauramc.dev/) for more information.
+* **Zink cannot be recorded.** It renders through OSMesa, which has no EGL surface to hook. It
+  can still be screenshotted, because OSMesa leaves a finished frame in memory.
+* Recordings are capped below 4 GB, the MP4 32-bit offset limit, which is roughly 40 minutes at
+  1080p60. Automatic segmentation is designed but not built.
+* The gallery copy doubles the space a clip takes, and is skipped when the volume is short.
+* Three settings leaves are still the old preference screens: the runtime manager, the gamepad
+  remapper and the MobileGlues tuning. Settings search does not index them.
+* The on-screen keyboard is US layout, because that is what the game's own keybind names assume.
+* Voice typing quality is your device's recogniser, and it cannot open chat for you, since nothing
+  on the launcher side can read your keybinds.
+* Skin history is the launcher's own record. Mojang does not keep one and never has.
+* There is no browsable skin catalogue, because there is no licensed API for one. What is offered
+  instead is Mojang's public lookup, a player at a time.
+* Release builds do not run R8, so every dependency ships whole. That is the "smaller download"
+  row in the table above.
 
 ## Contributing
 
-Contributions are welcome! We welcome any type of contribution, not only code. For example, you can help improve the [wiki](https://github.com/AngelAuraMC/angelauramc.github.io/), contribute to the [translations](https://crowdin.com/project/pojavlauncher), or submit bug reports and feature requests.
+Issues and pull requests are welcome on [this repository](https://github.com/pokitw/Amethyst-Android/issues).
 
-Any code change should be submitted as a pull request. The description should explain what the code does and give steps to execute it.
+Before changing anything, read [`CLAUDE.md`](CLAUDE.md). It is not a style guide, it is a record of
+which decisions are load-bearing and which mistakes have already been made and paid for. Section 12
+lists the things that must not change without a very good reason, and section 16 lists the bugs
+that cost a build cycle each.
 
-## Support
-
-For support, please join our [Discord server](https://discord.gg/5ptqkyZxEy).
+For upstream Amethyst, see its [wiki](https://wiki.angelauramc.dev) and
+[Discord](https://discord.gg/5ptqkyZxEy). Those are upstream's channels, not this fork's.
+Translations go through upstream's [Crowdin](https://crowdin.com/project/pojavlauncher).
 
 ## License
 
-Amethyst is licensed under [GNU LGPLv3](https://github.com/AngelAuraMC/Amethyst-Android/blob/v3_openjdk/LICENSE).
+[GNU LGPLv3](LICENSE), inherited from PojavLauncher and Amethyst.
 
-## Credits & Dependencies
+## Credits and dependencies
 
-* [Boardwalk](https://github.com/zhuowei/Boardwalk) (JVM Launcher): Unknown License/[Apache License 2.0](https://github.com/zhuowei/Boardwalk/blob/master/LICENSE) or GNU GPLv2.
+Amethyst X exists because of the work below. The launcher is a thin thing sitting on top of a very
+large amount of other people's engineering.
+
+* [Boardwalk](https://github.com/zhuowei/Boardwalk) (JVM launcher): Unknown License / [Apache License 2.0](https://github.com/zhuowei/Boardwalk/blob/master/LICENSE) or GNU GPLv2
 * [PojavLauncher](https://github.com/PojavLauncherTeam/PojavLauncher): [GLGPL](https://github.com/PojavLauncherTeam/PojavLauncher/blob/v3_openjdk/LICENSE)
-* Android Support Libraries: [Apache License 2.0](https://android.googlesource.com/platform/prebuilts/maven_repo/android/+/master/NOTICE.txt).
-* [GL4ES](https://github.com/AngelAuraMC/gl4es): [MIT License](https://github.com/ptitSeb/gl4es/blob/master/LICENSE).
-* [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues): [LGPL-2.1 License](https://github.com/MobileGL-Dev/MobileGlues/blob/dev-es/LICENSE).
+* [Amethyst](https://github.com/AngelAuraMC/Amethyst-Android) by AngelAuraMC, the direct upstream
+* Android Support Libraries: [Apache License 2.0](https://android.googlesource.com/platform/prebuilts/maven_repo/android/+/master/NOTICE.txt)
+* [GL4ES](https://github.com/AngelAuraMC/gl4es): [MIT License](https://github.com/ptitSeb/gl4es/blob/master/LICENSE)
+* [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues): [LGPL-2.1 License](https://github.com/MobileGL-Dev/MobileGlues/blob/dev-es/LICENSE)
 * [Krypton Wrapper](https://github.com/BZLZHH/NG-GL4ES): [MIT License](https://github.com/BZLZHH/NG-GL4ES/blob/main/LICENSE)
-* [ANGLE](https://chromium.googlesource.com/angle/angle): [All Rights Reserved](app_pojavlauncher/src/main/assets/licenses/ANGLE_LICENSE).
-* [OpenJDK](https://github.com/AngelAuraMC/openjdk-multiarch-jdk8u): [GNU GPLv2 License](https://openjdk.java.net/legal/gplv2+ce.html).
-* [LWJGL3](https://github.com/AngelAuraMC/lwjgl3): [BSD-3 License](https://github.com/LWJGL/lwjgl3/blob/master/LICENSE.md).
-* [LWJGLX](https://github.com/AngelAuraMC/lwjglx) (LWJGL2 API compatibility layer for LWJGL3): unknown license.
-* [Mesa 3D Graphics Library](https://gitlab.freedesktop.org/mesa/mesa): [MIT License](https://docs.mesa3d.org/license.html).
-* [bhook](https://github.com/bytedance/bhook) (Used for exit code trapping): [MIT license](https://github.com/bytedance/bhook/blob/main/LICENSE).
-* [libepoxy](https://github.com/anholt/libepoxy): [MIT License](https://github.com/anholt/libepoxy/blob/master/COPYING).
-* [virglrenderer](https://github.com/AngelAuraMC/virglrenderer): [MIT License](https://gitlab.freedesktop.org/virgl/virglrenderer/-/blob/master/COPYING).
-* [OpenAL-Soft](https://github.com/kcat/openal-soft): [GNU GPLv2](app_pojavlauncher/src/main/assets/licenses/OPENAL-SOFT_GPL2)
-  * [oboe](https://github.com/google/oboe): [Apache License 2.0](app_pojavlauncher/src/main/assets/licenses/OBOE_APACHE2).
-  * [pfffft](https://bitbucket.org/jpommier/pffft/src/master/): [ARR](app_pojavlauncher/src/main/assets/licenses/PFFFT_LICENSE)
+* [ANGLE](https://chromium.googlesource.com/angle/angle): [All Rights Reserved](app_pojavlauncher/src/main/assets/licenses/ANGLE_LICENSE)
+* [OpenJDK](https://github.com/AngelAuraMC/openjdk-multiarch-jdk8u): [GNU GPLv2 License](https://openjdk.java.net/legal/gplv2+ce.html)
+* [LWJGL3](https://github.com/AngelAuraMC/lwjgl3): [BSD-3 License](https://github.com/LWJGL/lwjgl3/blob/master/LICENSE.md)
+* [LWJGLX](https://github.com/AngelAuraMC/lwjglx) (LWJGL2 API compatibility layer for LWJGL3): unknown license
+* [Mesa 3D Graphics Library](https://gitlab.freedesktop.org/mesa/mesa): [MIT License](https://docs.mesa3d.org/license.html)
+* [bhook](https://github.com/bytedance/bhook) (exit code trapping): [MIT license](https://github.com/bytedance/bhook/blob/main/LICENSE)
+* [libepoxy](https://github.com/anholt/libepoxy): [MIT License](https://github.com/anholt/libepoxy/blob/master/COPYING)
+* [virglrenderer](https://github.com/AngelAuraMC/virglrenderer): [MIT License](https://gitlab.freedesktop.org/virgl/virglrenderer/-/blob/master/COPYING)
+* [OpenAL-Soft](https://github.com/kcat/openal-soft): [GNU GPLv2](https://github.com/kcat/openal-soft/blob/master/COPYING)
+  * [oboe](https://github.com/google/oboe): [Apache License 2.0](https://github.com/google/oboe/blob/main/LICENSE)
+  * [pffft](https://bitbucket.org/jpommier/pffft/src/master/): [ARR](https://bitbucket.org/jpommier/pffft/src/master/pffft.h)
 * [SDL3](https://github.com/libsdl-org/SDL): [zlib License](https://github.com/libsdl-org/SDL/blob/main/LICENSE.txt)
 * [sdl2-compat](https://github.com/libsdl-org/sdl2-compat): [zlib License](https://github.com/libsdl-org/sdl2-compat/blob/main/LICENSE.txt)
-* Thanks to [MCHeads](https://mc-heads.net) for providing Minecraft avatars.
+* [Modrinth](https://modrinth.com) for the mod index, and Mojang for the public profile API
+* Thanks to [MCHeads](https://mc-heads.net) for providing Minecraft avatars
 
-## Roadmap
-
-We are currently focusing on:
-
-* Exploring new rendering technologies.
-
-Future plans include:
-
-* Improving stability and performance.
-* Enhancing the mod installation experience.
-
-We welcome community feedback and suggestions for our roadmap.  Please feel free to open a feature request in our [issue tracker](https://github.com/AngelAuraMC/Amethyst-Android/issues).
+Amethyst X is not affiliated with Mojang, Microsoft or Minecraft.
