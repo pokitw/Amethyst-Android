@@ -911,6 +911,14 @@
     <string name="control_editor_sequence">Press keys in order</string>
     <string name="control_editor_sequence_description">One tap presses each bound key in turn, with a pause between. Bind the pearl slot, right click, the wind charge slot, right click, and one button does the whole move.</string>
     <string name="control_editor_sequence_gap">Pause between keys</string>
+    <string name="control_center_test">Test these controls</string>
+    <string name="control_center_test_hint">Press them for real, without launching the game.</string>
+    <string name="control_test_title">Testing</string>
+    <string name="control_test_playing">Playing</string>
+    <string name="control_test_menu">In a menu</string>
+    <string name="control_test_guides">Guides</string>
+    <string name="control_test_done">Done</string>
+    <string name="control_test_waiting">Press a control and it will be named here.</string>
     <string name="control_editor_slide_repeat">Slide to repeat</string>
     <string name="control_editor_slide_repeat_description">Tap it for one press, exactly as now. Hold it and slide, and it keeps pressing until you lift your thumb, which is what clutching and bridging need. Turns off stay pressed, press in order, release on slide and pass through, since each of those already uses the press or the slide.</string>
     <string name="control_editor_slide_distance">How far to slide</string>

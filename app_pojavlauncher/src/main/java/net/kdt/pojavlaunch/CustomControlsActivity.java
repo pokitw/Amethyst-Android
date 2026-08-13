@@ -12,6 +12,7 @@ import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
+import net.kdt.pojavlaunch.ui.game.ControlTestHost;
 
 import java.io.IOException;
 
@@ -32,6 +33,8 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	private ControlLayout mControlLayout;
 	private ControlCenterHost mControlCenter;
 	private ControlEditorHost mControlEditor;
+	private ControlTestHost mControlTest;
+	private View mPullButton;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -45,11 +48,18 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 				findViewById(R.id.control_center_pill),
 				this);
 		mControlCenter.setEditorMode(true);
+		mControlCenter.applyTestable(true);
 		mControlEditor = new ControlEditorHost(findViewById(R.id.control_editor), mControlLayout);
 		mControlLayout.setEditorHost(mControlEditor);
 
-		View pullButton = findViewById(R.id.drawer_button);
-		pullButton.setOnClickListener(v -> mControlCenter.open());
+		mPullButton = findViewById(R.id.drawer_button);
+		mPullButton.setOnClickListener(v -> mControlCenter.open());
+		// The way back out of a test is the panel's own Done, so the tab that opens the editor's
+		// menu is taken away for the duration: tapping it mid-test would drop the editor's sheet
+		// on top of the layout being tried out.
+		mControlTest = new ControlTestHost(
+				findViewById(R.id.control_test), mControlLayout,
+				() -> mPullButton.setVisibility(View.VISIBLE));
 
 		mControlLayout.setModifiable(true);
 		try {
@@ -63,10 +73,18 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	protected void onDestroy() {
 		super.onDestroy();
 		mControlCenter.release();
+		// The test seam is a static, so a session left attached by an activity that went away
+		// would swallow every key the next one sent.
+		mControlTest.release();
 	}
 
 	@Override
 	public void onBackPressed() {
+		// Back leaves the test before it means anything else, which is the innermost layer.
+		if(mControlTest.isRunning()) {
+			mControlTest.stop();
+			return;
+		}
 		if(mControlCenter.isOpen()) {
 			mControlCenter.close();
 			return;
@@ -103,6 +121,13 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	public void onEditorAddJoystick() {
 		mControlLayout.addJoystickButton(new ControlJoystickData());
 		mControlCenter.close();
+	}
+
+	@Override
+	public void onEditorTest() {
+		mControlCenter.close();
+		mPullButton.setVisibility(View.GONE);
+		mControlTest.start();
 	}
 
 	@Override public void onEditorLoad() { mControlCenter.close(); mControlLayout.openLoadDialog(); }

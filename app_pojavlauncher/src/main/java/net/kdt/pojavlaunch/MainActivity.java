@@ -996,6 +996,15 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override public void onEditorLoad() { mControlCenter.close(); mControlLayout.openLoadDialog(); }
     @Override public void onEditorSave() { mControlCenter.close(); mControlLayout.openSaveDialog(this); }
 
+    /**
+     * Never offered here, and the sheet is told so rather than this being faked.
+     *
+     * The editor reached from inside a game already has the game underneath it: leaving edit mode
+     * is testing the controls, on the world you are actually playing. A test session would be a
+     * mock world drawn over a real one.
+     */
+    @Override public void onEditorTest() { }
+
     @Override
     public void onEditorSetDefault() {
         mControlCenter.close();

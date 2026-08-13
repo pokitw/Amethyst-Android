@@ -19,6 +19,7 @@ import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
+import net.kdt.pojavlaunch.customcontrols.ControlTestBridge;
 import net.kdt.pojavlaunch.customcontrols.gamepad.GamepadJoystick;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -44,6 +45,10 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
 
     private static void sendInput(int[] keys, boolean isDown) {
         for (int key : keys) {
+            // The joystick has its own send rather than going through sendKeyPresses, which is
+            // stubbed out on this class, so it needs the test seam separately. Missing it would
+            // leave the one control that is hardest to place by eye untestable.
+            if (ControlTestBridge.consume(key, isDown)) continue;
             CallbackBridge.sendKeyPress(key, CallbackBridge.getCurrentMods(), isDown);
         }
     }

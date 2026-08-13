@@ -30,6 +30,7 @@ import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlGlyphs;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
+import net.kdt.pojavlaunch.customcontrols.ControlTestBridge;
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTexture;
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTextureDrawable;
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTextures;
@@ -452,6 +453,18 @@ public class ControlButton extends TextView implements ControlInterface {
 
     /** One key of this button, pressed or released, special or not. */
     private void sendSingleKey(int keycode, boolean isDown){
+        // The single seam a test session taps. Everything below this line either calls into a JVM
+        // that only exists in the game process, or acts on a running game; in the editor there is
+        // neither, so the press is reported instead of sent.
+        if(ControlTestBridge.consume(keycode, isDown)){
+            // With one exception, because it is the only special that is about the controls
+            // themselves rather than about the game, and therefore the only one worth being able
+            // to try out here. It is also pure view code, so it is safe in either process.
+            if(keycode == ControlData.SPECIALBTN_TOGGLECTRL && isDown){
+                getControlLayoutParent().toggleControlVisible();
+            }
+            return;
+        }
         if(keycode >= GLFW_KEY_UNKNOWN){
             sendKeyPress(keycode, EfficientAndroidLWJGLKeycode.getLwjglChar(keycode), CallbackBridge.getCurrentMods(), isDown);
             CallbackBridge.setModifiers(keycode, isDown);

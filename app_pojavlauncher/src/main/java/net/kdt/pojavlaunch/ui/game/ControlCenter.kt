@@ -35,6 +35,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -98,6 +100,7 @@ interface ControlCenterCallbacks {
     fun onEditorAddJoystick()
     fun onEditorLoad()
     fun onEditorSave()
+    fun onEditorTest()
     fun onEditorSetDefault()
     fun onEditorShare()
     fun onEditorExit()
@@ -122,6 +125,7 @@ interface ControlCenterCallbacks {
 fun ControlCenter(
     visible: Boolean,
     editorMode: Boolean,
+    canTest: Boolean,
     recording: RecordingUiState,
     shutterOn: Boolean,
     callbacks: ControlCenterCallbacks,
@@ -147,7 +151,7 @@ fun ControlCenter(
             exit = slideOutVertically(tween(240, easing = FastOutSlowInEasing)) { it } +
                     fadeOut(tween(200))
         ) {
-            Sheet(editorMode, recording, shutterOn, callbacks)
+            Sheet(editorMode, canTest, recording, shutterOn, callbacks)
         }
     }
 }
@@ -155,6 +159,7 @@ fun ControlCenter(
 @Composable
 private fun Sheet(
     editorMode: Boolean,
+    canTest: Boolean,
     recording: RecordingUiState,
     shutterOn: Boolean,
     callbacks: ControlCenterCallbacks
@@ -194,7 +199,7 @@ private fun Sheet(
                 Spacer(Modifier.height(12.dp))
                 Column(Modifier.widthIn(max = if (twoColumns) 900.dp else 620.dp)) {
                     when {
-                        editorMode -> EditorLayout(twoColumns, callbacks)
+                        editorMode -> EditorLayout(twoColumns, canTest, callbacks)
                         twoColumns -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(
                                 Modifier.weight(1f),
@@ -480,9 +485,21 @@ private fun GameActions(callbacks: ControlCenterCallbacks) {
  * width would wrap to four lines and cost more height than the row it saved.
  */
 @Composable
-private fun EditorLayout(twoColumns: Boolean, callbacks: ControlCenterCallbacks) {
+private fun EditorLayout(
+    twoColumns: Boolean,
+    canTest: Boolean,
+    callbacks: ControlCenterCallbacks
+) {
     Column {
         EditorBanner(callbacks::onEditorShare, callbacks::onEditorExit)
+        // A row of its own rather than a seventh tile, on the same reasoning that makes recording
+        // the card at the top of the in-game sheet (14): trying the layout out is what the editor
+        // is for, and a grid of seven equal squares would say it was one of seven equal chores.
+        // It also keeps the grid at two rows of three, which is what fits a phone in landscape.
+        if (canTest) {
+            Spacer(Modifier.height(10.dp))
+            TestRow(callbacks::onEditorTest)
+        }
         Spacer(Modifier.height(12.dp))
         if (twoColumns) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { EditorTiles(callbacks) }
@@ -513,6 +530,52 @@ private fun EditorLayout(twoColumns: Boolean, callbacks: ControlCenterCallbacks)
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Try the layout out, for real, without a game.
+ *
+ * The one thing the editor could never answer for itself: whether the buttons you have arranged
+ * actually do what you meant, land where your thumbs are, and leave the game's own hotbar alone.
+ */
+@Composable
+private fun TestRow(onTest: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(colors.surfaceContainerLow)
+            .clickable(onClick = onTest)
+            .padding(horizontal = 15.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SlotWell(color = Amethyst70.copy(alpha = 0.14f)) {
+            // A core Material glyph, which the handbook allows for the universal ones (9), and
+            // play is as universal as they come.
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(21.dp)
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.control_center_test),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.onSurface
+            )
+            Text(
+                stringResource(R.string.control_center_test_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

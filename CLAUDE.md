@@ -751,6 +751,33 @@ re-litigated. The reasoning lives in the commit that made the change.
   needs a different refresh call and getting one wrong is invisible until a slider does nothing.
   This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
   `colorselector` package with it.
+- **Testing a layout** (`ControlTestBridge` + `ui/game/ControlTestHost.kt` +
+  `ControlLayout.setTestMode`) — press the controls you have just arranged, for real, without
+  launching anything. Asked for as "run Minecraft from the editor to test the controls".
+  **It is not a launch, and that is the decision.** A real one costs a version download, a JVM
+  and half a minute *per iteration*, which is not a loop anybody uses to nudge a button by four
+  dp; and once you are in a world the only way to find out which key a button sent is to watch
+  the wrong thing happen and reason backwards. Here the key is named the instant it is pressed,
+  which is strictly more than the game can tell you.
+  **A control in the launcher process could not be pressed at all**, and that is why the editor
+  has always intercepted touches before a button saw them: every send goes through
+  `CallbackBridge`, whose senders are `@CriticalNative` calls into a JVM that exists only in
+  `:game`. So the seam is one level above the bridge, at `ControlButton.sendSingleKey` and at the
+  joystick's own `sendInput`, which the joystick needs separately because `sendKeyPresses` is
+  stubbed out on it. Once that seam exists, reporting what came through it is the feature.
+  **The one thing a real game has is the furniture**, so that is drawn: Minecraft's hotbar and
+  crosshair at the game's own automatic GUI scale, behind the layout. A button at the bottom
+  middle looks fine on an empty screen and steals slot taps in play, which is exactly what moved
+  the shipped Bedrock layout's third column, and it was previously only findable by playing.
+  **The panel is `wrap_content` and collapses**, because a full-size view over the layout would
+  take away the one thing a test session is for (12.9). It carries the grab-state toggle, which
+  is how the `displayInGame` and `displayInMenu` rules become visible: a layout that would strand
+  you at the title screen strands you here, in a second, rather than after a launch.
+  Two things bite anyone extending it. `mControlVisible` starts **false** and only a game ever
+  turns it on, so applying the visibility rules without setting it first hides every control and
+  stages the exact failure the session exists to find. And nothing may release the keys on the way
+  out: the bridge is detached first, so a release afterwards would take the real path into a
+  native symbol that is not in this process.
 - **The editor's ground and its grip** (`ControlLayout.dispatchDraw` +
   `handleview/ControlHandleView` + `ic_ctrl_resize_grip.xml`) — what arranging a layout actually
   feels like, which until now was: near-black, silent, and a resize that could destroy a button.
@@ -1336,6 +1363,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   wrong place.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- The test session is **not the game**, and the differences are the ones you would expect. Nothing
+  is sent anywhere, so a key bound wrongly is named wrongly rather than doing the wrong thing;
+  there is no world, so nothing tells you whether a button is legible over a nether ceiling; and
+  the specials that act on a running game are reported rather than performed. The one exception
+  is hide-controls, which is pure view code and about the controls rather than the game.
+- The hotbar and crosshair in a test are **a guide at Minecraft's automatic GUI scale**. That is
+  what the game ships with and what nearly everyone leaves it on, but it is a setting, and a
+  player who has changed it gets furniture of another size.
+- A **toggle latched during a test stays lit** when the session ends. Clearing it would mean
+  sending a release, and by then the bridge is detached, so the release would take the real path
+  into a native symbol this process does not have. Tapping the button again clears it.
+- Testing is offered **only in the editor reached from Settings**. From inside a game the editor
+  already has the game underneath it, so leaving edit mode is the test, on the world you are
+  actually playing.
 - The editor's sky and grass is **a flat backdrop, not a screenshot of your world**. It answers
   the one question a dark editor could not, which is whether a translucent button stays legible
   over something bright; it is not a preview of the game, and a layout that reads well on it can

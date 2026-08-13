@@ -28,6 +28,9 @@ class ControlCenterHost(
     private var visible by mutableStateOf(false)
     // Named apart from setEditorMode(): a property of that name would generate the same JVM setter.
     private var editing by mutableStateOf(false)
+    /* Whether this host's editor can offer a test session. False inside a running game, where the
+     * layout is already live over the world and "test it" means closing the sheet. */
+    private var testable by mutableStateOf(false)
     private var recording by mutableStateOf(RecordingUiState())
     // Named apart from setShutterOn(): a property of that name would clash with it on the JVM.
     private var shutter by mutableStateOf(false)
@@ -55,7 +58,7 @@ class ControlCenterHost(
         )
         sheetView.setContent {
             AmethystXTheme {
-                ControlCenter(visible, editing, recording, shutter, callbacks, ::close)
+                ControlCenter(visible, editing, testable, recording, shutter, callbacks, ::close)
             }
         }
         pillView.setViewCompositionStrategy(
@@ -85,6 +88,22 @@ class ControlCenterHost(
     /** Swap the actions for the ones the control layout editor needs while it is open. */
     fun setEditorMode(editor: Boolean) {
         editing = editor
+    }
+
+    /**
+     * Offer the test session, which only the editor reached from Settings can run.
+     *
+     * A separate setter rather than a second argument on the one above, so no existing call site
+     * moves. Adding a parameter to something several places already call is how eight positional
+     * callbacks quietly bound to the wrong slot once before (16.18).
+     *
+     * Named apart from its property on purpose: `testable` already emits `setTestable` as its JVM
+     * setter, private or not, and a method of that name beside it is a platform declaration clash
+     * rather than an override. That has cost two build cycles here (16.9), which is why the
+     * shutter's mutator two methods down is called `applyShutterOn`.
+     */
+    fun applyTestable(canTest: Boolean) {
+        testable = canTest
     }
 
     /**

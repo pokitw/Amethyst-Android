@@ -86,6 +86,16 @@ public class ControlLayout extends FrameLayout {
 	private ControlInterface mSelected;
 	private boolean mShowingResize;
 	private float mResizeWidthDp, mResizeHeightDp;
+	/**
+	 * Whether a test session is running: the layout live, in game mode, with no game behind it.
+	 *
+	 * Separate from {@link #mModifiable} because it is the third state this view has. Editing
+	 * draws the world and takes every touch before a button sees it; testing draws the world
+	 * <i>and</i> the game's own furniture, and lets the buttons have the touches. A running game
+	 * draws nothing at all, which is why every one of these is gated.
+	 */
+	private boolean mTestMode;
+	private boolean mTestGuides = true;
 	/** The slide-to-repeat threshold, ringed around the selected control while it is being set. */
 	private boolean mShowingSlide;
 	private float mSlideRadiusPx;
@@ -464,14 +474,109 @@ public class ControlLayout extends FrameLayout {
 		canvas.drawText(text, left + padding, top + padding / 2f - metrics.ascent, mEditorPaint);
 	}
 
+	/**
+	 * Where the game's own hotbar and crosshair will be, so a control can be seen covering them.
+	 *
+	 * <b>This is the one question the editor could not answer and a real game could.</b> A button
+	 * placed at the bottom middle looks fine on an empty screen and steals hotbar slot taps in
+	 * play, which is the exact reason the shipped Bedrock layout's third column rides the action
+	 * cluster instead of sitting along the bottom (14). Drawn from Minecraft's own automatic GUI
+	 * scale, which is the largest whole number at which a 320 by 240 interface still fits, and at
+	 * its own measurements: the hotbar is 182 by 22 at scale 1, nine slots of 20 with a one pixel
+	 * frame, sitting flush with the bottom of the screen.
+	 *
+	 * <p>A <b>guide</b>, and it says so on the panel rather than here: GUI scale is a setting, and
+	 * a player who has changed it gets a hotbar of another size. Automatic is what it ships as and
+	 * what nearly everyone leaves it on.
+	 */
+	private void drawGameGuides(Canvas canvas) {
+		int width = getWidth();
+		int height = getHeight();
+		if (width <= 0 || height <= 0) return;
+		int scale = Math.max(1, Math.min(width / 320, height / 240));
+
+		float barWidth = 182f * scale;
+		float barHeight = 22f * scale;
+		float left = (width - barWidth) / 2f;
+		float top = height - barHeight;
+
+		mEditorPaint.setStyle(Paint.Style.FILL);
+		mEditorPaint.setColor(0x40000000);
+		canvas.drawRect(left, top, left + barWidth, height, mEditorPaint);
+		mEditorPaint.setStyle(Paint.Style.STROKE);
+		mEditorPaint.setStrokeWidth(Math.max(1f, scale * 0.6f));
+		mEditorPaint.setColor(0x66FFFFFF);
+		canvas.drawRect(left, top, left + barWidth, height, mEditorPaint);
+		// The nine slots, because an empty rectangle reads as a panel and a divided one reads as
+		// the hotbar, which is the whole point of drawing it.
+		for (int slot = 1; slot < 9; slot++) {
+			float x = left + scale + slot * 20f * scale;
+			canvas.drawLine(x, top + scale, x, height - scale, mEditorPaint);
+		}
+
+		float centreX = width / 2f;
+		float centreY = height / 2f;
+		float arm = 7.5f * scale;
+		mEditorPaint.setStrokeWidth(Math.max(1f, scale));
+		mEditorPaint.setColor(0x99FFFFFF);
+		canvas.drawLine(centreX - arm, centreY, centreX + arm, centreY, mEditorPaint);
+		canvas.drawLine(centreX, centreY - arm, centreX, centreY + arm, mEditorPaint);
+		mEditorPaint.setStyle(Paint.Style.FILL);
+	}
+
 	@Override
 	protected void dispatchDraw(Canvas canvas) {
 		// The backdrop cannot go here: dispatchDraw runs after the view's own background and
 		// before the children, so painting it at the top of this method is what puts it behind
 		// the buttons. The overlay goes after them.
-		if (mModifiable) drawEditorBackdrop(canvas);
+		if (mModifiable || mTestMode) drawEditorBackdrop(canvas);
+		if (mTestMode && mTestGuides) drawGameGuides(canvas);
 		super.dispatchDraw(canvas);
 		if (mModifiable) drawEditorOverlay(canvas);
+	}
+
+	/**
+	 * Run the layout as a game would, or stop.
+	 *
+	 * Turning it on puts the layout out of edit mode, which is what makes the buttons take their
+	 * own touches rather than having them intercepted for dragging, and applies the visibility
+	 * rules so a control marked for menus only is hidden exactly as it would be in play.
+	 */
+	public void setTestMode(boolean testing) {
+		mTestMode = testing;
+		setModifiable(!testing);
+		if (testing) {
+			// mControlVisible starts false and is only ever turned on by the game, because the
+			// editor never reads it. Applying the visibility rules without setting it first hides
+			// every control on the layout, which is a test session that opens onto an empty
+			// screen: the exact failure this is built to help somebody find, staged by the tool
+			// itself. It has to be set through the setter, which is guarded on mModifiable, so
+			// this can only run after the line above has left edit mode.
+			setControlVisible(true);
+			applyTestGrabState(true);
+		}
+		invalidate();
+	}
+
+	public boolean isTesting() {
+		return mTestMode;
+	}
+
+	/**
+	 * Show the layout as it would look while playing, or while a screen is open.
+	 *
+	 * The rule this exercises is the one that most often reads as a broken layout (17): every GUI
+	 * ungrabs the cursor, the ungrabbed state draws only the controls marked for menus, and a
+	 * layout with none of them shows an empty screen and looks like it failed to load. Being able
+	 * to flip between the two answers here is the cheapest way to find that out.
+	 */
+	public void applyTestGrabState(boolean grabbing) {
+		for (ControlInterface button : getButtonChildren()) button.onGrabState(grabbing);
+	}
+
+	public void applyTestGuides(boolean guides) {
+		mTestGuides = guides;
+		invalidate();
 	}
 
 	public void setModified(boolean isModified) {

@@ -50,6 +50,19 @@
 		android:visibility="gone" />
 
 	<!--
+		The test session's panel. wrap_content and pinned to the top, unlike every other view here,
+		and that is the whole design: a test session exists so the buttons underneath can be
+		pressed, so a full-size view over them would take away the one thing it is for. It covers
+		whatever sits top centre, which is why it collapses.
+	-->
+	<androidx.compose.ui.platform.ComposeView
+		android:id="@+id/control_test"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_gravity="top|center_horizontal"
+		android:visibility="gone" />
+
+	<!--
 		Stretched over the editor, so it stays GONE while closed: visible it would sit in front of
 		every drag the buttons underneath are waiting for.
 	-->
