@@ -105,6 +105,31 @@ public class GyroControl implements SensorEventListener, GrabListener {
     private static final float YAW_RELAX = 2f;
 
     /**
+     * How much of gravity has to lie in the plane player space reads yaw from, for it to be used.
+     *
+     * <b>Player space measures yaw around the world's vertical axis, which is only the axis the
+     * player wants to turn about while the player is themselves upright.</b> Lie on your side and
+     * the two come apart completely: gravity is then along the screen's <i>right</i> axis, which
+     * contributes nothing to yaw, and the formula below returns nearly zero however hard the phone
+     * is twisted. Somebody playing in bed gets a control that turns freely up and down and is dead
+     * side to side, which is exactly what was reported.
+     *
+     * <p>{@code inPlane} is the length of gravity's projection onto the screen's up and normal
+     * axes, which is the pair player space is built from. It is 1 for an upright player whatever
+     * the phone is doing, and falls as the cosine of how far the player has rolled: 0.6 is about
+     * 53°, 0.4 about 66°, and 0 is flat on your side. Below the floor the answer is given up on
+     * and the screen's own up axis is used instead, which is the right axis by construction, since
+     * a phone held naturally is upright with respect to the player whether or not the player is
+     * upright with respect to the Earth.
+     *
+     * <p>These two are placed so that the response never dips through the crossover. Up to 0.5 the
+     * relax factor above is still restoring player space to full gain, so the two agree in the
+     * band between them and the blend has nothing to smooth over.
+     */
+    private static final float PLAYER_SPACE_FULL = 0.60f;
+    private static final float PLAYER_SPACE_NONE = 0.40f;
+
+    /**
      * What is left of drift after calibration, in degrees per second, removed softly.
      *
      * Subtracted from the magnitude rather than compared against it: a hard cut-off would make the
@@ -308,6 +333,10 @@ public class GyroControl implements SensorEventListener, GrabListener {
         }
         float normal = z;
 
+        // The screen's own up axis, which is what player space falls back to. Correct whenever the
+        // phone is upright with respect to the player, which is what holding it naturally means.
+        float localYaw = mUpsideDown ? -up : up;
+
         float yawRate;
         if (LauncherPreferences.PREF_GYRO_PLAYER_SPACE) {
             // The component of the turn that is actually around the world's vertical axis, taken
@@ -317,9 +346,20 @@ public class GyroControl implements SensorEventListener, GrabListener {
             float worldYaw = up * mGravityUp + normal * mGravityNormal;
             float combined = (float) Math.sqrt(up * up + normal * normal);
             float scaled = Math.abs(worldYaw) * YAW_RELAX;
-            yawRate = Math.signum(worldYaw) * Math.min(scaled, combined);
+            float playerYaw = Math.signum(worldYaw) * Math.min(scaled, combined);
+
+            // How much of gravity is left in the plane the line above reads. One while the player
+            // is upright, whatever the phone is doing; zero once they are on their side, where
+            // playerYaw goes to nothing and its sign is decided by noise. See PLAYER_SPACE_FULL.
+            float inPlane = (float) Math.sqrt(
+                    mGravityUp * mGravityUp + mGravityNormal * mGravityNormal);
+            float blend = (inPlane - PLAYER_SPACE_NONE) / (PLAYER_SPACE_FULL - PLAYER_SPACE_NONE);
+            blend = Math.max(0f, Math.min(1f, blend));
+            // Blended rather than switched, because the fall-off is gradual and a threshold would
+            // put a cliff in the middle of a leaning-back pose that is otherwise fine.
+            yawRate = blend * playerYaw + (1f - blend) * localYaw;
         } else {
-            yawRate = mUpsideDown ? -up : up;
+            yawRate = localYaw;
         }
         float pitchRate = mUpsideDown ? -right : right;
 

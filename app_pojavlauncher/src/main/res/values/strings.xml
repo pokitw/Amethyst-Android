@@ -297,7 +297,7 @@
     <string name="preference_gyro_smoothing_title">Steadiness</string>
     <string name="preference_gyro_smoothing_description">Smooths out hand shake. Only the smallest movements are averaged, so deliberate turns are never delayed.</string>
     <string name="preference_gyro_space_title">Tilt-aware turning</string>
-    <string name="preference_gyro_space_description">Turns around the world\'s vertical axis rather than the phone\'s, so aiming still works with the phone tilted back or lying nearly flat. Off, it reads the screen\'s own axis, like most mobile shooters.</string>
+    <string name="preference_gyro_space_description">Turns around the world\'s vertical axis rather than the phone\'s, so aiming still works with the phone tilted back or lying nearly flat. If you are lying on your side it goes back to the screen\'s own axis by itself, since that is the one that matches you. Off, it always reads the screen\'s axis, like most mobile shooters.</string>
 
     <string name="preference_back_title">Back to the last screen</string>
     <string name="unnamed">Unnamed</string>

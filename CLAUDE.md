@@ -1007,6 +1007,20 @@ re-litigated. The reasoning lives in the commit that made the change.
   tilted back or flat — the case local space, and every mobile shooter that uses it, gets wrong.
   Smoothing is **tiered**: only movements below ~1.5°/s are averaged, so shake is removed and a
   flick is not delayed. 100% sensitivity is **1:1** with the view.
+  **Player space assumes the player is upright, and hands back when they are not.** It measures
+  yaw around the world's vertical axis, which is the axis the player wants to turn about only
+  while the player is themselves aligned with it. Lie on your side and the two come apart
+  completely: gravity is then along the screen's *right* axis, contributes nothing to the pair
+  player space is built from, and the formula returns nearly zero however hard the phone is
+  twisted. That shipped, and was reported by somebody who always plays lying down: free up and
+  down, dead side to side. So the projection's own length is read as a confidence, since it is
+  1 for an upright player whatever the phone is doing and falls as the cosine of how far they
+  have rolled, and below it the screen's own up axis is used instead. That axis is right by
+  construction in exactly the case player space is wrong in, because a phone held naturally is
+  upright with respect to the player whether or not the player is upright with respect to the
+  Earth. **Blended rather than switched**, over a band chosen so the response does not dip
+  through the crossover: up to 0.5 the relax factor is still restoring player space to full gain,
+  so the two agree in the middle and there is nothing to smooth over.
 - **Performance mode** (`optimiser/` + `ui/settings/PerformanceSheet.kt`) — one switch that reads
   what the phone actually is and sets the renderer, the resolution, the heap, Minecraft's own
   graphics settings and a mod set to match. The single most asked-for thing a Minecraft launcher
@@ -1222,6 +1236,26 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     bounds against what it last drew, which is the one point every mover has to pass through.
     The grip did not have this bug and that is why it went unnoticed: `ControlHandleView` is a
     *view*, so moving it works, and only the drawn decoration was stale.
+
+22. **A frame derived from gravity is a frame that assumes the user is standing up.** Player space
+    takes yaw around the world's vertical axis, which is the right axis for a player who is
+    upright and no axis at all for one who is lying on their side: gravity is then along the
+    screen's *right* axis, contributes nothing to the pair the formula reads, and yaw goes to
+    nearly zero while pitch, which never consulted gravity, stays perfect. The report was exactly
+    that shape, "vertical is fine, horizontal is dead", and that asymmetry is the signature worth
+    remembering, because it points straight at the one axis that was derived rather than read.
+    The general form: any quantity computed by projecting onto a measured direction needs the
+    length of that projection checked, because it is the confidence, and code that uses the
+    direction without it has a silent degenerate case wherever the length goes to zero.
+    `scripts/gyrosim` could not see it, and for the reason lesson 20 gives rather than a new one:
+    its `gravity()` helper took an up component and a normal component and **pinned the third axis
+    to zero**, so every fixture ever written with it put gravity exactly in the plane player space
+    reads, where player space is perfectly conditioned. The harness could not express the broken
+    pose, so it agreed with the bug. It now takes all three.
+    Mutating the fix found a second hole the first round of checks did not: every side-lying
+    fixture turned the same way, so a fallback that returned a magnitude instead of a signed rate
+    passed all of them. **A direction needs a check that turns both ways**, and reading the test
+    was never going to reveal that. Breaking the code on purpose was.
 
 ---
 
@@ -1500,6 +1534,15 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   not built.
 - The gyro's 100% is now **1:1**, which is roughly 38% of what 100% used to mean. Anyone who had
   tuned the slider has to raise it once; the range goes to 400% so the old feel is still reachable.
+- Player space **hands back to the screen's own axis past about 66° of body roll**, and between 53°
+  and 66° the two are blended. That is the right answer for a player lying down, and it does mean
+  the phone's own tilt stops being compensated for in that band: someone lying on their side who
+  also tilts the phone flat is in a pose neither frame describes, and gets the screen's axis.
+  There is no way to tell the two rotations apart from a gravity vector alone, and the fallback is
+  the one that is never dead.
+- Anyone who **raised the sensitivity to compensate** for the dead horizontal axis while lying down
+  now has both axes at that setting and will want to lower it again. There is nothing that can
+  detect that honestly, so the release notes have to say it.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.

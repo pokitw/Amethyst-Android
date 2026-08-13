@@ -21,8 +21,23 @@ public class GyroSim {
 
     /** Feed gravity so player space knows which way is up. gUp/gNormal in device axes, ROTATION_90. */
     static void gravity(GyroControl g, float upFrac, float normalFrac) {
-        // ROTATION_90: screenUp = -deviceX, screenNormal = deviceZ
-        g.onSensorChanged(ev(GRAV, -upFrac * 9.81f, 0f, normalFrac * 9.81f));
+        gravity(g, upFrac, 0f, normalFrac);
+    }
+
+    /**
+     * Gravity with all three screen axes, which is what a player who is not upright needs.
+     *
+     * <b>The two-argument form above could not express the pose that broke this.</b> It pins the
+     * screen's right axis to zero, so every fixture written with it has gravity lying exactly in
+     * the plane player space reads yaw from, and player space is perfectly conditioned in all of
+     * them. Somebody lying on their side puts gravity almost entirely along that pinned axis. A
+     * harness that cannot say so agrees with the bug (16.20).
+     *
+     * <p>ROTATION_90: screenUp = -deviceX, screenRight = deviceY, screenNormal = deviceZ.
+     */
+    static void gravity(GyroControl g, float upFrac, float rightFrac, float normalFrac) {
+        g.onSensorChanged(
+                ev(GRAV, -upFrac * 9.81f, rightFrac * 9.81f, normalFrac * 9.81f));
     }
 
     /** Run `seconds` of constant angular velocity, in deg/s about the screen axes. */
@@ -127,6 +142,58 @@ public class GyroSim {
         check("local space ignores it (the old behaviour)", Math.abs(CallbackBridge.mouseX) < 1,
               String.format("got %.1f px", CallbackBridge.mouseX));
         LauncherPreferences.PREF_GYRO_PLAYER_SPACE = true;
+
+        // Lying on your side, which is how this was reported: horizontal nearly dead, vertical
+        // fine. Gravity is then along the screen's RIGHT axis, so it contributes nothing to the
+        // pair player space builds yaw from, and the unblended formula returns almost zero.
+        g = fresh();
+        gravity(g, 0f, 1f, 0f);          // rolled a full 90 degrees onto one side
+        turn(g, 90.0, 0.0, 1.0);
+        double side = -CallbackBridge.mouseX;
+        check("on your side: 90 deg yaw still turns 600 px", Math.abs(side - 600) < 30,
+              String.format("got %.1f px", side));
+
+        // The other side, because a fix that only worked one way round would pass the line above.
+        g = fresh();
+        gravity(g, 0f, -1f, 0f);
+        turn(g, 90.0, 0.0, 1.0);
+        double otherSide = -CallbackBridge.mouseX;
+        check("on the other side: same turn, same direction", Math.abs(otherSide - 600) < 30,
+              String.format("got %.1f px", otherSide));
+
+        // Turning the other way has to go the other way, by the same amount. Every check above
+        // turns left, so a fallback that dropped the sign and returned a magnitude passed all of
+        // them: right and left were both "600 px left". Caught by mutating the fix, not by
+        // reading it.
+        g = fresh();
+        gravity(g, 0f, 1f, 0f);
+        turn(g, -90.0, 0.0, 1.0);
+        double sideBack = -CallbackBridge.mouseX;
+        check("on your side: turning back goes back", Math.abs(sideBack + 600) < 30,
+              String.format("got %.1f px, want -600", sideBack));
+
+        // Pitch was the half that always worked. It must still work, and not have been traded.
+        g = fresh();
+        gravity(g, 0f, 1f, 0f);
+        turn(g, 0.0, 45.0, 1.0);
+        double sidePitch = -CallbackBridge.mouseY;
+        check("on your side: pitch is unchanged", Math.abs(sidePitch - 300) < 12,
+              String.format("got %.1f px", sidePitch));
+
+        // The whole roll, in one sweep. The complaint was "uneven" as much as "slow", so what
+        // matters is that no posture between upright and flat on your side is left weak: the
+        // response has to stay near 1:1 the whole way round rather than sagging in the middle.
+        double worst = 1e9, worstAt = 0;
+        for (int deg = 0; deg <= 90; deg += 5) {
+            double r = Math.toRadians(deg);
+            g = fresh();
+            gravity(g, (float) Math.cos(r), (float) Math.sin(r), 0f);
+            turn(g, 90.0, 0.0, 1.0);
+            double got = -CallbackBridge.mouseX;
+            if (got < worst) { worst = got; worstAt = deg; }
+        }
+        check("every roll from upright to on-your-side aims", worst > 540,
+              String.format("weakest %.1f px at %.0f deg of roll, want ~600", worst, worstAt));
 
         // Upright, player space and local space must agree.
         g = fresh(); turn(g, 60.0, 0.0, 1.0);
