@@ -33,11 +33,22 @@ public final class ControlTestBridge {
     }
 
     private static Listener sListener;
+    private static boolean sConsume;
 
     private ControlTestBridge() {}
 
-    public static void attach(Listener listener) {
+    /**
+     * Start listening.
+     *
+     * @param consume true to stop the press reaching the game, which the editor's own session
+     *                must do because there is no game and the senders below are native symbols
+     *                that are not in this process; false to watch a real game's input go past,
+     *                which is what the in-game controls debug does. The difference is the whole
+     *                reason this takes a flag rather than always swallowing.
+     */
+    public static void attach(Listener listener, boolean consume) {
         sListener = listener;
+        sConsume = consume;
     }
 
     /**
@@ -45,7 +56,10 @@ public final class ControlTestBridge {
      * replaced cannot end somebody else's.
      */
     public static void detach(Listener listener) {
-        if (sListener == listener) sListener = null;
+        if (sListener == listener) {
+            sListener = null;
+            sConsume = false;
+        }
     }
 
     public static boolean isActive() {
@@ -62,6 +76,6 @@ public final class ControlTestBridge {
         Listener listener = sListener;
         if (listener == null) return false;
         listener.onControlKey(keycode, isDown);
-        return true;
+        return sConsume;
     }
 }

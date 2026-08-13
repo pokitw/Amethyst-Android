@@ -751,33 +751,48 @@ re-litigated. The reasoning lives in the commit that made the change.
   needs a different refresh call and getting one wrong is invisible until a slider does nothing.
   This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
   `colorselector` package with it.
-- **Testing a layout** (`ControlTestBridge` + `ui/game/ControlTestHost.kt` +
-  `ControlLayout.setTestMode`) — press the controls you have just arranged, for real, without
-  launching anything. Asked for as "run Minecraft from the editor to test the controls".
-  **It is not a launch, and that is the decision.** A real one costs a version download, a JVM
-  and half a minute *per iteration*, which is not a loop anybody uses to nudge a button by four
-  dp; and once you are in a world the only way to find out which key a button sent is to watch
-  the wrong thing happen and reason backwards. Here the key is named the instant it is pressed,
-  which is strictly more than the game can tell you.
-  **A control in the launcher process could not be pressed at all**, and that is why the editor
-  has always intercepted touches before a button saw them: every send goes through
-  `CallbackBridge`, whose senders are `@CriticalNative` calls into a JVM that exists only in
-  `:game`. So the seam is one level above the bridge, at `ControlButton.sendSingleKey` and at the
-  joystick's own `sendInput`, which the joystick needs separately because `sendKeyPresses` is
-  stubbed out on it. Once that seam exists, reporting what came through it is the feature.
-  **The one thing a real game has is the furniture**, so that is drawn: Minecraft's hotbar and
-  crosshair at the game's own automatic GUI scale, behind the layout. A button at the bottom
-  middle looks fine on an empty screen and steals slot taps in play, which is exactly what moved
-  the shipped Bedrock layout's third column, and it was previously only findable by playing.
-  **The panel is `wrap_content` and collapses**, because a full-size view over the layout would
-  take away the one thing a test session is for (12.9). It carries the grab-state toggle, which
-  is how the `displayInGame` and `displayInMenu` rules become visible: a layout that would strand
-  you at the title screen strands you here, in a second, rather than after a launch.
+- **Testing a layout** (`testlaunch/` + `ControlTestBridge` + `ui/game/ControlTestHost.kt` +
+  `ControlDebugHost.kt`) — two ways to try a layout out, on one card, because they answer
+  different questions at different costs.
+  **Play the test world** launches a real Minecraft from the editor. A simulator was built first
+  and rejected in as many words: a mock can tell you which key a button sent, and it cannot tell
+  you how the button feels while you are actually playing, which is the thing the feature is for.
+  Everything about the launch is arranged to be cheap. **A superflat world ships as a level.dat
+  in assets** and is copied in once, so there is no creation screen and almost nothing to
+  generate; its game rules turn off mob spawning, weather, the daylight cycle and random ticks,
+  which between them are most of what a server thread does while nothing is happening. It has
+  **its own game directory**, so the floored options.txt cannot be mistaken for the player's own
+  tuning, which is precisely the line performance mode may never cross. The world is written by
+  `scripts/gen_test_world.py` rather than committed as a blob, on the texture packs' reasoning: a
+  level.dat is a rule, not a picture.
+  **1.20.1 is the one real compromise and it is deliberate.** It is the oldest release that
+  understands `--quickPlaySingleplayer`, and nothing before it can skip the title screen at all,
+  so anything lighter would mean clicking through Singleplayer with the virtual mouse on every
+  launch. Being dropped into the world is most of what makes this fast enough to use as a loop,
+  so it wins over the cheaper renderer an older version would have allowed.
+  **The launch path itself is untouched** (12.2). The editor cannot raise the launch, because the
+  listener belongs to `LauncherActivity` and everything downstream wants an activity in front, so
+  the editor records a `TestLaunchRequest` and finishes and the launcher picks it up on resume.
+  Quick play is recognised by a **marker file in the game directory**, not a static, because the
+  decision is needed in the `:game` process where a launcher static does not exist, and it is
+  gated on the version's **release date** because passing an argument an older Minecraft does not
+  know stops it starting at all.
+  **Press here** is the other target on the same card: the layout live in the editor, with the
+  game's hotbar and crosshair drawn behind it, naming each key as it is pressed. It exists
+  because a control in the launcher process cannot be pressed at all otherwise. Every send goes
+  through `CallbackBridge`, whose senders are `@CriticalNative` calls into a JVM that only exists
+  in `:game`, which is why the editor has always intercepted touches before a button saw them.
+  The seam sits one level above the bridge, at `ControlButton.sendSingleKey` and at the joystick's
+  own `sendInput`, which needs it separately because `sendKeyPresses` is stubbed out there.
+  **The same seam does both**, on one flag. The editor's session swallows the press because there
+  is no game to send it to; the in-game debug strip lets every press through and only watches,
+  which is why `ControlTestBridge.attach` takes a boolean rather than always consuming. A debug
+  overlay that ate the input it was reporting would be the worst bug in the file.
   Two things bite anyone extending it. `mControlVisible` starts **false** and only a game ever
   turns it on, so applying the visibility rules without setting it first hides every control and
   stages the exact failure the session exists to find. And nothing may release the keys on the way
-  out: the bridge is detached first, so a release afterwards would take the real path into a
-  native symbol that is not in this process.
+  out of a press-here session: the bridge is detached first, so a release afterwards would take
+  the real path into a native symbol that is not in this process.
 - **The editor's ground and its grip** (`ControlLayout.dispatchDraw` +
   `handleview/ControlHandleView` + `ic_ctrl_resize_grip.xml`) — what arranging a layout actually
   feels like, which until now was: near-black, silent, and a resize that could destroy a button.
@@ -1363,11 +1378,30 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   wrong place.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
-- The test session is **not the game**, and the differences are the ones you would expect. Nothing
-  is sent anywhere, so a key bound wrongly is named wrongly rather than doing the wrong thing;
-  there is no world, so nothing tells you whether a button is legible over a nether ceiling; and
-  the specials that act on a running game are reported rather than performed. The one exception
-  is hide-controls, which is pure view code and about the controls rather than the game.
+- The test launch is **1.20.1 and nothing else**, and that is the trade stated in as many words:
+  it is the oldest release that can open a world for you, and everything older would land on the
+  title screen. It also means the test runs on MobileGlues rather than on GL4ES, so a device that
+  cannot serve OpenGL 3.2 core cannot run the test world at all, even though it may play 1.12.2
+  perfectly well.
+- The first test launch **downloads a Minecraft**, which is a few hundred megabytes and is not
+  quick. It is downloaded once and shared with any other profile on the same version; after that
+  the loop is a launch and nothing more.
+- The test world's settings are written **only when there is no options.txt**, and the world is
+  copied **only when there is no level.dat**. Both are so that a world built in, or a setting
+  turned up, survives the next launch. The consequence is that correcting either of them later
+  reaches nobody who has already launched once, which is the same deal the shipped layouts make.
+- **The launcher's own resolution scale is not touched.** It is a global preference belonging to
+  the player's real game, and turning it down for a test and failing to put it back is a worse
+  outcome than a test that renders at full resolution. The optimisation comes from the superflat,
+  the render distance and the settings floor instead.
+- **Press here** is not the game, and the differences are the ones you would expect. Nothing is
+  sent anywhere, so a key bound wrongly is named wrongly rather than doing the wrong thing; there
+  is no world, so nothing tells you whether a button is legible over a nether ceiling; and the
+  specials that act on a running game are reported rather than performed. The one exception is
+  hide-controls, which is pure view code and about the controls rather than the game.
+- The in-game debug strip names **keys, not actions in the world**. It reports what the launcher
+  sent, which is the honest limit of what it can know: whether Minecraft did anything with that
+  key is between the game and the player's own keybinds.
 - The hotbar and crosshair in a test are **a guide at Minecraft's automatic GUI scale**. That is
   what the game ships with and what nearly everyone leaves it on, but it is a setting, and a
   player who has changed it gets furniture of another size.
@@ -1686,6 +1720,12 @@ Before pushing:
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser
   can emit HTML and be screenshotted, which is how a row that does not line up gets caught.
+- **Run `python3 scripts/gen_test_world.py`** if the control test world changed, and read the
+  result back before trusting it. The level.dat is hand-built NBT for a Minecraft that is not in
+  the container, so the encoding is the only checkable half: parse the file, confirm every byte
+  is consumed, and confirm the fields are what the generator meant. Whether Minecraft's own codec
+  accepts the world genuinely cannot be checked here, and a wrong one lands on the title screen
+  rather than crashing, which is why that is the shape of the failure to expect.
 - **Run `sh scripts/repeatsim/run.sh`** if slide to repeat changed. It lifts the four statics out
   of the shipped `ControlData` and drives them, and the check worth keeping is the one that
   binary-searches the arming radius around a whole circle: an axis-wise threshold is right along

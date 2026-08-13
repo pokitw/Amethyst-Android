@@ -187,6 +187,9 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	@Override public void onToggleShutter() {}
 	@Override public void onCustomControls() {}
 	@Override public void onSendKeycode() {}
+	// The editor has its own reporting, on the Press here session, so this would be a second
+	// answer to a question already answered on this screen.
+	@Override public void onToggleControlDebug() {}
 	@Override public void onQuickSettings() {}
 	@Override public void onLogOutput() {}
 	@Override public void onForceClose() {}

@@ -72,7 +72,7 @@ class ControlTestHost(
         expanded = true
         layout.applyTestGuides(true)
         layout.setTestMode(true)
-        ControlTestBridge.attach(this)
+        ControlTestBridge.attach(this, true)
         view.visibility = View.VISIBLE
     }
 

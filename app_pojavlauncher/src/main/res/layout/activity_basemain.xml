@@ -87,6 +87,18 @@
 			side the control being edited is not, and GONE while closed: a control layout is a thing
 			you drag buttons around on, so a view left visible and empty would swallow every drag.
 		-->
+		<!--
+			The controls debug strip. Top-left, where the game's own F3 readout would be, and
+			wrap_content so the rest of the screen stays playable: this reports input, so a view
+			of it that stole input would be the worst bug it could have.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/control_debug"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="top|start"
+			android:visibility="gone"/>
+
 		<androidx.compose.ui.platform.ComposeView
 			android:id="@+id/control_editor"
 			android:layout_width="match_parent"

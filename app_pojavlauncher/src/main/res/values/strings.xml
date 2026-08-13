@@ -911,6 +911,7 @@
     <string name="control_editor_sequence">Press keys in order</string>
     <string name="control_editor_sequence_description">One tap presses each bound key in turn, with a pause between. Bind the pearl slot, right click, the wind charge slot, right click, and one button does the whole move.</string>
     <string name="control_editor_sequence_gap">Pause between keys</string>
+    <string name="control_center_debug">Show what the controls send</string>
     <string name="control_center_test">Play the test world</string>
     <string name="control_center_test_hint">A stripped down 1.20.1 superflat, opened straight into the world.</string>
     <string name="control_center_test_here">Press here</string>

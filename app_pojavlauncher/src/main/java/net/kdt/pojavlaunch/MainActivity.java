@@ -81,6 +81,7 @@ import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
+import net.kdt.pojavlaunch.ui.game.ControlDebugHost;
 import net.kdt.pojavlaunch.ui.game.GameKeyboardHost;
 import net.kdt.pojavlaunch.ui.game.ScreenshotHost;
 import net.kdt.pojavlaunch.ui.game.TypingPreviewHost;
@@ -118,6 +119,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     private DrawerLayout drawerLayout;
     private View mDrawerPullButton;
     private ControlCenterHost mControlCenter;
+    private ControlDebugHost mControlDebug;
     private ControlEditorHost mControlEditor;
     private GameKeyboardHost mGameKeyboard;
     private VoiceInputHost mVoiceInput;
@@ -350,6 +352,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                 findViewById(R.id.control_center),
                 findViewById(R.id.control_center_pill),
                 this);
+        mControlDebug = new ControlDebugHost(findViewById(R.id.control_debug));
         mControlEditor = new ControlEditorHost(findViewById(R.id.control_editor), mControlLayout);
         mControlLayout.setEditorHost(mControlEditor);
         mTypingPreview = new TypingPreviewHost(findViewById(R.id.typing_preview));
@@ -417,6 +420,9 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         CallbackBridge.removeGrabListener(minecraftGLView);
         CallbackBridge.removeGrabListener(mTypingGrabListener);
         if(mControlCenter != null) mControlCenter.release();
+        // The control test seam is a static, so a strip left attached by a dying activity would
+        // keep a reference to it and go on being told about presses that no longer concern it.
+        if(mControlDebug != null) mControlDebug.release();
         if(mGameKeyboard != null) mGameKeyboard.release();
         if(mVoiceInput != null) mVoiceInput.release();
         if(mScreenshot != null) mScreenshot.release();
@@ -1003,6 +1009,12 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
      * is testing the controls, on the world you are actually playing. A test session would be a
      * mock world drawn over a real one.
      */
+    @Override
+    public void onToggleControlDebug() {
+        mControlCenter.close();
+        if (mControlDebug != null) mControlDebug.toggle();
+    }
+
     @Override public void onEditorTest() { }
 
     @Override public void onEditorTestHere() { }

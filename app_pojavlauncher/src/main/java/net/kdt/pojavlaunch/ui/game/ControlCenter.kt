@@ -91,6 +91,9 @@ interface ControlCenterCallbacks {
     fun onToggleShutter()
     fun onCustomControls()
     fun onSendKeycode()
+
+    /** Show or hide the strip naming what the on-screen controls are sending. */
+    fun onToggleControlDebug()
     fun onQuickSettings()
     fun onLogOutput()
     fun onForceClose()
@@ -218,6 +221,7 @@ private fun Sheet(
                             }
                             Column(Modifier.weight(1f)) {
                                 GameActions(callbacks)
+                                DebugLink(callbacks::onToggleControlDebug)
                                 ForceClose(callbacks::onForceClose)
                             }
                         }
@@ -231,6 +235,7 @@ private fun Sheet(
                             )
                             Spacer(Modifier.height(12.dp))
                             GameActions(callbacks)
+                            DebugLink(callbacks::onToggleControlDebug)
                             ForceClose(callbacks::onForceClose)
                         }
                     }
@@ -455,6 +460,27 @@ private fun LiveDot(size: androidx.compose.ui.unit.Dp) {
             .alpha(alpha)
             .clip(CircleShape)
             .background(RecordingRed)
+    )
+}
+
+/**
+ * Name what the on-screen controls are sending, over the running game.
+ *
+ * A quiet text link rather than a fifth tile, because the row above it is deliberately four slots
+ * wide: it is a hotbar, and the shape is most of why it reads the way it does. This is a thing you
+ * turn on once while sorting a layout out and then forget, which is exactly what a link is for.
+ */
+@Composable
+private fun DebugLink(onToggle: () -> Unit) {
+    Text(
+        stringResource(R.string.control_center_debug),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .padding(top = 10.dp)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 10.dp, vertical = 7.dp)
     )
 }
 
