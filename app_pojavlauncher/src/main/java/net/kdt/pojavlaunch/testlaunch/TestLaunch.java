@@ -80,6 +80,18 @@ public final class TestLaunch {
      */
     public static final String MARKER = ".amethystx-controltest";
 
+    /**
+     * Bumped whenever the shipped level.dat changes in a way that has to reach worlds on disk.
+     *
+     * The first shipped world did not load, and the copy below skips a world that is already
+     * there, so without this the correction would have reached only people who had never tried
+     * the feature. Which is to say: everybody who had a reason to want it fixed would be the one
+     * group it could not reach.
+     */
+    private static final int WORLD_REVISION = 2;
+
+    private static final String REVISION_FILE = ".worldrev";
+
     private TestLaunch() {}
 
     public static File gameDir() {
@@ -132,7 +144,22 @@ public final class TestLaunch {
             throws IOException {
         File world = new File(dir, "saves/" + WORLD_FOLDER);
         File level = new File(world, "level.dat");
-        if (level.isFile()) return;
+        File revision = new File(world, REVISION_FILE);
+        if (level.isFile()) {
+            if (readRevision(revision) == WORLD_REVISION) return;
+            // An out of date world is replaced only if nothing has ever been saved in it. Region
+            // files mean somebody has been in there and possibly built something to test against,
+            // and no correction to a starting world is worth taking that away. A world that never
+            // loaded has no region directory at all, which is exactly the case this is for.
+            if (new File(world, "region").isDirectory()) {
+                writeRevision(revision);
+                return;
+            }
+            if (!level.delete()) {
+                Log.w(TAG, "Could not replace the out of date test world at " + level);
+                return;
+            }
+        }
         if (!world.isDirectory() && !world.mkdirs()) {
             throw new IOException("Could not create the test world folder at " + world);
         }
@@ -144,6 +171,24 @@ public final class TestLaunch {
         // as the only remaining explanation.
         if (!level.isFile()) {
             throw new IOException("The test world was not written to " + level);
+        }
+        writeRevision(revision);
+    }
+
+    private static int readRevision(@NonNull File file) {
+        try {
+            return Integer.parseInt(Tools.read(file.getAbsolutePath()).trim());
+        } catch (Throwable t) {
+            // Absent, unreadable or not a number all mean the same thing: not the current world.
+            return 0;
+        }
+    }
+
+    private static void writeRevision(@NonNull File file) {
+        try {
+            Tools.write(file.getAbsolutePath(), String.valueOf(WORLD_REVISION));
+        } catch (Throwable t) {
+            Log.w(TAG, "Could not stamp the test world's revision", t);
         }
     }
 

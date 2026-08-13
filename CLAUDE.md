@@ -1393,7 +1393,10 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   quick. It is downloaded once and shared with any other profile on the same version; after that
   the loop is a launch and nothing more.
 - The test world's settings are written **only when there is no options.txt**, and the world is
-  copied **only when there is no level.dat**. Both are so that a world built in, or a setting
+  copied **only when there is no level.dat at the current revision**. A world already on disk is
+  replaced only if nothing was ever saved in it, which a missing `region` directory says exactly:
+  a world that never loaded has none, and a world somebody built in must not be flattened by a
+  correction to its starting state. Both are so that a world built in, or a setting
   turned up, survives the next launch. The consequence is that correcting either of them later
   reaches nobody who has already launched once, which is the same deal the shipped layouts make.
 - **The launcher's own resolution scale is not touched.** It is a global preference belonging to
