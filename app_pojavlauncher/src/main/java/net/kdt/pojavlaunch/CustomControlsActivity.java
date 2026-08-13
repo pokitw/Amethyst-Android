@@ -9,6 +9,8 @@ import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.testlaunch.TestLaunch;
+import net.kdt.pojavlaunch.testlaunch.TestLaunchRequest;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
@@ -123,8 +125,34 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 		mControlCenter.close();
 	}
 
+	/**
+	 * Launch the real game into the control test world.
+	 *
+	 * The layout is saved first, because the game reads it from disk and an unsaved change would
+	 * be tested by not being there. Then the editor gets out of the way: the launcher is the only
+	 * activity that can raise the launch, so this finishes and leaves the request behind for it.
+	 */
 	@Override
 	public void onEditorTest() {
+		mControlCenter.close();
+		try {
+			mControlLayout.save(LauncherPreferences.PREF_DEFAULTCTRL_PATH);
+		} catch (Throwable t) {
+			Tools.showError(this, t);
+			return;
+		}
+		try {
+			TestLaunch.prepare(this);
+		} catch (Throwable t) {
+			Tools.showError(this, t);
+			return;
+		}
+		TestLaunchRequest.request();
+		finish();
+	}
+
+	@Override
+	public void onEditorTestHere() {
 		mControlCenter.close();
 		mPullButton.setVisibility(View.GONE);
 		mControlTest.start();

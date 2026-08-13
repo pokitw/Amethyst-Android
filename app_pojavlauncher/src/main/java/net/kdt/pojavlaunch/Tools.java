@@ -78,6 +78,7 @@ import net.kdt.pojavlaunch.utils.OldVersionsUtils;
 import net.kdt.pojavlaunch.value.DependentLibrary;
 import net.kdt.pojavlaunch.value.MinecraftAccount;
 import net.kdt.pojavlaunch.value.MinecraftLibraryArtifact;
+import net.kdt.pojavlaunch.testlaunch.TestLaunch;
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
 import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile;
 
@@ -848,7 +849,36 @@ public final class Tools {
 
         if(profile.isDemo()) mcArguments += " --demo";
 
+        // Open the control test straight into its world, skipping the title screen.
+        //
+        // Recognised by a marker file in the game directory rather than by a flag, because this
+        // runs in the game process where a static set by the launcher does not exist. Gated on
+        // the version's own release date for the same reason the userType above is: quick play
+        // arrived in 23w14a, and passing an argument an older Minecraft does not know makes it
+        // refuse to start at all, which would be a far worse failure than a title screen.
+        if(TestLaunch.isTestGameDir(gameDir) && supportsQuickPlay(versionInfo)) {
+            mcArguments += " --quickPlaySingleplayer " + TestLaunch.WORLD_FOLDER;
+        }
+
         return JSONUtils.insertJSONValueList(splitAndFilterEmpty(mcArguments), varArgMap);
+    }
+
+    /**
+     * Whether this Minecraft understands {@code --quickPlaySingleplayer}.
+     *
+     * Added in 23w14a, released on the 5th of April 2023, so anything from that day on has it.
+     * Dated rather than version-numbered because the ids are not orderable: "1.20.1", "23w14a"
+     * and "1.19.4" do not sort into the order they were released in, and the launcher already
+     * keeps the dates for exactly this kind of question.
+     */
+    private static boolean supportsQuickPlay(JMinecraftVersionList.Version versionInfo) {
+        try {
+            Date releaseDate = DateUtils.getOriginalReleaseDate(versionInfo);
+            return releaseDate != null && !DateUtils.dateBefore(releaseDate, 2023, 3, 5);
+        } catch (ParseException e) {
+            Log.w("TestLaunch", "Could not date " + versionInfo.id + "; not opening a world", e);
+            return false;
+        }
     }
 
     public static String fromStringArray(String[] strArr) {

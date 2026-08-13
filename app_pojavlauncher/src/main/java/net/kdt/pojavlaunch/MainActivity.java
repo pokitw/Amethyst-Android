@@ -1005,6 +1005,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
      */
     @Override public void onEditorTest() { }
 
+    @Override public void onEditorTestHere() { }
+
     @Override
     public void onEditorSetDefault() {
         mControlCenter.close();

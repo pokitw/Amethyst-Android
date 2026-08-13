@@ -52,6 +52,7 @@ import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.fragments.SettingsFragment;
 import net.kdt.pojavlaunch.ui.common.ChromeOwner;
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper;
+import net.kdt.pojavlaunch.testlaunch.TestLaunchRequest;
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener;
 import net.kdt.pojavlaunch.services.ProgressServiceKeeper;
 import net.kdt.pojavlaunch.tasks.AsyncMinecraftDownloader;
@@ -363,6 +364,13 @@ public class LauncherActivity extends BaseActivity {
         super.onResume();
         ContextExecutor.setActivity(this);
         mInstallTracker.attach();
+        // A test launch asked for in the control editor lands here, because the editor is its own
+        // activity and the launch listener below belongs to this one. Raised on resume rather
+        // than from over there, so the whole path runs against an activity that is actually in
+        // front: it shows dialogs, it starts activities, and it reads the account spinner.
+        if(TestLaunchRequest.consume()) {
+            ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true);
+        }
     }
 
     @Override
