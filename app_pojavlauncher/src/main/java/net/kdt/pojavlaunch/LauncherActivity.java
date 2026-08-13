@@ -17,7 +17,6 @@ import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
@@ -54,7 +53,6 @@ import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.fragments.SettingsFragment;
 import net.kdt.pojavlaunch.ui.common.ChromeOwner;
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper;
-import net.kdt.pojavlaunch.testlaunch.TestLaunchRequest;
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener;
 import net.kdt.pojavlaunch.services.ProgressServiceKeeper;
 import net.kdt.pojavlaunch.tasks.AsyncMinecraftDownloader;
@@ -136,7 +134,6 @@ public class LauncherActivity extends BaseActivity {
     private ProgressLayout mProgressLayout;
     private ProgressServiceKeeper mProgressServiceKeeper;
     private ModloaderInstallTracker mInstallTracker;
-    private View mTestLaunchCover;
     private NotificationManager mNotificationManager;
 
     /* Allows to switch from one button "type" to another */
@@ -367,69 +364,6 @@ public class LauncherActivity extends BaseActivity {
         super.onResume();
         ContextExecutor.setActivity(this);
         mInstallTracker.attach();
-        // A test launch asked for in the control editor lands here, because the editor is its own
-        // activity and the launch listener below belongs to this one. Raised on resume rather
-        // than from over there, so the whole path runs against an activity that is actually in
-        // front: it shows dialogs, it starts activities, and it reads the account spinner.
-        //
-        // The launcher is covered for the whole hop, so the player never watches its chrome go
-        // by between the editor and the game: from their side the editor simply becomes a
-        // loading screen and the loading screen becomes Minecraft.
-        int testState = TestLaunchRequest.state();
-        if (testState == TestLaunchRequest.STATE_REQUESTED) {
-            showTestLaunchCover();
-            TestLaunchRequest.markLaunching();
-            // The editor's own download clears its progress record a moment after it reports
-            // done, and the launch listener refuses while any task is still registered. Waiting
-            // the count out instead of racing it; the callback can arrive on a worker thread.
-            ProgressKeeper.waitUntilDone(() -> runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (TestLaunchRequest.state() != TestLaunchRequest.STATE_LAUNCHING) return;
-                ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true);
-            }));
-        } else if (testState == TestLaunchRequest.STATE_LAUNCHING) {
-            // The resume after the game: ContextAwareDoneListener kills this process when the
-            // game starts, so reaching here again means the session ended (or never started).
-            // Either way the player gets their profile selection back and lands in the editor,
-            // which closes the loop the feature exists for: test, play, quit, tweak.
-            TestLaunchRequest.end();
-            hideTestLaunchCover();
-            startActivity(new Intent(this, CustomControlsActivity.class));
-        }
-    }
-
-    /**
-     * Cover the launcher while a test launch passes through it.
-     *
-     * Inflated on demand rather than sitting in the layout: this is a rare screen, and the
-     * launcher's layout is already the busiest XML in the app. Plain views rather than Compose,
-     * because the cover has to be trivially alive during the exact window where the process is
-     * about to be killed, and a static image with a spinner has nothing left to go wrong.
-     */
-    private void showTestLaunchCover() {
-        if (mTestLaunchCover != null) {
-            mTestLaunchCover.setVisibility(View.VISIBLE);
-            return;
-        }
-        ViewGroup root = (ViewGroup) findViewById(android.R.id.content);
-        mTestLaunchCover = getLayoutInflater().inflate(R.layout.view_test_launch_cover, root, false);
-        root.addView(mTestLaunchCover);
-        View hint = mTestLaunchCover.findViewById(R.id.test_launch_cover_hint);
-        // The way back out if the launch never happens (no account saved, a download error
-        // dismissed). Armed only after a while, because a tap in the normal few seconds would
-        // abort a launch that was about to succeed.
-        mTestLaunchCover.postDelayed(() -> {
-            if (mTestLaunchCover == null) return;
-            hint.setVisibility(View.VISIBLE);
-            mTestLaunchCover.setOnClickListener(v -> {
-                TestLaunchRequest.end();
-                hideTestLaunchCover();
-            });
-        }, 10000);
-    }
-
-    private void hideTestLaunchCover() {
-        if (mTestLaunchCover != null) mTestLaunchCover.setVisibility(View.GONE);
     }
 
     @Override

@@ -103,11 +103,8 @@ interface ControlCenterCallbacks {
     fun onEditorAddJoystick()
     fun onEditorLoad()
     fun onEditorSave()
-    /** Launch the real game into the stripped-down test world. */
+    /** Press the layout for real, here in the editor, with nothing behind it. */
     fun onEditorTest()
-
-    /** Press the layout here and now, with nothing behind it. */
-    fun onEditorTestHere()
     fun onEditorSetDefault()
     fun onEditorShare()
     fun onEditorExit()
@@ -528,7 +525,7 @@ private fun EditorLayout(
         // It also keeps the grid at two rows of three, which is what fits a phone in landscape.
         if (canTest) {
             Spacer(Modifier.height(10.dp))
-            TestRow(callbacks::onEditorTest, callbacks::onEditorTestHere)
+            TestRow(callbacks::onEditorTest)
         }
         Spacer(Modifier.height(12.dp))
         if (twoColumns) {
@@ -571,7 +568,7 @@ private fun EditorLayout(
  * actually do what you meant, land where your thumbs are, and leave the game's own hotbar alone.
  */
 @Composable
-private fun TestRow(onTest: () -> Unit, onTestHere: () -> Unit) {
+private fun TestRow(onTest: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -579,8 +576,7 @@ private fun TestRow(onTest: () -> Unit, onTestHere: () -> Unit) {
             .clip(MaterialTheme.shapes.medium)
             .background(colors.surfaceContainerLow)
             .clickable(onClick = onTest)
-            .padding(start = 15.dp, end = 9.dp)
-            .padding(vertical = 12.dp),
+            .padding(horizontal = 15.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         SlotWell(color = Amethyst70.copy(alpha = 0.14f)) {
@@ -608,21 +604,6 @@ private fun TestRow(onTest: () -> Unit, onTestHere: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        // One card, two targets, exactly as the capture card in the in-game sheet is (14): the row
-        // launches the game, the button on the end presses the layout here. They answer different
-        // questions and neither deserves a card of its own, and the sheet has no height to spare.
-        Spacer(Modifier.width(10.dp))
-        Text(
-            stringResource(R.string.control_center_test_here),
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.primary,
-            maxLines = 1,
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Amethyst70.copy(alpha = 0.14f))
-                .clickable(onClick = onTestHere)
-                .padding(horizontal = 14.dp, vertical = 9.dp)
-        )
     }
 }
 
