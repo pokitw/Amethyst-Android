@@ -9,7 +9,6 @@ import androidx.annotation.Nullable;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.optimiser.GameOptions;
 import net.kdt.pojavlaunch.optimiser.PerformancePlan;
-import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
 import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile;
 
@@ -87,8 +86,14 @@ public final class TestLaunch {
      * there, so without this the correction would have reached only people who had never tried
      * the feature. Which is to say: everybody who had a reason to want it fixed would be the one
      * group it could not reach.
+     *
+     * Revision 3 is the world with all three vanilla dimensions spelled codec-exactly. Revision
+     * 2 declared only the overworld, which parses and lists and then fails at the one gate
+     * nobody could see from outside: fewer than three dimensions is an experimental-lifecycle
+     * world by Mojang's own arithmetic, and quick play answers the confirmation it cannot show
+     * by returning to the title screen.
      */
-    private static final int WORLD_REVISION = 2;
+    private static final int WORLD_REVISION = 3;
 
     private static final String REVISION_FILE = ".worldrev";
 
@@ -128,9 +133,7 @@ public final class TestLaunch {
         }
         installWorld(context, dir);
         writeOptions(dir);
-        MinecraftProfile profile = writeProfile(context);
-        select();
-        return profile;
+        return writeProfile(context);
     }
 
     /**
@@ -258,10 +261,4 @@ public final class TestLaunch {
         return null;
     }
 
-    /** Point the launcher at the test profile, which is what the launch path reads. */
-    public static void select() {
-        LauncherPreferences.DEFAULT_PREF.edit()
-                .putString(LauncherPreferences.PREF_KEY_CURRENT_PROFILE, PROFILE_KEY)
-                .apply();
-    }
 }

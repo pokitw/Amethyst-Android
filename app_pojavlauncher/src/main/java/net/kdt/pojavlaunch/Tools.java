@@ -856,8 +856,13 @@ public final class Tools {
         // the version's own release date for the same reason the userType above is: quick play
         // arrived in 23w14a, and passing an argument an older Minecraft does not know makes it
         // refuse to start at all, which would be a far worse failure than a title screen.
-        if(TestLaunch.isTestGameDir(gameDir) && supportsQuickPlay(versionInfo)) {
-            mcArguments += " --quickPlaySingleplayer " + TestLaunch.WORLD_FOLDER;
+        if(TestLaunch.isTestGameDir(gameDir)) {
+            boolean quickPlay = supportsQuickPlay(versionInfo);
+            // Into latestlog.txt, which is the one channel that comes back from a device. The
+            // world failing to open and this branch never running look identical from a chair.
+            Log.i("TestLaunch", "test game dir detected, quickPlay=" + quickPlay
+                    + " world=" + TestLaunch.WORLD_FOLDER);
+            if(quickPlay) mcArguments += " --quickPlaySingleplayer " + TestLaunch.WORLD_FOLDER;
         }
 
         return JSONUtils.insertJSONValueList(splitAndFilterEmpty(mcArguments), varArgMap);

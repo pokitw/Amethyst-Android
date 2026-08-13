@@ -116,7 +116,9 @@ class ControlTestHost(
         val name = keyDisplayName(keycode)
         if (isDown) {
             if (!held.contains(keycode)) held = held + keycode
-            if (name.isNotEmpty()) last = name
+            // With the raw GLFW keycode beside the name: the name is for checking the binding,
+            // the number is for the people who hand-edit layout files and think in keycodes.
+            if (name.isNotEmpty()) last = "$name ($keycode)"
         } else {
             held = held.filter { it != keycode }
         }

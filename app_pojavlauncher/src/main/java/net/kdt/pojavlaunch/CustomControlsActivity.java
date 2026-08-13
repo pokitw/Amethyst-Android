@@ -15,6 +15,7 @@ import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 import net.kdt.pojavlaunch.ui.game.ControlTestHost;
+import net.kdt.pojavlaunch.ui.game.TestDownloadHost;
 
 import java.io.IOException;
 
@@ -36,6 +37,7 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	private ControlCenterHost mControlCenter;
 	private ControlEditorHost mControlEditor;
 	private ControlTestHost mControlTest;
+	private TestDownloadHost mTestDownload;
 	private View mPullButton;
 
 	@Override
@@ -62,6 +64,8 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 		mControlTest = new ControlTestHost(
 				findViewById(R.id.control_test), mControlLayout,
 				() -> mPullButton.setVisibility(View.VISIBLE));
+		mTestDownload = new TestDownloadHost(
+				this, findViewById(R.id.test_download), this::handOverToLauncher);
 
 		mControlLayout.setModifiable(true);
 		try {
@@ -78,6 +82,10 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 		// The test seam is a static, so a session left attached by an activity that went away
 		// would swallow every key the next one sent.
 		mControlTest.release();
+		// And the download listener holds this activity through its ComposeView; the download
+		// itself, if one is running, carries on in the shared versions folder and is simply
+		// found there by the next attempt.
+		mTestDownload.release();
 	}
 
 	@Override
@@ -129,12 +137,16 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	 * Launch the real game into the control test world.
 	 *
 	 * The layout is saved first, because the game reads it from disk and an unsaved change would
-	 * be tested by not being there. Then the editor gets out of the way: the launcher is the only
-	 * activity that can raise the launch, so this finishes and leaves the request behind for it.
+	 * be tested by not being there. The long part, downloading the version the first time, then
+	 * happens here in a bubble over the layout rather than in front of the launcher's chrome;
+	 * only once everything is on disk does the editor hand over, and the launcher spends its
+	 * covered second raising the launch. The launcher is still the only activity that can raise
+	 * it (12.2), so the handover is a recorded request, exactly as before.
 	 */
 	@Override
 	public void onEditorTest() {
 		mControlCenter.close();
+		if (mTestDownload.isActive()) return;
 		try {
 			mControlLayout.save(LauncherPreferences.PREF_DEFAULTCTRL_PATH);
 		} catch (Throwable t) {
@@ -147,8 +159,28 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 			Tools.showError(this, t);
 			return;
 		}
-		TestLaunchRequest.request();
+		if (TestLaunch.isPrepared()) {
+			handOverToLauncher();
+			return;
+		}
+		// The downloader's offline-account branch cannot download, only verify, and it reports
+		// its refusal through a channel that never reaches our listener, which would leave the
+		// bubble waiting forever. Saying it plainly here beats a spinner that never stops.
+		if (Tools.isLocalProfile(this)) {
+			Tools.dialogOnUiThread(this, getString(R.string.control_center_test),
+					getString(R.string.control_test_needs_account, TestLaunch.VERSION));
+			return;
+		}
+		mTestDownload.begin();
+	}
+
+	/** Everything is on disk: hand the launch to the launcher and fade out underneath it. */
+	private void handOverToLauncher() {
+		TestLaunchRequest.begin();
 		finish();
+		// A fade rather than the default slide, so the editor appears to dissolve into the
+		// launcher's cover rather than visibly navigating away from itself.
+		overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
 	}
 
 	@Override

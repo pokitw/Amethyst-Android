@@ -129,21 +129,53 @@ def flat_generator():
 
 def dimensions():
     """
-    The overworld, and only the overworld.
+    All three vanilla dimensions, spelled exactly the way 1.20.1's own codecs write them.
 
-    <b>The first draft declared the nether and the end too, and that is what broke it.</b> Their
-    generator configurations are the fiddliest part of this format, they were written from memory
-    against a Minecraft that is not in this container, and one wrong field in either fails the
-    whole WorldGenSettings codec rather than just that dimension, which takes the entire world
-    down with it. A world that will not load looks exactly like a world that was never created.
+    <b>All three are load-bearing, and that is Mojang's rule, not a guess.</b> On load,
+    DimensionOptionsRegistryHolder.toConfig unions the datapack dimension registry with this
+    compound and then decides the world's lifecycle:
 
-    Minecraft fills in whatever dimensions this does not declare from the datapack defaults, so
-    naming the two that will never be visited bought nothing at all and cost the feature.
+        Lifecycle lifecycle = list.size() == VANILLA_KEY_COUNT ? Lifecycle.stable()
+                                                               : Lifecycle.experimental();
+
+    VANILLA_KEY_COUNT is 3, vanilla ships no dimension datapack, so a level.dat that declares
+    fewer than three dimensions IS an "experimental settings" world; loading one asks for
+    confirmation, and quick play cannot confirm anything, it just runs its cancel callback,
+    which returns to the title screen. That is precisely the failure this file shipped once.
+
+    The nether and end below must also each pass isNetherVanilla / isTheEndVanilla, or their
+    per-entry lifecycle goes experimental and the same gate closes. Field for field:
+      - DimensionOptions.CODEC:      "type" (dimension type ref) + "generator"
+      - NoiseChunkGenerator.CODEC:   "biome_source" + "settings" (registry ref), nothing else
+      - MultiNoiseBiomeSource PRESET_CODEC: {"type": "minecraft:multi_noise", "preset": ...}
+      - TheEndBiomeSource.CODEC:     five RegistryOps.getEntryCodec entries, which serialize
+                                     NOTHING, so {"type": "minecraft:the_end"} alone is exact.
+    Verified against the deobfuscated 1.20.1 source, not memory; see verify() below, which
+    re-parses the emitted file and enforces this whole contract on every run.
     """
     return c({
         "minecraft:overworld": c({
             "type": s_("minecraft:overworld"),
             "generator": flat_generator(),
+        }),
+        "minecraft:the_nether": c({
+            "type": s_("minecraft:the_nether"),
+            "generator": c({
+                "type": s_("minecraft:noise"),
+                "settings": s_("minecraft:nether"),
+                "biome_source": c({
+                    "type": s_("minecraft:multi_noise"),
+                    "preset": s_("minecraft:nether"),
+                }),
+            }),
+        }),
+        "minecraft:the_end": c({
+            "type": s_("minecraft:the_end"),
+            "generator": c({
+                "type": s_("minecraft:noise"),
+                "settings": s_("minecraft:end"),
+                "biome_source": c({"type": s_("minecraft:the_end")}),
+            }),
         }),
     })
 
@@ -195,6 +227,125 @@ def level(name):
     return c({"Data": c(data)})
 
 
+# --- verification. The half of this file that exists because the other half was wrong twice. ---
+
+END_, BYTE_, SHORT_, INT_, LONG_, FLOAT_, DOUBLE_ = 0, 1, 2, 3, 4, 5, 6
+BYTE_ARRAY_, STRING_, LIST_, COMPOUND_ = 7, 8, 9, 10
+
+
+def _read(data):
+    """A reader written against the NBT spec, deliberately not sharing code with the writer."""
+    import struct as _st
+    pos = [0]
+
+    def take(fmt, n):
+        v = _st.unpack_from(fmt, data, pos[0])[0]
+        pos[0] += n
+        return v
+
+    def name():
+        n = take(">H", 2)
+        v = data[pos[0]:pos[0] + n].decode("utf-8")
+        pos[0] += n
+        return v
+
+    def payload(kind):
+        if kind == BYTE_: return take(">b", 1)
+        if kind == SHORT_: return take(">h", 2)
+        if kind == INT_: return take(">i", 4)
+        if kind == LONG_: return take(">q", 8)
+        if kind == FLOAT_: return take(">f", 4)
+        if kind == DOUBLE_: return take(">d", 8)
+        if kind == STRING_: return name()
+        if kind == LIST_:
+            ek = take(">b", 1)
+            n = take(">i", 4)
+            return [payload(ek) for _ in range(n)]
+        if kind == COMPOUND_:
+            out = {}
+            while True:
+                t = take(">b", 1)
+                if t == END_:
+                    return out
+                key = name()
+                out[key] = payload(t)
+        raise ValueError("unreadable tag kind %d" % kind)
+
+    t = take(">b", 1)
+    root_name = name()
+    root = payload(t)
+    if pos[0] != len(data):
+        raise ValueError("trailing bytes: consumed %d of %d" % (pos[0], len(data)))
+    return root_name, root
+
+
+def verify(path):
+    """
+    Re-parse the emitted file and hold it to 1.20.1's own rules.
+
+    The two failures this has actually shipped are both encoded here so they can never come
+    back quietly: a dimensions compound with fewer than the three vanilla keys is an
+    experimental-lifecycle world that quick play refuses (VANILLA_KEY_COUNT in
+    DimensionOptionsRegistryHolder.toConfig), and a nether or end that differs from the exact
+    vanilla shape fails isNetherVanilla / isTheEndVanilla and closes the same gate.
+    """
+    raw = gzip.open(path, "rb").read()
+    root_name, root = _read(raw)
+    assert root_name == "", "level.dat root compound must be unnamed, got %r" % root_name
+    data = root["Data"]
+
+    # Pinned to the literal, not to DATA_VERSION: a check that reads the same constant as the
+    # writer agrees with whatever the writer says, which is not a check (handbook 16.20). 3465
+    # is 1.20.1 in Mojang's version manifest and nowhere else in this file.
+    assert data["DataVersion"] == 3465, "DataVersion must be 3465 (1.20.1)"
+    assert data["version"] == 19133, "storage version must be 19133"
+    assert data["Version"]["Id"] == 3465
+    assert data["Version"]["Name"] == "1.20.1"
+
+    dims = data["WorldGenSettings"]["dimensions"]
+    expected = {"minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"}
+    assert set(dims.keys()) == expected, \
+        "dimensions must be exactly the vanilla three (Lifecycle.stable needs " \
+        "VANILLA_KEY_COUNT == 3), got %s" % sorted(dims.keys())
+
+    ov = dims["minecraft:overworld"]
+    assert ov["type"] == "minecraft:overworld"
+    assert ov["generator"]["type"] == "minecraft:flat"
+    flat = ov["generator"]["settings"]
+    assert flat["features"] == 0 and flat["lakes"] == 0
+    assert [l["block"] for l in flat["layers"]] == \
+        ["minecraft:bedrock", "minecraft:dirt", "minecraft:grass_block"]
+    assert "structure_overrides" not in flat, "optional field left out on purpose"
+
+    nether = dims["minecraft:the_nether"]
+    assert nether["type"] == "minecraft:the_nether"
+    assert nether["generator"] == {
+        "type": "minecraft:noise", "settings": "minecraft:nether",
+        "biome_source": {"type": "minecraft:multi_noise", "preset": "minecraft:nether"},
+    }, "the nether must match isNetherVanilla exactly, or the lifecycle goes experimental"
+
+    end = dims["minecraft:the_end"]
+    assert end["type"] == "minecraft:the_end"
+    assert end["generator"] == {
+        "type": "minecraft:noise", "settings": "minecraft:end",
+        "biome_source": {"type": "minecraft:the_end"},
+    }, "the end must match isTheEndVanilla exactly, or the lifecycle goes experimental"
+
+    rules = data["GameRules"]
+    assert all(isinstance(v, str) for v in rules.values()), "game rules are strings"
+    assert rules["doMobSpawning"] == "false"
+
+    # A second, independent decoder where one is installed. It caught nothing the reader above
+    # does not, but an assertion that costs one import is the cheapest kind there is.
+    try:
+        import nbtlib
+        nbtlib.load(path)
+    except ImportError:
+        pass
+
+    return len(raw)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else \
         "app_pojavlauncher/src/main/assets/testworld/level.dat"
@@ -203,7 +354,8 @@ def main():
     raw = encode("", level(name))
     with gzip.open(out, "wb", compresslevel=9) as fh:
         fh.write(raw)
-    print("%s  %d bytes raw, %d gzipped" % (out, len(raw), os.path.getsize(out)))
+    verified = verify(out)
+    print("%s  %d bytes raw, %d gzipped, verified" % (out, verified, os.path.getsize(out)))
 
 
 if __name__ == "__main__":

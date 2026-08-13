@@ -50,6 +50,18 @@
 		android:visibility="gone" />
 
 	<!--
+		The first-launch download, as a bubble over the layout being edited. wrap_content for the
+		usual reason (12.9): the whole point of downloading here is that editing continues
+		underneath, so the bubble must only own the pixels it draws.
+	-->
+	<androidx.compose.ui.platform.ComposeView
+		android:id="@+id/test_download"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_gravity="top|center_horizontal"
+		android:visibility="gone" />
+
+	<!--
 		The test session's panel. wrap_content and pinned to the top, unlike every other view here,
 		and that is the whole design: a test session exists so the buttons underneath can be
 		pressed, so a full-size view over them would take away the one thing it is for. It covers

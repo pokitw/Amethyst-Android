@@ -141,6 +141,11 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // Minecraft place blocks over and over, so the repeating is not the difference. Doing it from
     // a button that is still an ordinary button when tapped is, and there is no way to get that.
     ComparisonRow(R.string.onboarding_row_repeat, Support.NO, Support.YES),
+    // "No" for upstream survives the fair reading: of course you can test controls there by
+    // launching your own game, and that is precisely what this is not. The row claims the one-tap
+    // loop: a stripped superflat on its own profile, entered directly, back to the editor on
+    // quit. Upstream has no piece of that.
+    ComparisonRow(R.string.onboarding_row_testlaunch, Support.NO, Support.YES),
     // "Part" for upstream because it ships one Turnip build and loads it automatically on
     // Adreno; what it declined (their issue 224) is letting you import a newer one. On any
     // other GPU neither side offers anything, which is the row's honest scope.
