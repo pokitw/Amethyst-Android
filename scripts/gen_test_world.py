@@ -32,7 +32,7 @@ def i(v):  return Tag(INT, v)
 def l(v):  return Tag(LONG, v)
 def f(v):  return Tag(FLOAT, v)
 def d(v):  return Tag(DOUBLE, v)
-def s(v):  return Tag(STRING, v)
+def s_(v): return Tag(STRING, v)
 def c(v):  return Tag(COMPOUND, v)
 def lst(kind, items): return Tag(LIST, (kind, items))
 
@@ -86,9 +86,9 @@ VERSION_NAME = "1.20.1"
 # Bedrock, two dirt, grass. The thinnest floor that is still a floor: one layer of bedrock stops
 # anything falling out of the world, and the grass is what makes it obvious which way is up.
 LAYERS = [
-    c({"block": s("minecraft:bedrock"), "height": i(1)}),
-    c({"block": s("minecraft:dirt"), "height": i(2)}),
-    c({"block": s("minecraft:grass_block"), "height": i(1)}),
+    c({"block": s_("minecraft:bedrock"), "height": i(1)}),
+    c({"block": s_("minecraft:dirt"), "height": i(2)}),
+    c({"block": s_("minecraft:grass_block"), "height": i(1)}),
 ]
 
 # Everything here is chosen to cost the device as little as possible while still being a world you
@@ -115,45 +115,35 @@ GAME_RULES = {
 
 def flat_generator():
     return c({
-        "type": s("minecraft:flat"),
+        "type": s_("minecraft:flat"),
         "settings": c({
             "layers": lst(COMPOUND, LAYERS),
-            "biome": s("minecraft:plains"),
+            "biome": s_("minecraft:plains"),
             # Both off: structures and lakes are the two things a superflat can still spend
             # chunk generation on, and neither helps anybody test a button.
             "features": b(0),
             "lakes": b(0),
-            "structure_overrides": lst(STRING, []),
         }),
     })
 
 
 def dimensions():
-    # The nether and the end are declared because the codec wants the set, not because anything
-    # will ever go there. They keep their own generators; only the overworld is flattened.
+    """
+    The overworld, and only the overworld.
+
+    <b>The first draft declared the nether and the end too, and that is what broke it.</b> Their
+    generator configurations are the fiddliest part of this format, they were written from memory
+    against a Minecraft that is not in this container, and one wrong field in either fails the
+    whole WorldGenSettings codec rather than just that dimension, which takes the entire world
+    down with it. A world that will not load looks exactly like a world that was never created.
+
+    Minecraft fills in whatever dimensions this does not declare from the datapack defaults, so
+    naming the two that will never be visited bought nothing at all and cost the feature.
+    """
     return c({
         "minecraft:overworld": c({
-            "type": s("minecraft:overworld"),
+            "type": s_("minecraft:overworld"),
             "generator": flat_generator(),
-        }),
-        "minecraft:the_nether": c({
-            "type": s("minecraft:the_nether"),
-            "generator": c({
-                "type": s("minecraft:noise"),
-                "settings": s("minecraft:nether"),
-                "biome_source": c({
-                    "type": s("minecraft:multi_noise"),
-                    "preset": s("minecraft:nether"),
-                }),
-            }),
-        }),
-        "minecraft:the_end": c({
-            "type": s("minecraft:the_end"),
-            "generator": c({
-                "type": s("minecraft:noise"),
-                "settings": s("minecraft:end"),
-                "biome_source": c({"type": s("minecraft:the_end")}),
-            }),
         }),
     })
 
@@ -162,7 +152,7 @@ def level(name):
     data = {
         "DataVersion": i(DATA_VERSION),
         "version": i(19133),
-        "LevelName": s(name),
+        "LevelName": s_(name),
         # Creative and peaceful: nothing can hurt you, nothing needs killing, and flying is one of
         # the things worth having a button for.
         "GameType": i(1),
@@ -188,19 +178,19 @@ def level(name):
         "BorderDamagePerBlock": d(0.0),
         "Version": c({
             "Id": i(DATA_VERSION),
-            "Name": s(VERSION_NAME),
+            "Name": s_(VERSION_NAME),
             "Snapshot": b(0),
-            "Series": s("main"),
+            "Series": s_("main"),
         }),
-        "GameRules": c({k: s(v) for k, v in GAME_RULES.items()}),
+        "GameRules": c({k: s_(v) for k, v in GAME_RULES.items()}),
         "WorldGenSettings": c({
             "seed": l(0),
             "generate_features": b(0),
             "bonus_chest": b(0),
             "dimensions": dimensions(),
         }),
-        "DataPacks": c({"Enabled": lst(STRING, [s("vanilla")]), "Disabled": lst(STRING, [])}),
-        "ServerBrands": lst(STRING, [s("vanilla")]),
+        "DataPacks": c({"Enabled": lst(STRING, [s_("vanilla")]), "Disabled": lst(STRING, [])}),
+        "ServerBrands": lst(STRING, [s_("vanilla")]),
     }
     return c({"Data": c(data)})
 

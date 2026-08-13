@@ -138,6 +138,13 @@ public final class TestLaunch {
         }
         Tools.copyAssetFile(context, "testworld/level.dat", world.getAbsolutePath(),
                 "level.dat", false);
+        // Checked rather than assumed, because the two ways this feature can fail look identical
+        // from the outside: a world that was never written and a world Minecraft would not load
+        // both end at the title screen. Making the first one loud is what leaves the second one
+        // as the only remaining explanation.
+        if (!level.isFile()) {
+            throw new IOException("The test world was not written to " + level);
+        }
     }
 
     /**

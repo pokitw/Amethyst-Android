@@ -1378,6 +1378,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   wrong place.
 - **Control glyphs cover the actions a player recognises**, not the whole keyboard. A button bound
   to F7, or to two keys at once, keeps its text label on purpose.
+- The test world declares **only the overworld**. Minecraft fills the rest in from its own
+  defaults, and the first draft's hand-written nether and end configurations are what stopped the
+  world loading at all: one wrong field in either fails the whole `WorldGenSettings` codec, not
+  just that dimension, and a world that will not load is indistinguishable from one that was never
+  created. Nothing here is checkable without Minecraft, so the rule is to declare as little as the
+  format allows.
 - The test launch is **1.20.1 and nothing else**, and that is the trade stated in as many words:
   it is the oldest release that can open a world for you, and everything older would land on the
   title screen. It also means the test runs on MobileGlues rather than on GL4ES, so a device that
