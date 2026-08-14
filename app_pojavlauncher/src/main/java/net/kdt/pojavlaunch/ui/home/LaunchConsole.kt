@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -37,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -97,25 +97,28 @@ fun LaunchConsole(profile: GameProfile?, progress: LaunchProgress, modifier: Mod
         }
     }
 
-    val spinAngle: Float
-    val sweepOffset: Float
+    // Kept as State and only read inside draw lambdas: an infinite value read during composition
+    // would recompose the whole console every frame for as long as it is on screen, when all it
+    // ever changes is two strokes of paint.
+    val spin: State<Float>
+    val sweep: State<Float>
     if (!reduced) {
         val infinite = rememberInfiniteTransition(label = "launchConsole")
-        spinAngle = infinite.animateFloat(
+        spin = infinite.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
             label = "launchSpin"
-        ).value
-        sweepOffset = infinite.animateFloat(
+        )
+        sweep = infinite.animateFloat(
             initialValue = -0.45f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
             label = "launchSweep"
-        ).value
+        )
     } else {
-        spinAngle = 0f
-        sweepOffset = -0.45f
+        spin = remember { mutableStateOf(0f) }
+        sweep = remember { mutableStateOf(-0.45f) }
     }
 
     Column(modifier.fillMaxWidth().padding(start = 12.dp, top = 14.dp, end = 14.dp, bottom = 13.dp)) {
@@ -127,7 +130,7 @@ fun LaunchConsole(profile: GameProfile?, progress: LaunchProgress, modifier: Mod
                         accent = accent,
                         determinate = determinate,
                         fill = fill.value,
-                        spinAngle = spinAngle
+                        spinAngle = spin.value
                     )
                 }
                 ProfileIcon(profile?.icon, size = 42.dp, corner = 12.dp)
@@ -199,7 +202,7 @@ fun LaunchConsole(profile: GameProfile?, progress: LaunchProgress, modifier: Mod
                 reduced -> Box(Modifier.fillMaxSize().background(accent.copy(alpha = 0.30f)))
                 else -> Box(
                     Modifier.fillMaxSize().drawBehind {
-                        drawSweep(sweepOffset, accent.copy(alpha = 0.85f))
+                        drawSweep(sweep.value, accent.copy(alpha = 0.85f))
                     }
                 )
             }
@@ -286,18 +289,23 @@ private fun StageLine(text: String, live: Boolean, reduced: Boolean) {
         Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
             Crossfade(targetState = live, animationSpec = tween(300), label = "stageMark") { now ->
                 if (now) {
-                    val pulse = if (reduced) 1f else rememberInfiniteTransition(label = "stagePulse")
-                        .animateFloat(
+                    // Read in the draw lambda, not here, so the breathing costs redraws of a
+                    // seven dp circle rather than recompositions of the line it sits on.
+                    val pulse: State<Float> = if (reduced) {
+                        remember { mutableStateOf(1f) }
+                    } else {
+                        rememberInfiniteTransition(label = "stagePulse").animateFloat(
                             initialValue = 0.35f,
                             targetValue = 1f,
                             animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
                             label = "stagePulseAlpha"
-                        ).value
+                        )
+                    }
+                    val dotColor = MaterialTheme.colorScheme.primary
                     Box(
-                        Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = pulse))
+                        Modifier.size(7.dp).drawBehind {
+                            drawCircle(dotColor.copy(alpha = pulse.value))
+                        }
                     )
                 } else {
                     Icon(
