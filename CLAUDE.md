@@ -1000,6 +1000,9 @@ re-litigated. The reasoning lives in the commit that made the change.
   kills the launcher process in the same breath, so the honest end of the sequence is the game
   window appearing over it; anything designed for "done" would only ever be seen when the launch
   had failed.
+  It gets **no onboarding page and no comparison row**, on the opening's precedent: upstream
+  launches and reports progress too, this is the same capability presented better, and a table
+  row about presentation would be a mark for taste.
 
 - **Installing a mod loader** (`modloaders/LoaderIndex.java` + `ui/loaders/` +
   `fragments/LoaderInstallFragment.kt`) — one screen for Fabric, Quilt, Forge and NeoForge, asked
