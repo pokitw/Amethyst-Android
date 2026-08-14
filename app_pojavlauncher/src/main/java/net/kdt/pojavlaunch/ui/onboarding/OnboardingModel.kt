@@ -112,6 +112,11 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // have is the thing neither had until now.
     ComparisonRow(R.string.onboarding_row_mods, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
+    // "Part" for upstream and it has to be: it shows the log live over the running game, which
+    // this build kept. What it cannot do is read the log afterwards, which is when a crash is
+    // actually looked into, or search it. Marking it absent would be the overclaim that makes a
+    // table worthless.
+    ComparisonRow(R.string.onboarding_row_log, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_search, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_controls, Support.PARTIAL, Support.YES),
     // Not a tie, unlike the screenshot: upstream has per-button colours, which is a different

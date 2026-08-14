@@ -60,6 +60,7 @@ class CrashScreenModel(
 fun CrashScreen(
     model: CrashScreenModel,
     onShareLog: () -> Unit,
+    onViewLog: () -> Unit,
     onBackToLauncher: () -> Unit
 ) {
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
@@ -96,6 +97,9 @@ fun CrashScreen(
                 DiagnosisCard(model.diagnosis)
 
                 Spacer(Modifier.height(18.dp))
+                // Ranked by what somebody does after a crash: go back and try again, then read
+                // the rest of what the card is quoting from, and only then send it to anyone.
+                // Reading comes before sharing now that reading is possible at all.
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ActionPill(
                         label = stringResource(R.string.crash_back_to_launcher),
@@ -104,12 +108,19 @@ fun CrashScreen(
                         onClick = onBackToLauncher
                     )
                     ActionPill(
-                        label = stringResource(R.string.main_share_logs),
+                        label = stringResource(R.string.crash_view_log),
                         accent = false,
                         modifier = Modifier.weight(1f),
-                        onClick = onShareLog
+                        onClick = onViewLog
                     )
                 }
+                Spacer(Modifier.height(10.dp))
+                ActionPill(
+                    label = stringResource(R.string.main_share_logs),
+                    accent = false,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onShareLog
+                )
                 Spacer(Modifier.height(24.dp))
             }
         }

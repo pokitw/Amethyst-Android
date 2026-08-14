@@ -83,6 +83,7 @@ class HomeActions(
     val onWiki: () -> Unit = {},
     val onGamepadMapper: () -> Unit = {},
     val onDiscord: () -> Unit = {},
+    val onViewLog: () -> Unit = {},
     val onShareLogs: () -> Unit = {}
 )
 
@@ -507,7 +508,14 @@ private fun FooterLinks(actions: HomeActions) {
         FooterDot()
         FooterLink(stringResource(R.string.mcl_button_discord), onClick = actions.onDiscord)
         FooterDot()
-        FooterLink(stringResource(R.string.main_share_logs), onClick = actions.onShareLogs)
+        // Opens the log rather than sharing it, and sharing is one tap further in. Sending a file
+        // you have not read to ask a question you have not narrowed down was the only thing this
+        // link could do before, and it is the wrong first step in every case.
+        FooterLink(
+            stringResource(R.string.log_title),
+            onClick = actions.onViewLog,
+            onLongClick = actions.onShareLogs
+        )
     }
 }
 

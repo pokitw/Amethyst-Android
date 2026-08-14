@@ -49,6 +49,7 @@ class ExitActivity : BaseActivity() {
                         CrashScreen(
                             model = model,
                             onShareLog = { runCatching { Tools.shareLog(this) } },
+                            onViewLog = ::viewLog,
                             onBackToLauncher = ::backToLauncher
                         )
                     }
@@ -67,6 +68,17 @@ class ExitActivity : BaseActivity() {
             if (isSignal) R.string.crash_signal_line else R.string.crash_exit_line, code
         )
         return CrashScreenModel(codeLine, diagnosis)
+    }
+
+    /**
+     * Open the log rather than share it.
+     *
+     * Wrapped like everything else this screen touches: the one screen that explains crashes is
+     * the one that cannot afford to cause any, and a failed start here must leave the crash
+     * screen exactly as it was rather than take it down with it.
+     */
+    private fun viewLog() {
+        runCatching { startActivity(Intent(this, LogActivity::class.java)) }
     }
 
     private fun backToLauncher() {

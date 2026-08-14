@@ -155,6 +155,7 @@ accent.
 | Token | Hex | Use |
 | --- | --- | --- |
 | `Success70` | `#7FD69A` | Confirmed / healthy state |
+| `Warning70` | `#E8C07D` | A warning that is not a failure. Warm rather than yellow: on a log screen where a third of the lines can be warnings, a true amber reads as an alarm and makes the errors beside it count for less. |
 | `Danger70` | `#FFB4AB` | Error text |
 | `RecordingRed` | `#E5484D` | **Live recording only.** Deliberately outside the accent ramp so it can never be mistaken for chrome. |
 
@@ -410,6 +411,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Crash screen | **Compose** | `diagnosis/`, hosted by `ExitActivity.kt` |
 | Skin editor | **Compose** | `ui/skin/`, `SkinActivity.kt` |
 | Mod browser (Modrinth) | **Compose** | `ui/mods/`, `ModBrowserActivity.kt` |
+| Log viewer | **Compose** | `ui/logs/`, `LogActivity.kt`; parsing is Java in `logs/` so it can be driven (§19) |
 | Modpack search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
 | Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
 | Game surface | XML, stays | See §12.4 |
@@ -1124,6 +1126,43 @@ re-litigated. The reasoning lives in the commit that made the change.
   `performanceBackup`, `performanceChunks`) are left inert rather than swept up on the startup
   path, which is the one path in this app that must not grow work that can throw (16.15).
 
+- **Reading the log** (`logs/LogParser.java` + `ui/logs/` + `LogActivity.kt`) — the log, in the
+  launcher, with a search box, a level filter and the line you searched for shown among its
+  neighbours. Everything the launcher could say about a failed session was already in
+  `latestlog.txt`, and the only thing ever offered was a share sheet: to read your own log you
+  had to send it somewhere else first, and from Android 11 the file cannot be browsed to at all
+  because it lives under `Android/data`. The launcher is the only thing that can show it.
+  **The parsing is Java, and that is the entry's most reusable half.** It was written in Kotlin
+  first, which made it unverifiable: there is no Kotlin compiler in the build container, so the
+  only check available was a Python re-implementation reading the constants out of the source.
+  That harness passed while **six of eight deliberate mutations to the shipped code went
+  unnoticed**, because the thing it drove was the copy. Moved into `logs/LogParser.java` with no
+  Android imports, `scripts/logsim` compiles the real class at source 8 and now catches all ten.
+  Every other parser here that has a harness is Java for exactly this reason (§16.6); this is the
+  first time the rule was learned the other way round.
+  **The format is read, not remembered.** This launcher hands the game
+  `-Dlog4j.configurationFile=` pointing at its own `assets/components/security/*.xml`, and those
+  files set `[%d{HH:mm:ss}] [%t/%level]: %msg%n`. The harness reads each config, renders a line
+  the way log4j would and feeds it back, so a format that changes there fails a check rather than
+  somebody's error filter (16.20).
+  **A line with no level of its own inherits the line above it**, which is the one thing a level
+  filter over a Java log has to get right: a stack trace carries no level, and without
+  inheritance the Errors filter shows a one-line exception with its cause hidden. It inherits for
+  *filtering* and not for *colour*, because a single crash would otherwise paint forty lines red
+  and nothing on screen would stand out.
+  **A level is read from the prefix and never from the message.** Chat quotes the word routinely,
+  and a player typing "the ERROR was mine" must not file their own sentence under Errors.
+  **The filter is offered only when the log declares levels at all.** The format belongs to
+  Minecraft rather than to this launcher, so if a version stops writing them the parse finds
+  none, and a filter in that state would hide the whole log while claiming to show its errors.
+  **A search result is a route, not a destination**: tapping one clears the search and takes you
+  to that line among its neighbours, washed, which is the settings-search idiom (§14) and the
+  reason to look at a log rather than at a list of matches. The screen keeps its search box
+  pinned rather than taking the collapsing large title, because a log is a working surface and
+  searching one is a loop of typing, reading and retyping.
+  It gets **no onboarding page** (you meet it on the home footer and on the crash screen) but it
+  does get a **comparison row**, marked `Part` for upstream: upstream shows the log live over a
+  running game, which this build kept, and cannot read it afterwards or search it.
 - **Sign-in** — one screen, not two. Microsoft carries the gradient and offline is quieter beneath
   it, because they are not equal choices: offline cannot join a server. The username is asked for
   in place, validated as it is typed. Microsoft still hands off to `MicrosoftLoginFragment`, and an
@@ -1589,6 +1628,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A skin can only be **applied** to a Microsoft account — Mojang's API is the only thing a server
   reads a skin from, and an offline account has no profile to attach one to. Any skin editor has
   to say so rather than appearing to work and silently doing nothing.
+- The log viewer shows **the last megabyte**, which is on the order of ten thousand lines. A
+  crash writes its reason at the end, so that is the half worth holding as strings on a phone;
+  the beginning, which carries the launch command and the mod list, is what a share sends and
+  this does not show. It says which it is doing rather than leaving it to be discovered.
+- It reads the file **once, when it opens**, and there is no refresh. Nothing writes
+  `latestlog.txt` while the launcher is on screen: the game writes it, and starting the game
+  kills the launcher process (§12.2). Re-opening the screen is the reload.
+- **Lines are not numbered.** A window onto the end of a file cannot number from the file's own
+  start without reading all of it, and numbering from the top of the window would be a number
+  that means nothing to anything else. What a search result offers instead is the line in place.
+- The level of a line is **Minecraft's word for it**, and a mod logging an error at INFO is an
+  error the filter will not find. The viewer reports the log; it does not second-guess it.
+- Lines **wrap and cannot be unwrapped**. Two-axis scrolling makes a log unreadable on a phone,
+  and a wrap toggle would be a control that is wrong nine times out of ten.
+- The **in-game** log is unchanged and is still the live one: the control center's log output
+  tile over a running game. This screen is the launcher's, and the two do not share code.
 - Gyro aiming is **verified by simulation, not on hardware** (`scripts/gyrosim/`). The maths and
   the axis mapping are checked; what a real MEMS gyroscope's noise floor feels like in the hand is
   not, and neither is the cost of 400Hz sensor callbacks on a weak device.
@@ -1688,6 +1743,11 @@ Before pushing:
   UV rectangles against independently written ground truth, at both arm widths, plus bounds,
   overlap and the columns the slim guess reads. A wrong rectangle is a leg wearing a sleeve
   and is invisible until someone opens the editor on a real skin.
+- **Run `sh scripts/logsim/run.sh`** if the log parser changed. It compiles the shipped
+  `LogParser` at source 8 and drives the real class, which is the point: the first draft of this
+  check re-implemented the algorithm in Python and passed while six of eight mutations to the
+  shipped code went unnoticed. It reads the log4j configs out of assets for the format, and the
+  mutations it is known to catch are listed at the top of `run.sh` so a weakening of it shows.
 - **Run `python3 scripts/check_settings_calls.py`** if anything in `ui/settings/SettingsComponents.kt`
   changed its parameters. It reproduces Kotlin's "No value passed for parameter" against every
   call site of every shared row, which is the one way an optional parameter added in the middle

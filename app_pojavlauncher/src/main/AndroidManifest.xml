@@ -140,6 +140,16 @@
             android:label="@string/preference_recorder_title"
             android:process=":launcher"/>
 
+        <!--
+            The log, readable in the launcher. Launcher process: it reads a file the game has
+            finished writing, and the crash screen reaches it after the game process has gone.
+        -->
+        <activity
+            android:name=".LogActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:label="@string/log_title"
+            android:process=":launcher"/>
+
         <!-- Everything the profile owns, as a screen. Launcher process: it reads and renames
              files and has nothing to do with the game. -->
         <activity

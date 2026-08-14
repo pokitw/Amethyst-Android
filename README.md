@@ -88,6 +88,9 @@ display and re-encodes it.
 * **Turnip driver manager** for importing adrenotools Vulkan drivers on Adreno devices
 * **Crash diagnosis** that reads the log and names the failure in words, quoting the line it
   concluded from, instead of handing you a stack trace
+* **The log, readable in the app**, with search, a level filter and a tap from a result to that
+  line in context. Everything the launcher writes lives under `Android/data`, which from
+  Android 11 cannot be browsed to, so sharing it out was the only way to read your own log
 
 ### Content, without leaving the app
 
@@ -125,6 +128,7 @@ worth reading because it loses rows.
 | Worlds and mods in the app | No | Yes |
 | Install mods in the app | Part | Yes |
 | Crash cause explained | No | Yes |
+| Searchable log in the app | Part | Yes |
 | Searchable settings | No | Yes |
 | Redesigned controls | Part | Yes |
 | Button texture packs | No | Yes |
@@ -135,7 +139,6 @@ worth reading because it loses rows.
 | Skin editor | No | Yes |
 | Look up any player's skin | No | Yes |
 | Install any loader from one screen | Part | Yes |
-| One switch for frame rate | Part | Yes |
 | Smaller download | Yes | Part |
 
 "Part" means upstream has something that answers the same question less completely. Gyro aiming is
@@ -200,7 +203,10 @@ There is no device in CI, so anything that can be checked without one is checked
 [`scripts/`](scripts/). Each harness drives the shipped source rather than a copy of it: control
 layouts are evaluated across a grid of screen sizes and button scales, the Modrinth and Mojang
 parsers run against fixtures, the skin atlas is checked against independent ground truth, and the
-gyro maths is compiled and fed synthetic motion. `CLAUDE.md` lists which to run when.
+gyro maths is compiled and fed synthetic motion. Every harness is mutation-tested: the shipped
+code is broken on purpose to prove the check fails, which is how the log parser's first harness
+was found to be driving a copy of the algorithm rather than the algorithm. `CLAUDE.md` lists
+which to run when.
 
 ## Design principles
 

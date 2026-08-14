@@ -692,6 +692,7 @@
     <string name="onboarding_row_play">Plays Minecraft: Java Edition</string>
     <string name="onboarding_row_record">Built-in gameplay recorder</string>
     <string name="onboarding_row_crash">Crash cause explained</string>
+    <string name="onboarding_row_log">Searchable log in the app</string>
     <string name="onboarding_row_gyro">Smooth gyro aiming</string>
     <string name="onboarding_row_voice">Voice typing in chat</string>
     <string name="onboarding_row_files">Worlds and mods in the app</string>
@@ -1220,6 +1221,25 @@
         <item quantity="one">Installed, but 1 mod it needs could not be fetched</item>
         <item quantity="other">Installed, but %1$d mods it needs could not be fetched</item>
     </plurals>
+
+    <!-- The log, readable in the launcher rather than only shareable out of it. -->
+    <string name="log_title">Log</string>
+    <string name="log_open">View the log</string>
+    <string name="log_open_sub">Search what the game and the launcher wrote</string>
+    <string name="log_search_hint">Search the log</string>
+    <string name="log_level_all">All</string>
+    <string name="log_level_warn">Warnings</string>
+    <string name="log_level_error">Errors</string>
+    <string name="log_matches">%1$d matches. Tap one to see it in place.</string>
+    <string name="log_shown_lines">%1$d of %2$d lines</string>
+    <string name="log_total_lines">%1$d lines. Long press one to copy it.</string>
+    <string name="log_no_matches">Nothing in the log says that.</string>
+    <string name="log_truncated">Showing the last %1$s of a %2$s log. Share to send the whole file.</string>
+    <string name="log_jump_end">Latest</string>
+    <string name="log_copied">Line copied</string>
+    <string name="log_empty_title">Nothing logged yet</string>
+    <string name="log_empty_body">The game writes its log while it runs. Play once and what it said will be here, including whatever it said as it crashed.</string>
+    <string name="crash_view_log">View the full log</string>
 
     <!-- Finding skins: any player, the account, and the launcher's own record. -->
     <string name="skin_browse_title">Find skins</string>

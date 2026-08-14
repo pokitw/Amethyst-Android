@@ -38,5 +38,14 @@ internal val Danger20 = Color(0xFF690005)
 internal val Danger30 = Color(0xFF93000A)
 internal val Success70 = Color(0xFF7FD69A)
 
+/**
+ * A warning that is not a failure, which until the log viewer nothing here had to say.
+ *
+ * Warm rather than yellow, and desaturated enough to sit on the neutral ramp without shouting:
+ * on a screen where a third of the lines can be warnings, a true amber reads as an alarm and
+ * makes the errors beside it count for less.
+ */
+internal val Warning70 = Color(0xFFE8C07D)
+
 /** Live indicator, deliberately outside the accent ramp so it cannot be mistaken for chrome. */
 val RecordingRed = Color(0xFFE5484D)

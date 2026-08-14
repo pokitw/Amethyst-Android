@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import net.kdt.pojavlaunch.CustomControlsActivity
 import net.kdt.pojavlaunch.LauncherActivity
+import net.kdt.pojavlaunch.LogActivity
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.SkinActivity
 import net.kdt.pojavlaunch.Tools
@@ -209,6 +210,7 @@ class MainMenuFragment : Fragment(), ChromeOwner {
             )
         },
         onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) },
+        onViewLog = { startActivity(Intent(requireContext(), LogActivity::class.java)) },
         onShareLogs = { Tools.shareLog(requireContext()) }
     )
 

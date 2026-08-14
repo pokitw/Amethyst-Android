@@ -24,6 +24,7 @@ import fr.spse.gamepad_remapper.Remapper
 import net.kdt.pojavlaunch.Architecture
 import net.kdt.pojavlaunch.CustomControlsActivity
 import net.kdt.pojavlaunch.LauncherActivity
+import net.kdt.pojavlaunch.LogActivity
 import net.kdt.pojavlaunch.OnboardingActivity
 import net.kdt.pojavlaunch.ContentActivity
 import net.kdt.pojavlaunch.R
@@ -273,6 +274,7 @@ class SettingsFragment : Fragment(), ChromeOwner {
                 (activity as? LauncherActivity)?.askForMicrophonePermission(null)
             },
             onShareLog = { Tools.shareLog(requireContext()) },
+            onViewLog = { startActivity(Intent(requireContext(), LogActivity::class.java)) },
             onWiki = { Tools.openURL(requireActivity(), Tools.URL_HOME) },
             onDiscord = { Tools.openURL(requireActivity(), getString(R.string.discord_invite)) },
             onReplayWelcome = ::replayWelcome,

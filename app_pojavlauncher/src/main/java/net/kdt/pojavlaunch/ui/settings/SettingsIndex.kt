@@ -428,6 +428,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "help community chat support"
     ),
     SettingEntry(
+        R.string.log_open, SettingsRoute.ABOUT, R.string.log_open_sub,
+        R.string.settings_section_help,
+        "log crash error read search latestlog console output debug", suggested = true
+    ),
+    SettingEntry(
         R.string.main_share_logs, SettingsRoute.ABOUT, 0, R.string.settings_section_help,
         "log crash report bug send debug"
     )

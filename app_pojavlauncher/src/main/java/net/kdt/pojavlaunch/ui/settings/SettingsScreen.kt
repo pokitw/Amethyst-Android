@@ -95,6 +95,7 @@ class SettingsActions(
     val onNotificationPermission: () -> Unit = {},
     val onMicrophonePermission: () -> Unit = {},
     val onShareLog: () -> Unit = {},
+    val onViewLog: () -> Unit = {},
     val onWiki: () -> Unit = {},
     val onDiscord: () -> Unit = {},
     val onReplayWelcome: () -> Unit = {},
@@ -1359,6 +1360,13 @@ private fun AboutScreen(
             )
             NavRow(title = stringResource(R.string.mcl_tab_wiki), onClick = actions.onWiki)
             NavRow(title = stringResource(R.string.mcl_button_discord), onClick = actions.onDiscord)
+            // Above sharing, because reading it is what somebody wants first and sharing a
+            // file you have not read is how a question gets asked badly.
+            NavRow(
+                title = stringResource(R.string.log_open),
+                description = stringResource(R.string.log_open_sub),
+                onClick = actions.onViewLog
+            )
             NavRow(title = stringResource(R.string.main_share_logs), onClick = actions.onShareLog)
         }
     }
