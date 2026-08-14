@@ -286,6 +286,12 @@ fun ControlEditorPanel(
                             state.absoluteTracking,
                             onCheckedChange = state::applyAbsoluteTracking
                         )
+                        SwitchRow(
+                            stringResource(R.string.control_editor_auto_walk),
+                            stringResource(R.string.control_editor_auto_walk_description),
+                            state.autoWalk,
+                            onCheckedChange = state::applyAutoWalk
+                        )
                     }
                 }
 

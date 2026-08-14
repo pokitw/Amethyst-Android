@@ -135,6 +135,11 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // Minecraft place blocks over and over, so the repeating is not the difference. Doing it from
     // a button that is still an ordinary button when tapped is, and there is no way to get that.
     ComparisonRow(R.string.onboarding_row_repeat, Support.NO, Support.YES),
+    // Beside the repeat row for the same reason that one sits beside sequences: a different
+    // control on the same stick. "No" is the honest mark on the fairest reading available too,
+    // since holding a directional key already walks in that direction upstream just as here;
+    // what upstream cannot do is keep it held once the thumb lifts off the stick.
+    ComparisonRow(R.string.onboarding_row_autowalk, Support.NO, Support.YES),
     // "Part" for upstream because it ships one Turnip build and loads it automatically on
     // Adreno; what it declined (their issue 224) is letting you import a newer one. On any
     // other GPU neither side offers anything, which is the row's honest scope.

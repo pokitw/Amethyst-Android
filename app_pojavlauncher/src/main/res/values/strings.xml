@@ -705,6 +705,7 @@
     <string name="onboarding_row_bedrock">Ready-made Bedrock layout</string>
     <string name="onboarding_row_sequence">Timed key sequences</string>
     <string name="onboarding_row_repeat">Slide a button into repeating</string>
+    <string name="onboarding_row_autowalk">Lock the joystick into walking</string>
     <string name="onboarding_row_turnip">Import Vulkan drivers</string>
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_skinfind">Look up any player\'s skin</string>
@@ -941,6 +942,8 @@
     <string name="control_editor_forward_lock_description">The stick only walks forward, never back.</string>
     <string name="control_editor_absolute">Follow the finger exactly</string>
     <string name="control_editor_absolute_description">The stick jumps to where you touched instead of easing towards it.</string>
+    <string name="control_editor_auto_walk">Double-tap to lock movement</string>
+    <string name="control_editor_auto_walk_description">Double-tap a direction and keep walking without holding the stick. Touch it again to take back control.</string>
     <string name="control_editor_show_game">While playing</string>
     <string name="control_editor_show_game_description">Visible when the cursor is hidden and you are looking around.</string>
     <string name="control_editor_show_menu">In menus</string>

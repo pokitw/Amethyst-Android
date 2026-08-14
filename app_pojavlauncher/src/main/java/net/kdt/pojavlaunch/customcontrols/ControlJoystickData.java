@@ -10,6 +10,13 @@ public class ControlJoystickData extends ControlData {
      */
     public boolean absolute = false;
 
+    /**
+     * Whether a double-tap on a direction locks movement there until the stick is touched again.
+     * Off by default, additive to old layouts the same way {@link ControlData#slideRepeat} is:
+     * a saved file with nothing here deserialises to false and behaves exactly as it always did.
+     */
+    public boolean autoWalk = false;
+
     public ControlJoystickData(){
         super();
     }
@@ -18,5 +25,6 @@ public class ControlJoystickData extends ControlData {
         super(properties);
         forwardLock = properties.forwardLock;
         absolute = properties.absolute;
+        autoWalk = properties.autoWalk;
     }
 }

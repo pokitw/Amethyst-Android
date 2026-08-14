@@ -80,6 +80,8 @@ display and re-encodes it.
   pearl then wind charge move actually works
 * **Slide to repeat**: tap for one press, hold and slide to keep it firing, so one button both
   places a block and clutches
+* **Joystick auto-walk**: double-tap a direction to keep walking without holding the stick, touch
+  it again to take control back
 * **Gyro aiming rewritten** to read raw angular velocity in player space at 1:1, replacing an
   implementation that held movement behind a threshold and then jumped
 
@@ -135,6 +137,7 @@ worth reading because it loses rows.
 | Ready-made Bedrock layout | Part | Yes |
 | Timed key sequences | Part | Yes |
 | Slide a button into repeating | No | Yes |
+| Lock the joystick into walking | No | Yes |
 | Import Vulkan drivers | Part | Yes |
 | Skin editor | No | Yes |
 | Look up any player's skin | No | Yes |

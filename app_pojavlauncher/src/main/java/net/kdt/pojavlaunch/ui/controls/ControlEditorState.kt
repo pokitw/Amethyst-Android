@@ -120,6 +120,8 @@ class ControlEditorState(val button: ControlInterface) {
         private set
     var absoluteTracking by mutableStateOf((data as? ControlJoystickData)?.absolute ?: false)
         private set
+    var autoWalk by mutableStateOf((data as? ControlJoystickData)?.autoWalk ?: false)
+        private set
     var drawerOrientation by mutableStateOf(
         (button as? ControlDrawer)?.drawerData?.orientation ?: ControlDrawerData.Orientation.RIGHT
     )
@@ -323,6 +325,16 @@ class ControlEditorState(val button: ControlInterface) {
     fun applyAbsoluteTracking(value: Boolean) {
         absoluteTracking = value
         (data as? ControlJoystickData)?.absolute = value
+    }
+
+    /**
+     * The joystick reads this straight off its own [ControlJoystickData] the moment a tap lands
+     * (`ControlJoystick.onTouchEvent`), so unlike [applyForwardLock] there is no library setter
+     * to re-run here; the write to the shared data object is the whole of taking effect.
+     */
+    fun applyAutoWalk(value: Boolean) {
+        autoWalk = value
+        (data as? ControlJoystickData)?.autoWalk = value
     }
 
     fun applyDrawerOrientation(value: ControlDrawerData.Orientation) {

@@ -727,6 +727,43 @@ re-litigated. The reasoning lives in the commit that made the change.
   honest average rather than the truth: the gesture is measured from wherever the thumb landed,
   so a press near an edge arms sooner on one side, and drawing every possible circle would say
   less than drawing one.
+- **Joystick auto-walk** (`ControlJoystickData.autoWalk` + `ControlJoystick.engageAutoWalk`) —
+  double-tap a direction on the movement stick to keep walking that way without a thumb sat on
+  it, touch the stick again to take manual control back. The same idea as slide to repeat, aimed
+  at the other thumb: a long tunnel or a walk to a village is the one thing a phone does worse
+  than a keyboard, because a keyboard lets go of the key and a touchscreen does not.
+  **Double-tap, which slide to repeat's own reasoning ruled out for a button** ("a double tap
+  would cost every ordinary tap a delay before it could be sure it was not the first of two").
+  That cost is real for a button, whose ordinary use is a single discrete tap that the gesture
+  detector would have to sit on for a moment deciding whether a second one is coming. It is not a
+  cost here: a joystick's ordinary use is one continuous drag, which is not built out of taps at
+  all, so `GestureDetector` never has anything to disambiguate during normal play and the
+  double-tap check for a single ordinary press-and-hold literally never fires. The same gesture
+  that would tax every button press costs a moving stick nothing.
+  **The direction is read from where the tap landed, not from the stick's own reporting.** The
+  default tracking mode recentres the stick to wherever a touch begins, so a stationary tap
+  always measures zero distance from its own centre and would never resolve to a direction at
+  all if read the way a drag is. Measured instead against the view's own fixed centre, a tap
+  works the same regardless of the absolute/relative setting, and it is what a screen tap already
+  means: point where you want to walk.
+  **Touching the stick always takes manual control back**, on the first down of any new touch,
+  before that touch has any chance to become anything else. That is what lets a second double-tap
+  redirect a lock already in place without a dead step in between: the first tap of the new pair
+  cancels the old lock, the second engages the new one, exactly as if there had never been a gap.
+  It is also the only cancel gesture that exists, deliberately: a player who wants to stop just
+  touches the stick, which is the one thing every player already knows to do with it.
+  **The locked keys are held independently of the stick's own state**, because the knob
+  recentres after every tap whether the tap is starting a lock or ending one, and reading that
+  recentre as "the stick let go" would release the very keys the lock exists to hold down. The
+  ring wears the accent while locked, the one visible sign the stick is now driving itself; `onMove`
+  is skipped entirely while locked and `onDetachedFromWindow` releases the held keys if the
+  control is deleted or the layout torn down with the lock still on, the same "nothing may
+  outlive the view that was holding it" rule slide to repeat and the sequence runner both follow.
+  It gets a **comparison row**, `No` for upstream: unlike the launch console and the opening,
+  which stay off the table because upstream has the same capability presented differently, this
+  is a control upstream has no equivalent of at all, which is exactly what the table is for. It
+  gets **no onboarding page**, the same as slide to repeat and the sequence runner before it:
+  which stick has it is answered in the editor, where it was turned on.
 - **Turnip driver manager** (`utils/TurnipDrivers.java` + `egl_bridge.c` + the Performance
   screen) — import adrenotools driver zips and pick which Vulkan driver Zink renders through.
   Upstream declined this (their issue 224, "PR it"); the loader machinery was already here,
@@ -1386,6 +1423,18 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     source 8 and the harness drives the real class; all ten mutations now fail it. Every parser
     here that has a harness is Java, and that was not a coincidence anybody had written down.
     **Before writing logic whose failure is silent, ask what can execute it before a user does.**
+
+26. **A harness in another language inherits that language's arithmetic, not the shipped one's.**
+    `check_joystick_directions.py` transcribes an eight-way `((angle + 22.5) / 45) % 8` bucket out
+    of Java. Java's `%` on doubles keeps the sign of the dividend; Python's keeps the sign of the
+    divisor. For every input the shipped code actually produces they agree, so the harness passed
+    and looked fine — but the difference is exactly what the angle-wrapping step upstream of it
+    exists to guarantee, so with Python's `%` the harness silently repaired an unwrapped negative
+    angle into the right bucket and **could not tell a working wrap from a deleted one**. Found by
+    deleting the wrap and watching the check still pass. The same trap is waiting in integer
+    division, integer overflow, string comparison and date handling. **When a check is a
+    translation, the operators are part of what was translated**, and the ones whose edge cases
+    differ silently are the ones to look up rather than assume.
 ---
 
 ## 17. Known limitations
@@ -1555,6 +1604,16 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - The arithmetic is **verified by simulation, not on hardware** (`scripts/repeatsim`). The
   threshold and the gap are checked; the touch lifecycle around them lives in a View and cannot
   be lifted out of one, so what a slide feels like under a thumb is not checked by anything.
+- Auto-walk's **tap-to-direction geometry is checked by simulation** (`scripts/check_joystick_directions.py`),
+  the same limit as the slide gesture above and for the same reason: `ControlJoystick` extends a
+  third-party joystick view, and stubbing that whole surface to compile the real class would cost
+  more than the one formula it would be checking is worth. What a double-tap feels like under a
+  thumb, mid-stride, is not checked by anything.
+- Auto-walk is **off by default** and lives on a switch next to the other two joystick-only
+  settings, so a layout nobody has opened in the editor behaves exactly as it always did.
+- Auto-walk sends **the same keys a held drag would send**, nothing more: it does not sprint on
+  its own, does not turn on its own, and a locked walk into lava is exactly as fatal as a held
+  one. Locking is not a safety net, it is not holding the stick.
 - The Turnip driver picker is **Adreno only, by presence**: on any other GPU the rows are not
   shown, search does not find them, and nothing is disabled because nothing is there. An
   imported driver is validated as an arm64 ELF in an adrenotools-shaped zip, and nothing more:
@@ -1785,6 +1844,14 @@ Before pushing:
   drift from the code, and sweeps **off-grid floors** as well as the shipped pair: with the
   shipped constants alone, reversing the snap and the floor is invisible, which is exactly the
   mutation that got through the first draft.
+- **Run `python3 scripts/check_joystick_directions.py`** if auto-walk's tap-to-direction geometry
+  changed. It checks the eight compass points, the dead zone's boundary, and a tolerance band
+  around each cardinal rather than only its exact centre, because a formula that drops the
+  half-bucket centring offset still gets every point placed exactly on a cardinal right by luck
+  and only shows itself on the points 20 degrees either side. It also uses `math.fmod` rather
+  than Python's own `%`, because Java's double remainder keeps the sign of the dividend and
+  Python's floored one does not; the first draft used `%`, which silently repaired an unwrapped
+  negative angle into the right answer and could not tell a working wrap from a removed one.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

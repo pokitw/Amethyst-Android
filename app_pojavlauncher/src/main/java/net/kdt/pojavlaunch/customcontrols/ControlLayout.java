@@ -545,6 +545,17 @@ public class ControlLayout extends FrameLayout {
 	public void setTestMode(boolean testing) {
 		mTestMode = testing;
 		setModifiable(!testing);
+		if (!testing) {
+			// A joystick auto-walk lock outlives the touch that made it, so unlike every other
+			// control it can still be engaged when the session ends. It is dropped rather than
+			// released: the bridge that was swallowing its keys has already detached, and the
+			// editor gives touches to the drag handler, so nothing else would ever clear it.
+			for (ControlInterface control : getButtonChildren()) {
+				if (control instanceof ControlJoystick) {
+					((ControlJoystick) control).forgetAutoWalk();
+				}
+			}
+		}
 		if (testing) {
 			// mControlVisible starts false and is only ever turned on by the game, because the
 			// editor never reads it. Applying the visibility rules without setting it first hides
