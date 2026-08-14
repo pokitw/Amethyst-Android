@@ -133,8 +133,20 @@ public class InGUIEventProcessor implements TouchEventProcessor {
         mTouchpad = touchpad;
     }
 
+    /**
+     * Put the cursor where the finger is, held inside the game's window.
+     *
+     * The clamp is for the reach setting: touches arrive from the whole panel so that a drag
+     * anywhere still works, but this path is the one that places the cursor absolutely, and a
+     * finger landing in the surround would otherwise ask for a position the game's window does
+     * not contain. Without an inset the coordinates are already inside it and nothing is clamped.
+     */
     private void sendTouchCoordinates(float x, float y) {
-        CallbackBridge.sendCursorPos( x * LauncherPreferences.PREF_SCALE_FACTOR, y * LauncherPreferences.PREF_SCALE_FACTOR);
+        float gameX = x * LauncherPreferences.PREF_SCALE_FACTOR;
+        float gameY = y * LauncherPreferences.PREF_SCALE_FACTOR;
+        CallbackBridge.sendCursorPos(
+                Math.max(0, Math.min(CallbackBridge.windowWidth, gameX)),
+                Math.max(0, Math.min(CallbackBridge.windowHeight, gameY)));
     }
 
     private void enableMouse() {

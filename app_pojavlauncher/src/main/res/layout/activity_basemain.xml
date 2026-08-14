@@ -10,10 +10,18 @@
 	android:background="@drawable/no_focus_shown"
 	android:keepScreenOn="true">
 
+	<!--
+		Opaque, and that is load bearing rather than cosmetic. With the reach setting on, the game
+		is drawn inside part of this frame and the surround belongs to no view at all; nothing
+		painting it means the compositor leaves whatever was there last, so closing anything drawn
+		over it (the control center, most visibly) smears its own remains across the gap. The
+		SurfaceView punches its own hole through this after it is painted, so the game still shows.
+	-->
 	<FrameLayout
 		android:id="@+id/content_frame"
 		android:layout_width="match_parent"
-		android:layout_height="match_parent">
+		android:layout_height="match_parent"
+		android:background="@android:color/black">
 
 		<net.kdt.pojavlaunch.customcontrols.ControlLayout
 			android:id="@+id/main_control_layout"

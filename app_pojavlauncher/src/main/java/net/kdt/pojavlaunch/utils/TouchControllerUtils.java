@@ -14,7 +14,6 @@ import android.system.Os;
 import android.util.Log;
 import android.util.SparseIntArray;
 import android.view.MotionEvent;
-import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -47,7 +46,13 @@ public class TouchControllerUtils {
     private static final SparseIntArray pointerIdMap = new SparseIntArray();
     private static int nextPointerId = 1;
 
-    public static void processTouchEvent(MotionEvent motionEvent, View view) {
+    /**
+     * @param width  the game's own width, which is not always the view's: the reach setting can
+     *               draw the game inside part of the screen, and these fractions have to be of
+     *               the game the mod is talking about rather than of the panel around it.
+     */
+    public static void processTouchEvent(MotionEvent motionEvent, int width, int height) {
+        if (width <= 0 || height <= 0) return;
         if (proxyClient == null) {
             return;
         }
@@ -56,13 +61,13 @@ public class TouchControllerUtils {
             case MotionEvent.ACTION_DOWN:
                 pointerId = nextPointerId++;
                 pointerIdMap.put(motionEvent.getPointerId(0), pointerId);
-                proxyClient.addPointer(pointerId, motionEvent.getX(0) / view.getWidth(), motionEvent.getY(0) / view.getHeight());
+                proxyClient.addPointer(pointerId, motionEvent.getX(0) / width, motionEvent.getY(0) / height);
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
                 pointerId = nextPointerId++;
                 int actionIndex = motionEvent.getActionIndex();
                 pointerIdMap.put(motionEvent.getPointerId(actionIndex), pointerId);
-                proxyClient.addPointer(pointerId, motionEvent.getX(actionIndex) / view.getWidth(), motionEvent.getY(actionIndex) / view.getHeight());
+                proxyClient.addPointer(pointerId, motionEvent.getX(actionIndex) / width, motionEvent.getY(actionIndex) / height);
                 break;
             case MotionEvent.ACTION_MOVE:
                 for (int i = 0; i < motionEvent.getPointerCount(); i++) {
@@ -71,7 +76,7 @@ public class TouchControllerUtils {
                         Log.d("TouchController", "Move pointerId is 0");
                         continue;
                     }
-                    proxyClient.addPointer(pointerId, motionEvent.getX(i) / view.getWidth(), motionEvent.getY(i) / view.getHeight());
+                    proxyClient.addPointer(pointerId, motionEvent.getX(i) / width, motionEvent.getY(i) / height);
                 }
                 break;
             case MotionEvent.ACTION_UP:

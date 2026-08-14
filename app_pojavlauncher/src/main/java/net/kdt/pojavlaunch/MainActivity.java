@@ -296,7 +296,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                     }
 
                     // At this time, correct size is known
-                    touchControllerInputView.setSize(minecraftGLView.getWidth(), minecraftGLView.getHeight());
+                    touchControllerInputView.setSize(gameViewWidth(), gameViewHeight());
 
                     runCraft(finalVersion, mVersionInfo);
                 }catch (Throwable e){
@@ -341,6 +341,22 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             Tools.getDisplayMetrics(this);
             loadControls();
         });
+    }
+
+    /**
+     * The game's own size, which is the touch view's only while no inset is in force.
+     *
+     * The touch view covers the whole panel so that a drag anywhere still reaches the game; what
+     * the mod integration below wants is the rectangle the game is actually drawn in.
+     */
+    private int gameViewWidth() {
+        return GameViewport.activeWidth() > 0
+                ? GameViewport.activeWidth() : minecraftGLView.getWidth();
+    }
+
+    private int gameViewHeight() {
+        return GameViewport.activeHeight() > 0
+                ? GameViewport.activeHeight() : minecraftGLView.getHeight();
     }
 
     /**
@@ -507,7 +523,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             minecraftGLView.refreshSize();
             Tools.updateWindowSize(this);
             mControlLayout.refreshControlButtonPositions();
-            touchControllerInputView.setSize(minecraftGLView.getWidth(), minecraftGLView.getHeight());
+            touchControllerInputView.setSize(gameViewWidth(), gameViewHeight());
         });
     }
 

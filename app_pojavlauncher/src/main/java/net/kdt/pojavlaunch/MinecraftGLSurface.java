@@ -254,6 +254,23 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
         // Kinda need to send this back to the layout
         if(((ControlLayout)getParent()).getModifiable()) return false;
 
+        // This view covers the panel while the game may be drawn in a smaller box inside it, so
+        // every coordinate below is shifted into the game's own space once, here. Doing it to the
+        // event rather than at each reader is what keeps the two processors, the tap detectors and
+        // the pointer trackers all agreeing about where a finger is. Put back in the finally so
+        // nothing downstream of us ever sees a moved event, whatever this method returns.
+        int offsetX = -mViewportLeft;
+        int offsetY = -mViewportTop;
+        e.offsetLocation(offsetX, offsetY);
+        try {
+            return handleTouchEvent(e);
+        } finally {
+            e.offsetLocation(-offsetX, -offsetY);
+        }
+    }
+
+    private boolean handleTouchEvent(MotionEvent e) {
+
         // Looking for a mouse to handle, won't have an effect if no mouse exists.
         for (int i = 0; i < e.getPointerCount(); i++) {
             int toolType = e.getToolType(i);
@@ -277,7 +294,7 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
             CallbackBridge.sendCursorPos(   e.getX(i) * LauncherPreferences.PREF_SCALE_FACTOR, e.getY(i) * LauncherPreferences.PREF_SCALE_FACTOR);
             return true; //mouse event handled successfully
         }
-        TouchControllerUtils.processTouchEvent(e, this);
+        TouchControllerUtils.processTouchEvent(e, gameWidth(), gameHeight());
         if (mIngameProcessor == null || mInGUIProcessor == null) return true;
         return mCurrentTouchProcessor.processTouchEvent(e);
     }
@@ -464,8 +481,20 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
         mViewportHeight = height;
         mViewportLeft = left;
         mViewportTop = top;
-        applyViewportTo(this);
+        // Only the rendering surface is moved. This view keeps the whole panel so that a drag
+        // anywhere on the screen still turns the camera or the cursor, which is the difference
+        // between an inset that helps somebody reach the game and one that shrinks what they can
+        // reach with. Touches are translated into the game's box in onTouchEvent instead.
         applyViewportTo(mSurface);
+    }
+
+    /** How wide the game actually is, which is the box when one was asked for. */
+    private int gameWidth() {
+        return mViewportWidth > 0 ? mViewportWidth : getWidth();
+    }
+
+    private int gameHeight() {
+        return mViewportHeight > 0 ? mViewportHeight : getHeight();
     }
 
     private void applyViewportTo(View view) {
@@ -493,8 +522,8 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
         // Use the width and height of the View instead of display dimensions to avoid
         // getting squiched/stretched due to inconsistencies between the layout and
         // screen dimensions.
-        newWidth = Tools.getDisplayFriendlyRes(getWidth(), LauncherPreferences.PREF_SCALE_FACTOR);
-        newHeight = Tools.getDisplayFriendlyRes(getHeight(), LauncherPreferences.PREF_SCALE_FACTOR);
+        newWidth = Tools.getDisplayFriendlyRes(gameWidth(), LauncherPreferences.PREF_SCALE_FACTOR);
+        newHeight = Tools.getDisplayFriendlyRes(gameHeight(), LauncherPreferences.PREF_SCALE_FACTOR);
         if (newHeight < 1 || newWidth < 1) {
             Log.e("MGLSurface", String.format("Impossible resolution : %dx%d", newWidth, newHeight));
             return;
