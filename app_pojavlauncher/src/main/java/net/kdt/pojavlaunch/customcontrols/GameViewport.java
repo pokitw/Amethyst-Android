@@ -11,14 +11,21 @@ package net.kdt.pojavlaunch.customcontrols;
  * draws into, and shrinking that brings the HUD in with it, because the HUD is part of the
  * picture rather than something drawn over it.
  *
- * <p>The inset is applied to {@link ControlLayout}, not to the surface alone, and that is the
- * decision the whole feature rests on. The layout holds a {@code dimension_tracker} child that
- * {@code Tools.updateWindowSize} reads to set {@code CallbackBridge.physicalWidth/Height}, which
- * is in turn what control positions, the hotbar-tap strip and the virtual cursor are all measured
- * against. So shrinking the layout moves every one of those in step, for free, and the coordinate
- * space stays internally consistent rather than needing each consumer taught about an offset.
- * {@code MinecraftGLSurface} sizes its framebuffer from its own view bounds for the same reason,
- * so the game renders at the box's aspect ratio rather than being letterboxed or stretched.
+ * <p><b>The inset moves the game and nothing else.</b> The first version of this moved the whole
+ * {@link ControlLayout}, which took the on-screen controls with it, and that was wrong for a
+ * reason worth writing down: <b>the point of insetting is to move what the player cannot move
+ * themselves.</b> Minecraft's HUD is exactly that, since it belongs to the game. The control
+ * buttons are the opposite — every one of them can already be dragged anywhere and resized in the
+ * editor — so shrinking them solves nothing and silently rearranges a layout somebody built,
+ * crowding buttons together because their positions are fractions while their sizes are in dp.
+ *
+ * <p>What moves is therefore the three views that make up the game itself: the touch view, the
+ * rendering surface beside it, and the virtual cursor drawn over them. {@code MinecraftGLSurface}
+ * sizes its framebuffer from its own view bounds and reads touches in its own coordinates, so
+ * insetting it keeps the picture, the aspect ratio and the touch mapping in step with no offset
+ * arithmetic anywhere. {@link ControlLayout} keeps the whole screen, so
+ * {@code CallbackBridge.physicalWidth/Height} keep meaning the panel and every control stays
+ * exactly where its author put it.
  *
  * <p>Uniform on both axes on purpose. The game adapts to any aspect ratio it is given, so an
  * uneven inset would not distort anything, but it would change the field of view as a side effect
@@ -87,6 +94,32 @@ public final class GameViewport {
     public static boolean isFullScreen(int percent, int position) {
         return clamp(percent, MIN_PERCENT, MAX_PERCENT) >= MAX_PERCENT;
     }
+
+    /**
+     * Where the game ended up, in the control layout's own pixels.
+     *
+     * A static because the two views that have to follow the game are not the game: the hotbar-tap
+     * strip sits at the bottom of the picture and the gamepad pointer at the middle of it, and
+     * both are laid out in the full-screen layout that no longer matches. Everything else derives
+     * what it needs from its own bounds and never asks.
+     *
+     * Defaults to a zero box, which every reader treats as "not inset yet" and falls back to the
+     * panel for, so nothing depends on the order this is set in.
+     */
+    private static int sLeft, sTop, sWidth, sHeight;
+
+    public static void setActiveBounds(int left, int top, int width, int height) {
+        sLeft = left;
+        sTop = top;
+        sWidth = width;
+        sHeight = height;
+    }
+
+    public static int activeLeft() { return sLeft; }
+    public static int activeTop() { return sTop; }
+    /** Zero until the game has been laid out, so callers must fall back to the panel. */
+    public static int activeWidth() { return sWidth; }
+    public static int activeHeight() { return sHeight; }
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));

@@ -1029,7 +1029,7 @@
 
     <!-- Fitting the game to what a player can see and reach on a large phone. -->
     <string name="preference_game_view_title">Fit the game to a smaller area</string>
-    <string name="preference_game_view_description">Draws the whole game, hotbar and health bars included, inside part of the screen instead of all of it. For when the edges of a large phone are hard to see or reach. It also renders fewer pixels, so the game runs faster.</string>
+    <string name="preference_game_view_description">Draws the game, hotbar and health bars included, inside part of the screen instead of all of it, for when the edges of a large phone are hard to see. Your control buttons stay where you put them. It also renders fewer pixels, so the game runs faster.</string>
     <string name="preference_game_view_position_title">Where the game sits</string>
     <string name="preference_game_view_position_description">Which part of the screen the game is pulled towards.</string>
     <string name="preference_game_view_top_left">Top left</string>

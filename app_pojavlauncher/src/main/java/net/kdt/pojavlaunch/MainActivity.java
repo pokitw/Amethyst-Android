@@ -346,12 +346,16 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     /**
      * Put the game where the player can actually see and reach it.
      *
-     * The inset goes on the control layout rather than on the surface, because the layout is what
-     * every in-game coordinate is measured against: its {@code dimension_tracker} child is what
-     * {@link Tools#updateWindowSize} reads for {@code physicalWidth/Height}, which places the
-     * controls, the hotbar strip and the virtual cursor, and the surface sizes its framebuffer
-     * from its own bounds inside it. Move the layout and all of them move together, in step, with
-     * nothing needing to know an offset exists.
+     * <b>The game moves; the controls do not.</b> Minecraft's hotbar and health bars are drawn
+     * inside the game's own picture and cannot be repositioned by anything here, which is exactly
+     * why the picture is what gets moved. Every on-screen control is the opposite case: it can
+     * already be dragged anywhere and resized in the editor, so moving those as well would solve
+     * nothing and quietly rearrange a layout somebody built (see {@link GameViewport}).
+     *
+     * <p>So the control layout keeps the whole panel, and the inset lands on the three views that
+     * are the game: its touch view, the rendering surface beside it, and the virtual cursor drawn
+     * over them. The cursor moves with it because it is the game's pointer, and a pointer that
+     * could leave the picture would be pointing at nothing.
      *
      * <p>Wrapped and silent on failure. This runs on the path that starts the game, and a game
      * that will not start is a far worse outcome than one drawn at the size it always was
@@ -359,24 +363,30 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
      */
     private void applyGameViewport() {
         try {
-            if (mControlLayout == null) return;
-            ViewGroup.LayoutParams current = mControlLayout.getLayoutParams();
-            if (!(current instanceof FrameLayout.LayoutParams)) return;
+            if (minecraftGLView == null) return;
             int[] box = GameViewport.bounds(
                     Tools.currentDisplayMetrics.widthPixels,
                     Tools.currentDisplayMetrics.heightPixels,
                     LauncherPreferences.PREF_GAME_VIEW_PERCENT,
                     LauncherPreferences.PREF_GAME_VIEW_POSITION);
             if (box[0] <= 0 || box[1] <= 0) return;
-            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) current;
-            params.width = box[0];
-            params.height = box[1];
-            // LEFT rather than START: the offsets below are already absolute, and a gravity that
-            // flips under a right-to-left locale would apply them twice over.
-            params.gravity = Gravity.TOP | Gravity.LEFT;
-            params.leftMargin = box[2];
-            params.topMargin = box[3];
-            mControlLayout.setLayoutParams(params);
+            GameViewport.setActiveBounds(box[2], box[3], box[0], box[1]);
+            minecraftGLView.applyViewport(box[0], box[1], box[2], box[3]);
+
+            // The cursor is drawn over the picture rather than over the panel, so it takes the
+            // same bounds and then measures itself against them.
+            if (touchpad != null) {
+                ViewGroup.LayoutParams current = touchpad.getLayoutParams();
+                if (current instanceof FrameLayout.LayoutParams) {
+                    FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) current;
+                    params.width = box[0];
+                    params.height = box[1];
+                    params.gravity = Gravity.TOP | Gravity.LEFT;
+                    params.leftMargin = box[2];
+                    params.topMargin = box[3];
+                    touchpad.setLayoutParams(params);
+                }
+            }
         } catch (Throwable t) {
             Log.w("MainActivity", "Could not apply the game viewport", t);
         }

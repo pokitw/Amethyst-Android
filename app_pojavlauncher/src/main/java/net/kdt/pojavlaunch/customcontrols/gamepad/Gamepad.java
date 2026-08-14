@@ -26,6 +26,7 @@ import androidx.core.math.MathUtils;
 import net.kdt.pojavlaunch.GrabListener;
 import net.kdt.pojavlaunch.LwjglGlfwKeycode;
 import net.kdt.pojavlaunch.R;
+import net.kdt.pojavlaunch.customcontrols.GameViewport;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -128,7 +129,7 @@ public class Gamepad implements GrabListener, GamepadHandler {
         }
 
 
-        placePointerView(CallbackBridge.physicalWidth/2, CallbackBridge.physicalHeight/2);
+        placePointerView(gameWidth()/2, gameHeight()/2);
 
         reloadGamepadMaps();
         mMapProvider.attachGrabListener(this);
@@ -311,10 +312,27 @@ public class Gamepad implements GrabListener, GamepadHandler {
         }
     }
 
-    /** Place the pointer on the screen, offsetting the image size */
+    /** The game's picture, which the reach setting can make smaller than the panel. */
+    private static int gameWidth() {
+        return GameViewport.activeWidth() > 0
+                ? GameViewport.activeWidth() : CallbackBridge.physicalWidth;
+    }
+
+    private static int gameHeight() {
+        return GameViewport.activeHeight() > 0
+                ? GameViewport.activeHeight() : CallbackBridge.physicalHeight;
+    }
+
+    /**
+     * Place the pointer on the screen, offsetting the image size.
+     *
+     * The coordinates arrive in the game's own space while this view is laid out over the whole
+     * panel, so the game's box is added back on: with the reach setting on the two are different
+     * rectangles, and without this the pointer would sit where the game is not.
+     */
     private void placePointerView(int x, int y){
-        mPointerImageView.setX(x - mPointerImageView.getWidth()/2f);
-        mPointerImageView.setY(y - mPointerImageView.getHeight()/2f);
+        mPointerImageView.setX(GameViewport.activeLeft() + x - mPointerImageView.getWidth()/2f);
+        mPointerImageView.setY(GameViewport.activeTop() + y - mPointerImageView.getHeight()/2f);
     }
 
     /** Update the grabbing state, and change the currentMap, mouse position and sensibility */
@@ -337,7 +355,7 @@ public class Gamepad implements GrabListener, GamepadHandler {
         sendDirectionalKeycode(mCurrentJoystickDirection, false, mGameMap); // removing what we were doing
 
         CallbackBridge.sendCursorPos(CallbackBridge.windowWidth/2f, CallbackBridge.windowHeight/2f);
-        placePointerView(CallbackBridge.physicalWidth/2, CallbackBridge.physicalHeight/2);
+        placePointerView(gameWidth()/2, gameHeight()/2);
         mPointerImageView.setVisibility(View.VISIBLE);
         // Sensitivity in menu is MC and HARDWARE resolution dependent
         mMouseSensitivity = 19 * PREF_SCALE_FACTOR / mSensitivityFactor;

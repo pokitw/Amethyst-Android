@@ -23,7 +23,9 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
+import android.view.Gravity;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -58,6 +60,9 @@ import fr.spse.gamepad_remapper.RemapperView;
  * Class dealing with showing minecraft surface and taking inputs to dispatch them to minecraft
  */
 public class MinecraftGLSurface extends View implements GrabListener, DirectGamepadEnableHandler {
+    /** The box the game is drawn in, in the parent's pixels. Zero until one has been asked for. */
+    private int mViewportWidth, mViewportHeight, mViewportLeft, mViewportTop;
+
     /* Gamepad object for gamepad inputs, instantiated on need */
     private GamepadHandler mGamepadHandler;
     /* The RemapperView.Builder object allows you to set which buttons to remap */
@@ -182,6 +187,9 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
             });
 
             ((ViewGroup)getParent()).addView(surfaceView);
+            // The surface is born full-screen; if an inset was asked for before the game started,
+            // this is the first moment it can be given one.
+            applyViewportTo(surfaceView);
         }else{
             TextureView textureView = new TextureView(getContext());
             textureView.setOpaque(true);
@@ -230,6 +238,7 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
             });
 
             ((ViewGroup)getParent()).addView(textureView);
+            applyViewportTo(textureView);
         }
 
 
@@ -437,6 +446,43 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
     }
 
     /** Same as refreshSize, but allows you to force an immediate size update **/
+    /**
+     * Put the game's picture and its touch area inside the given box.
+     *
+     * Both, because they are two views: this one only reads touches, and the surface that renders
+     * is a sibling added to the parent at start-up. They have to carry the same bounds or a tap
+     * would land somewhere other than where it looked.
+     *
+     * <p>Nothing else moves. The control layout around them keeps the whole panel, so the buttons
+     * a player arranged stay where they were arranged (see {@link GameViewport}).
+     *
+     * <p>Stored as well as applied, because the rendering surface does not exist until the game
+     * starts and has to be caught up when it does.
+     */
+    public void applyViewport(int width, int height, int left, int top) {
+        mViewportWidth = width;
+        mViewportHeight = height;
+        mViewportLeft = left;
+        mViewportTop = top;
+        applyViewportTo(this);
+        applyViewportTo(mSurface);
+    }
+
+    private void applyViewportTo(View view) {
+        if (view == null || mViewportWidth <= 0 || mViewportHeight <= 0) return;
+        ViewGroup.LayoutParams current = view.getLayoutParams();
+        if (!(current instanceof FrameLayout.LayoutParams)) return;
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) current;
+        params.width = mViewportWidth;
+        params.height = mViewportHeight;
+        // LEFT rather than START: the offsets are absolute already, and a gravity that flipped
+        // under a right-to-left locale would apply them a second time.
+        params.gravity = Gravity.TOP | Gravity.LEFT;
+        params.leftMargin = mViewportLeft;
+        params.topMargin = mViewportTop;
+        view.setLayoutParams(params);
+    }
+
     public void refreshSize(boolean immediate) {
         if(isInLayout() && !immediate) {
             post(this::refreshSize);

@@ -11,6 +11,7 @@ import android.view.ViewParent;
 
 import androidx.annotation.Nullable;
 
+import net.kdt.pojavlaunch.customcontrols.GameViewport;
 import net.kdt.pojavlaunch.GrabListener;
 import net.kdt.pojavlaunch.LwjglGlfwKeycode;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
@@ -92,8 +93,16 @@ public class HotbarView extends View implements MCOptionUtils.MCOptionListener, 
         int height;
         marginLayoutParams.width = mWidth = mcScale(180);
         marginLayoutParams.height = height = mcScale(20);
-        marginLayoutParams.leftMargin = (CallbackBridge.physicalWidth / 2) - (mWidth / 2);
-        marginLayoutParams.topMargin = CallbackBridge.physicalHeight - height;
+        // The strip belongs to the bottom of the game's picture, not the bottom of the panel, and
+        // with the game inset for reach the two are different rectangles. A zero box means no
+        // inset has been applied, so the panel is the answer.
+        int gameWidth = GameViewport.activeWidth() > 0
+                ? GameViewport.activeWidth() : CallbackBridge.physicalWidth;
+        int gameHeight = GameViewport.activeHeight() > 0
+                ? GameViewport.activeHeight() : CallbackBridge.physicalHeight;
+        marginLayoutParams.leftMargin =
+                GameViewport.activeLeft() + (gameWidth / 2) - (mWidth / 2);
+        marginLayoutParams.topMargin = GameViewport.activeTop() + gameHeight - height;
         setLayoutParams(marginLayoutParams);
     }
 

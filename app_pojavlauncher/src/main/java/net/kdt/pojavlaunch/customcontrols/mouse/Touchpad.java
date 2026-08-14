@@ -40,10 +40,10 @@ public class Touchpad extends View implements GrabListener, AbstractTouchpad {
     /** Enable the touchpad */
     private void _enable(){
         setVisibility(VISIBLE);
-        // The play area rather than the panel: with the game inset for reach, the two are
-        // different rectangles, and the cursor's space has to be the one the game is
-        // actually drawn in or it starts in the wrong place and stops short of one edge.
-        placeMouseAt(CallbackBridge.physicalWidth / 2f, CallbackBridge.physicalHeight / 2f);
+        // Its own bounds rather than the panel's: this view is laid out over the game's picture,
+        // which with the reach setting on is a smaller rectangle than the screen. Before the
+        // first layout pass there is nothing to measure, so the panel stands in.
+        placeMouseAt(cursorWidth() / 2f, cursorHeight() / 2f);
         publishPointerState(true);
     }
 
@@ -74,6 +74,21 @@ public class Touchpad extends View implements GrabListener, AbstractTouchpad {
             else _disable();
         }
         return mDisplayState;
+    }
+
+    /**
+     * How far the pointer may travel, which is the game's picture and not the panel.
+     *
+     * The game is what the cursor points at, so a cursor that could leave the picture would be
+     * pointing at nothing: its coordinates are sent onward as game window coordinates, and there
+     * is no game outside the window. Falls back to the panel until this view has been measured.
+     */
+    private int cursorWidth() {
+        return getWidth() > 0 ? getWidth() : CallbackBridge.physicalWidth;
+    }
+
+    private int cursorHeight() {
+        return getHeight() > 0 ? getHeight() : CallbackBridge.physicalHeight;
     }
 
     public void placeMouseAt(float x, float y) {
@@ -142,8 +157,8 @@ public class Touchpad extends View implements GrabListener, AbstractTouchpad {
     @Override
     public void applyMotionVector(float x, float y) {
         if (mDisplayState) { // Make sure no motion leaks through when disabling a moving cursor
-            mMouseX = Math.max(0, Math.min(CallbackBridge.physicalWidth, mMouseX + x * LauncherPreferences.PREF_MOUSESPEED));
-            mMouseY = Math.max(0, Math.min(CallbackBridge.physicalHeight, mMouseY + y * LauncherPreferences.PREF_MOUSESPEED));
+            mMouseX = Math.max(0, Math.min(cursorWidth(), mMouseX + x * LauncherPreferences.PREF_MOUSESPEED));
+            mMouseY = Math.max(0, Math.min(cursorHeight(), mMouseY + y * LauncherPreferences.PREF_MOUSESPEED));
             updateMousePosition();
         }
     }

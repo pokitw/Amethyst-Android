@@ -796,15 +796,27 @@ re-litigated. The reasoning lives in the commit that made the change.
   **The HUD cannot be moved, so the frame it is drawn in is moved instead.** That HUD belongs to
   the game, not the launcher, and nothing here can reposition it; but it is part of the picture
   rather than something drawn over it, so shrinking the picture brings it in.
-  **The inset goes on `ControlLayout`, not on the surface**, and that is the whole reason this is
-  a small change rather than a rewrite. The layout holds the `dimension_tracker` child that
-  `Tools.updateWindowSize` reads for `CallbackBridge.physicalWidth/Height`, which is what control
-  positions, the hotbar-tap strip and the virtual cursor are all measured against; and
-  `MinecraftGLSurface` sizes its framebuffer from its own view bounds. So one layout parameter
-  moves the picture, the HUD, every button and the touch mapping together, in step, with nothing
-  needing to be taught that an offset exists. **The launcher was already written to derive
-  everything from the view rather than the display**, and this feature is mostly the discovery
-  that it was.
+  **The game moves and the controls do not**, which is the correction that matters most here.
+  The first version inset `ControlLayout`, which was elegant (its `dimension_tracker` child is
+  what `Tools.updateWindowSize` reads for `physicalWidth/Height`, so every coordinate followed for
+  free) and wrong, as the owner reported within a day: it took the buttons with it. **The rule the
+  first version missed is that insetting exists to move what the player cannot move themselves.**
+  Minecraft's HUD is exactly that. Every control button is the opposite: draggable and resizable
+  in the editor already, so moving them solves nothing and silently rearranges somebody's layout,
+  crowding buttons because their positions are fractions of the box while their sizes are in dp.
+  So the inset lands on the three views that *are* the game: `MinecraftGLSurface` (which is only
+  a touch view), the rendering surface it adds beside itself in the parent, and the `Touchpad`
+  that draws the cursor over them. `MinecraftGLSurface` sizes its framebuffer from its own bounds
+  and reads touches in its own coordinates, so picture, aspect ratio and touch mapping stay in
+  step with no offset arithmetic. `ControlLayout` keeps the whole panel, so `physicalWidth/Height`
+  keep meaning the panel and every control stays where its author put it.
+  **Two views are laid out in the panel but belong to the picture**, and only those two need
+  telling: the hotbar-tap strip sits at the bottom of the game, and the gamepad pointer at the
+  middle of it. `GameViewport` holds the live box for them, defaulting to zero so a reader that
+  has not been told falls back to the panel.
+  **The cursor is bounded by the picture, not the panel**, and that is not a restriction to fix:
+  its coordinates are sent onward as game window coordinates, so a pointer outside the window
+  would be pointing at nothing.
   It reuses the resize path rotation already exercises (`requestLayout`, then re-derive window
   size, control positions and the controller input area in the post), so the risky part is a path
   the app runs every time the phone turns.
@@ -1682,13 +1694,15 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   the tap detector's window and moves less than the still threshold is, by every measure
   available at the time, a tap. The threshold makes it unlikely rather than impossible, which is
   why the whole thing is a switch.
-- The reachable game area **does not shrink the buttons with it**. Their positions are stored as
-  fractions and compress correctly, but their sizes are in dp, so a strong inset crowds them. The
-  button-size slider is the companion control, and 50% is the floor because past it the layout
-  wants rebuilding rather than resizing.
-- It applies **in game only**. The editor reached from Settings has no dimension tracker, so it
-  arranges at full screen; the arrangement is proportionally the same in the smaller box, but how
-  close the buttons look to each other there is not what you will get.
+- The reachable game area **moves the game and nothing else**. The control buttons keep the whole
+  panel, which is deliberate: they are already placeable anywhere in the editor, so anyone who
+  wants them nearer their thumbs moves them there rather than having it done to them. It does mean
+  a strong inset leaves buttons sitting over the black surround, which is inert.
+- **Looking around and moving the virtual cursor both happen inside the picture**, because that is
+  the only part of the screen the game receives touches from. With a strong inset the area to drag
+  in is correspondingly smaller.
+- The cursor **cannot leave the picture**, and that is correct rather than a limit: its position is
+  sent onward as a game window coordinate, and outside the window there is nothing to point at.
 - The area outside the game is **black and inert**. Nothing is drawn there and touches in it reach
   nothing, which is deliberate: it is not screen the game can use, so it must not be screen that
   half-works.
