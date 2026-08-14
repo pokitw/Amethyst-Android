@@ -47,7 +47,6 @@
     <string name="mcl_options">Options</string>
     <string name="mcl_option_customcontrol">Custom controls</string>
 
-
     <string name="mcl_setting_title_use_surface_view">Use alternate surface rendering</string>
     <string name="mcl_setting_subtitle_use_surface_view">May help performance in GPU bound scenarios.</string>
     <string name="mcl_setting_title_ignore_notch">Ignore notch</string>
@@ -365,7 +364,6 @@
     <string name="preference_deadzone_scale_title">Joystick deadzone scale</string>
     <string name="preference_deadzone_scale_description">Increase it if the joystick drifts.</string>
 
-
     <string name="preference_force_big_core_title">Force the renderer to run on the big core</string>
     <string name="preference_force_big_core_desc">Forces the Minecraft render thread to run on the core with the highest maximum frequency.</string>
     <string name="version_select_hint">Select a version</string>
@@ -391,7 +389,6 @@
     <string name="of_dl_failed_to_scrape">Failed to collect data for OptiFine installation</string>
     <string name="of_dl_progress">Downloading %s</string>
     <string name="create_profile_optifine">Create OptiFine profile</string>
-
 
     <string name="hint_search_modpack">Search for modpacks</string>
 
@@ -680,9 +677,6 @@
     <string name="onboarding_chat_body">Hold the chat button and talk. The words appear as you speak, and letting go sends them. Or use a real on-screen keyboard rather than a list of keycodes, where holding a key keeps it down, so F3 + G finally works.</string>
     <string name="onboarding_chat_note">Keyboard is US layout, landscape only. Dictation is your device\'s own speech recogniser, and it cannot open chat for you.</string>
 
-    <string name="onboarding_performance_title">One switch, set up for your phone</string>
-    <string name="onboarding_performance_body">Performance mode reads what your device actually is, then sets the renderer, the resolution, the memory and Minecraft\'s own graphics settings to match, and offers to install the mods that do the rest. It shows you every change before it makes one.</string>
-    <string name="onboarding_performance_note">It never turns a setting back up that you had turned down, and switching it off puts everything back.</string>
     <string name="onboarding_files_title">Everything the game has, in one place</string>
     <string name="onboarding_files_body">Worlds, mods, resource packs, shaders and screenshots on one screen. One button takes any file and works out for itself where it belongs, and a mod can be switched off without deleting it.</string>
     <string name="onboarding_files_note">This is your game folder, not a store. Nothing on this screen downloads anything.</string>
@@ -714,9 +708,7 @@
     <string name="onboarding_row_skin">Skin editor</string>
     <string name="onboarding_row_skinfind">Look up any player\'s skin</string>
     <string name="onboarding_row_loaders">Install any loader from one screen</string>
-    <string name="onboarding_row_performance">One switch for frame rate</string>
     <string name="onboarding_row_size">Smaller download</string>
-
 
     <!-- Skins -->
     <string name="skin_title">Skins</string>
@@ -1228,78 +1220,6 @@
         <item quantity="one">Installed, but 1 mod it needs could not be fetched</item>
         <item quantity="other">Installed, but %1$d mods it needs could not be fetched</item>
     </plurals>
-
-    <!-- Performance mode: one switch that sets the whole device up for frame rate. -->
-    <string name="performance_title">Performance mode</string>
-    <string name="performance_description">Sets this device up for frame rate: renderer, resolution, memory and Minecraft\'s own graphics settings.</string>
-    <string name="performance_summary_on">On. %1$s%% resolution, %2$s MB, %3$s chunks.</string>
-    <string name="performance_sheet_hint">Everything here goes back exactly as it was when you turn the switch off.</string>
-    <string name="performance_section_device">Worked out from your device</string>
-    <string name="performance_section_launcher">Launcher</string>
-    <string name="performance_section_game">Minecraft</string>
-    <string name="performance_section_mods">Mods it will install</string>
-    <string name="performance_apply">Turn it on</string>
-    <string name="performance_cancel">Not now</string>
-    <string name="performance_turn_off">Turn it off</string>
-    <string name="performance_working">Setting things up</string>
-    <string name="performance_installing">Installing %1$s, %2$d of %3$d</string>
-    <string name="performance_renderer">Renderer</string>
-    <string name="performance_renderer_unchanged">Already the best one for this version</string>
-    <string name="performance_device_summary">%1$s, %2$s panel at %3$d Hz</string>
-    <string name="performance_tier_low">Modest</string>
-    <string name="performance_tier_mid">Capable</string>
-    <string name="performance_tier_high">Fast</string>
-    <string name="performance_tier_flagship">Flagship</string>
-    <string name="performance_tier_line">%1$s hardware</string>
-    <string name="performance_profile_line">Applies to %1$s</string>
-
-    <string name="performance_note_mods_stay">Turning it off puts every setting back. The mods stay, because they are files in your mods folder: remove them from Game files if you want them gone.</string>
-    <string name="performance_note_next_launch">The changes take effect the next time you play, not while a game is running.</string>
-    <string name="performance_note_no_loader">This profile has no mod loader, so Sodium and the rest cannot be installed. Everything else still applies. Put Fabric or Forge on a profile and turn this on again for the other half.</string>
-    <string name="performance_note_no_version">The Minecraft version of this profile could not be worked out, so its own settings and the mods are left alone. The launcher settings still apply.</string>
-    <string name="performance_note_no_folder">This profile has no mods folder yet, so nothing can be installed into it.</string>
-
-    <string name="performance_done">Performance mode is on.</string>
-    <string name="performance_done_off">Performance mode is off. Your settings are back as they were.</string>
-    <string name="performance_done_mods">%1$d mods installed.</string>
-    <string name="performance_done_missing">No build for this version: %1$s</string>
-    <string name="performance_done_options_absent">Minecraft\'s own settings were written, and will be picked up the first time this profile starts.</string>
-    <string name="performance_done_options_failed">Minecraft\'s own settings could not be written, so only the launcher settings changed.</string>
-    <string name="performance_failed">Nothing could be changed. Check that there is a profile selected.</string>
-
-    <string name="performance_value_percent">%1$s%%</string>
-    <string name="performance_value_megabytes">%1$s MB</string>
-    <string name="performance_value_chunks">%1$s chunks</string>
-    <string name="performance_value_fps">%1$s fps</string>
-    <string name="performance_value_on">On</string>
-    <string name="performance_value_off">Off</string>
-    <string name="performance_value_fast">Fast</string>
-    <string name="performance_value_fancy">Fancy</string>
-    <string name="performance_value_decreased">Decreased</string>
-    <string name="performance_value_minimal">Minimal</string>
-    <string name="performance_value_threaded">Threaded</string>
-    <string name="performance_value_plain">%1$s</string>
-
-    <string name="performance_option_render_distance">Render distance</string>
-    <string name="performance_option_simulation_distance">Simulation distance</string>
-    <string name="performance_option_max_fps">Frame rate limit</string>
-    <string name="performance_option_graphics">Graphics</string>
-    <string name="performance_option_particles">Particles</string>
-    <string name="performance_option_entity_shadows">Entity shadows</string>
-    <string name="performance_option_clouds">Clouds</string>
-    <string name="performance_option_ao">Smooth lighting</string>
-    <string name="performance_option_biome_blend">Biome blend</string>
-    <string name="performance_option_entity_distance">Entity distance</string>
-    <string name="performance_option_chunk_updates">Chunk builder</string>
-
-    <string name="performance_mod_sodium">Rewrites how chunks are drawn. The largest single gain.</string>
-    <string name="performance_mod_lithium">Speeds up the game\'s own logic without changing what it does.</string>
-    <string name="performance_mod_ferritecore">Cuts memory use, which counts for most on a phone.</string>
-    <string name="performance_mod_immediatelyfast">Batches up the drawing the game does one piece at a time.</string>
-    <string name="performance_mod_entityculling">Stops drawing mobs and chests that are out of sight.</string>
-    <string name="performance_mod_modernfix">Faster loading and a shorter wait at the world screen.</string>
-    <string name="performance_mod_embeddium">Rewrites how chunks are drawn. Sodium, for Forge.</string>
-    <string name="performance_mod_canary">Speeds up the game\'s own logic. Lithium, for Forge.</string>
 
     <!-- Finding skins: any player, the account, and the launcher's own record. -->
     <string name="skin_browse_title">Find skins</string>

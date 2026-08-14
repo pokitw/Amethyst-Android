@@ -43,12 +43,6 @@ import net.kdt.pojavlaunch.ui.home.currentGameDirectory
 import net.kdt.pojavlaunch.ui.home.currentProfileLabel
 import net.kdt.pojavlaunch.ui.content.ContentKind
 import net.kdt.pojavlaunch.ui.content.contentFolder
-import net.kdt.pojavlaunch.optimiser.DeviceProfile
-import net.kdt.pojavlaunch.optimiser.PerformanceMode
-import net.kdt.pojavlaunch.optimiser.PerformancePlan
-import net.kdt.pojavlaunch.ui.mods.ModTarget
-import net.kdt.pojavlaunch.ui.mods.currentModTarget
-import net.kdt.pojavlaunch.ui.settings.PerformanceHost
 import net.kdt.pojavlaunch.ui.settings.SettingsActions
 import net.kdt.pojavlaunch.ui.settings.SettingsEnvironment
 import net.kdt.pojavlaunch.ui.settings.TurnipDriverOption
@@ -75,15 +69,6 @@ class SettingsFragment : Fragment(), ChromeOwner {
 
     private var route by mutableStateOf(SettingsRoute.HOME)
     private var runtimeDialog: MultiRTConfigDialog? = null
-
-    /**
-     * Performance mode's sheet, and the work behind it.
-     *
-     * Owned by the fragment rather than remembered in the composition, because applying the plan
-     * downloads six mods and a `rememberCoroutineScope` dies the moment somebody leaves the
-     * screen. Half an install is the one outcome worse than none.
-     */
-    private val performance = PerformanceHost()
 
     /**
      * Read on resume rather than during composition: it stats the filesystem and asks the package
@@ -143,8 +128,7 @@ class SettingsFragment : Fragment(), ChromeOwner {
                         },
                         store = rememberSettingsStore(),
                         environment = environment,
-                        actions = actions,
-                        performance = performance
+                        actions = actions
                     )
                 }
             }
@@ -240,9 +224,7 @@ class SettingsFragment : Fragment(), ChromeOwner {
             profileTitle = profile?.first,
             profileDetail = profile?.second?.let { " · $it" }.orEmpty(),
             adreno = adreno,
-            turnipDrivers = drivers,
-            performanceEnabled = PerformanceMode.isEnabled(),
-            performanceSummary = performanceSummary()
+            turnipDrivers = drivers
         )
     }
 
@@ -300,8 +282,7 @@ class SettingsFragment : Fragment(), ChromeOwner {
                 runCatching { turnipDriverLauncher.launch(arrayOf("*/*")) }
                     .onFailure { toast(getString(R.string.settings_turnip_import_failed)) }
             },
-            onDeleteTurnipDriver = ::deleteTurnipDriver,
-            onPerformanceMode = ::openPerformanceMode
+            onDeleteTurnipDriver = ::deleteTurnipDriver
         )
     }
 
@@ -357,197 +338,6 @@ class SettingsFragment : Fragment(), ChromeOwner {
             if (!isAdded) return@launch
             environment = readEnvironment()
             toast(getString(R.string.settings_turnip_deleted))
-        }
-    }
-
-    // ---------------------------------------------------------------- performance mode
-
-    /**
-     * One line saying what performance mode currently amounts to, or null when it is off.
-     *
-     * Two of the three numbers are preferences and are read live, so a slider moved afterwards is
-     * reflected honestly rather than the row claiming a value the mode set an hour ago. The third
-     * lives in Minecraft's own file and is the one thing kept as bookkeeping, because parsing
-     * options.txt on every resume would be a file read on the thread drawing the screen.
-     */
-    private fun performanceSummary(): String? {
-        if (!PerformanceMode.isEnabled()) return null
-        val preferences = net.kdt.pojavlaunch.prefs.LauncherPreferences.DEFAULT_PREF ?: return null
-        return getString(
-            R.string.performance_summary_on,
-            preferences.getInt("resolutionRatio", 100).toString(),
-            preferences.getInt("allocation", 0).toString(),
-            preferences.getInt(PerformanceMode.PREF_CHUNKS, 0).toString()
-        )
-    }
-
-    /**
-     * Open the sheet, having worked out what the plan would be.
-     *
-     * Everything read here is read on the main thread on purpose: `LauncherProfiles` is
-     * unsynchronised state shared with the launch path (handbook 12.7), and the device profile
-     * queries GL info and the display. Both are cheap and neither is snapshot state, which is
-     * exactly why they are read once here rather than from inside the composition.
-     */
-    private fun openPerformanceMode() {
-        val context = requireContext()
-        val target = runCatching { currentModTarget() }.getOrNull()
-        val device = runCatching { DeviceProfile.detect(requireActivity()) }.getOrNull()
-        val deviceLine = device?.let {
-            // The GPU is what the plan actually reasons about, so it leads; the phone's own name
-            // is the fallback for a device that would not report a renderer string at all.
-            val chip = if (it.gpuName.isNullOrEmpty()) it.deviceName else it.gpuName
-            getString(
-                R.string.performance_device_summary,
-                chip,
-                "${it.screenWidth} x ${it.screenHeight}",
-                it.refreshRate.toInt()
-            )
-        }.orEmpty()
-        val profileLine = target?.let {
-            val what = it.filterLabel.ifEmpty { it.name }
-            if (what.isEmpty()) "" else getString(R.string.performance_profile_line, what)
-        }.orEmpty()
-
-        if (PerformanceMode.isEnabled()) {
-            performance.onApply = ::turnOffPerformanceMode
-            performance.showActive(
-                listOf(
-                    getString(R.string.performance_done),
-                    getString(R.string.performance_note_next_launch),
-                    getString(R.string.performance_note_mods_stay)
-                ),
-                deviceLine, profileLine
-            )
-            return
-        }
-        if (device == null || target == null) {
-            performance.onApply = { performance.close() }
-            performance.showResult(listOf(getString(R.string.performance_failed)))
-            return
-        }
-
-        val renderers = runCatching {
-            Tools.getCompatibleRenderers(context).rendererIds.toList()
-        }.getOrDefault(emptyList())
-        val plan = PerformancePlan.build(
-            PerformancePlan.Inputs(
-                device.tier, device.gpu, device.pixels(), device.refreshRate,
-                environment.deviceMemoryMb, environment.maxMemoryMb, device.cpuCores,
-                target.mcVersion, target.loaderId, target.modsFolder != null,
-                renderers, SettingsStore(context).currentRenderer()
-            )
-        )
-        performance.onApply = { applyPerformanceMode(plan, target) }
-        performance.showPreview(plan, deviceLine, profileLine)
-    }
-
-    /**
-     * Apply the plan.
-     *
-     * Split across two threads by what each part touches. The preferences and the profile's
-     * renderer are written here, on the main thread, because the profile store is shared with the
-     * launch path; options.txt and the mod downloads go to IO. The order matters in one place:
-     * the capture inside `applyPreferences` has to see the renderer as it is now, so it is read
-     * before anything is written.
-     */
-    private fun applyPerformanceMode(plan: PerformancePlan.Plan, target: ModTarget) {
-        val context = requireContext().applicationContext
-        val store = SettingsStore(context)
-        // Taken from the mods folder rather than asked for separately, because the mods folder is
-        // File(gameDir, "mods") of the profile the plan was built against. Resolving the directory
-        // a second time can disagree: currentGameDirectory falls back to the default folder when
-        // no profile is selected, while the target additionally accepts the only profile there is.
-        // Writing Minecraft's settings into a different folder from the mods is not a failure
-        // anything would report.
-        val gameDir = target.modsFolder?.parentFile
-            ?: runCatching { currentGameDirectory() }.getOrNull()
-        performance.showWorking(getString(R.string.performance_working))
-
-        val report = PerformanceMode.applyPreferences(context, plan, store.currentRenderer())
-        if (plan.rendererId != null) store.setCurrentRenderer(plan.rendererId)
-
-        // The mod install reports from the thread it runs on; Compose state is not safe to write
-        // from there, so every update is posted back. The application context is used for the
-        // strings because this outlives the fragment by design.
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        val progress = PerformanceMode.Progress { name, index, total ->
-            main.post {
-                performance.showWorking(
-                    context.getString(R.string.performance_installing, name, index, total)
-                )
-            }
-        }
-        val folder = target.modsFolder
-        val mcVersion = target.mcVersion
-        val loaderId = target.loaderId
-        lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                if (gameDir != null) PerformanceMode.applyOptions(gameDir, plan, report)
-                if (folder != null && mcVersion != null && loaderId != null
-                    && plan.mods.isNotEmpty()) {
-                    PerformanceMode.installMods(
-                        folder, plan, mcVersion, loaderId, report, progress
-                    )
-                }
-            }
-            performance.showResult(performanceResult(context, plan, report))
-            if (isAdded) environment = readEnvironment()
-        }
-    }
-
-    /** What happened, one sentence per fact, with the qualifications after the outcome. */
-    private fun performanceResult(
-        context: android.content.Context,
-        plan: PerformancePlan.Plan,
-        report: PerformanceMode.Report
-    ): List<String> {
-        if (report.settingsChanged == 0 && report.optionsChanged == 0) {
-            return listOf(context.getString(R.string.performance_failed))
-        }
-        val lines = mutableListOf(context.getString(R.string.performance_done))
-        if (report.modsInstalled.isNotEmpty()) {
-            lines += context.getString(
-                R.string.performance_done_mods, report.modsInstalled.size
-            )
-        }
-        if (report.modsMissing.isNotEmpty()) {
-            lines += context.getString(
-                R.string.performance_done_missing, report.modsMissing.joinToString(", ")
-            )
-        }
-        if (report.optionsFailed) {
-            lines += context.getString(R.string.performance_done_options_failed)
-        } else if (report.optionsAbsent) {
-            lines += context.getString(R.string.performance_done_options_absent)
-        }
-        lines += context.getString(R.string.performance_note_next_launch)
-        if (plan.mods.isNotEmpty()) {
-            lines += context.getString(R.string.performance_note_mods_stay)
-        }
-        return lines
-    }
-
-    /**
-     * Put everything back.
-     *
-     * The preferences and the renderer come back from the capture, so "off" means the settings
-     * the player actually had rather than a launcher's idea of defaults. A capture that carried a
-     * renderer of null puts back "follow the global default", which is a real answer and not a
-     * missing one, which is why the restore reports the two separately.
-     */
-    private fun turnOffPerformanceMode() {
-        val context = requireContext().applicationContext
-        val gameDir = runCatching { currentGameDirectory() }.getOrNull()
-        performance.showWorking(getString(R.string.performance_working))
-        val restored = PerformanceMode.restorePreferences(context)
-        if (restored.hasRenderer) SettingsStore(context).setCurrentRenderer(restored.renderer)
-        lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                if (gameDir != null) PerformanceMode.restoreOptions(gameDir)
-            }
-            performance.showResult(listOf(context.getString(R.string.performance_done_off)))
-            if (isAdded) environment = readEnvironment()
         }
     }
 

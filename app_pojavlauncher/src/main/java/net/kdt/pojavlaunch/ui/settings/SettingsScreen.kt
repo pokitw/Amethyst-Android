@@ -102,9 +102,7 @@ class SettingsActions(
     val onExportTexturePack: () -> Unit = {},
     val onImportTurnipDriver: () -> Unit = {},
     /** Takes the driver's preference value; only imported drivers can be removed. */
-    val onDeleteTurnipDriver: (String) -> Unit = {},
-    /** Opens the performance mode sheet, in whichever direction the switch is currently facing. */
-    val onPerformanceMode: () -> Unit = {}
+    val onDeleteTurnipDriver: (String) -> Unit = {}
 )
 
 /** One Vulkan driver the picker offers: the stored value and the name a player reads. */
@@ -142,9 +140,6 @@ class SettingsEnvironment(
     val adreno: Boolean = false,
     /** The Vulkan drivers the picker can offer: system, bundled, then the imports. */
     val turnipDrivers: List<TurnipDriverOption> = emptyList(),
-    /** Whether performance mode is on, and one line of what it currently amounts to. */
-    val performanceEnabled: Boolean = false,
-    val performanceSummary: String? = null,
     /** Who is signed in, and what they are about to play — the header says both. */
     val accountName: String? = null,
     val accountFace: ImageBitmap? = null,
@@ -168,8 +163,7 @@ fun SettingsScreen(
     onRoute: (SettingsRoute) -> Unit,
     store: SettingsStore,
     environment: SettingsEnvironment,
-    actions: SettingsActions,
-    performance: PerformanceHost
+    actions: SettingsActions
 ) {
     // Survives the route changes, because its whole job is to outlive one: search hands you to
     // another screen and the row it sent you to lights up when you get there.
@@ -222,10 +216,6 @@ fun SettingsScreen(
                     }
                 }
             }
-            // Outside the AnimatedContent, because it outlives a route change: the mode is
-            // applied from the Performance screen but the download carries on if somebody
-            // wanders back to the list while it runs.
-            PerformanceSheet(performance)
         }
     }
 }
@@ -719,24 +709,6 @@ private fun PerformanceScreen(
         stringResource(R.string.settings_performance_subtitle),
         onBack
     ) {
-        // First, and on its own, because it is one decision that stands for every row below it.
-        // Somebody arriving here wanting more frames should not have to work out which four of
-        // twenty settings to move; the rest of the screen is for anyone who does want to.
-        Spacer(Modifier.height(16.dp))
-        SettingsCard {
-            SwitchRow(
-                title = stringResource(R.string.performance_title),
-                description = stringResource(R.string.performance_description),
-                checked = environment.performanceEnabled,
-                value = environment.performanceSummary,
-                iconRes = R.drawable.ic_x_performance,
-                // Tapping opens the preview. The switch reports and never moves on its own,
-                // because the honest answer to "is it on" takes a download to arrive at.
-                inert = true,
-                onCheckedChange = { actions.onPerformanceMode() }
-            )
-        }
-
         SectionLabel(stringResource(R.string.settings_section_graphics))
         SettingsCard {
             if (rendererIds.isNotEmpty()) {

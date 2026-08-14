@@ -85,9 +85,6 @@ display and re-encodes it.
 
 ### Getting the game to run well
 
-* **Performance mode**, one switch that reads what your phone actually is and sets the renderer,
-  the resolution, the heap, Minecraft's own graphics settings and a mod set to match. It shows the
-  whole plan before applying it and every value can be put back
 * **Turnip driver manager** for importing adrenotools Vulkan drivers on Adreno devices
 * **Crash diagnosis** that reads the log and names the failure in words, quoting the line it
   concluded from, instead of handing you a stack trace
@@ -202,8 +199,8 @@ The quick build above uses the pre-built JREs that CI provides. If you want to b
 There is no device in CI, so anything that can be checked without one is checked by a script in
 [`scripts/`](scripts/). Each harness drives the shipped source rather than a copy of it: control
 layouts are evaluated across a grid of screen sizes and button scales, the Modrinth and Mojang
-parsers run against fixtures, performance mode's plan is a pure function driven by a simulator,
-and the gyro maths is compiled and fed synthetic motion. `CLAUDE.md` lists which to run when.
+parsers run against fixtures, the skin atlas is checked against independent ground truth, and the
+gyro maths is compiled and fed synthetic motion. `CLAUDE.md` lists which to run when.
 
 ## Design principles
 

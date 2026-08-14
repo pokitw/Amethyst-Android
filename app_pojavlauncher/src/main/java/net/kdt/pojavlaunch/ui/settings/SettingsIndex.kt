@@ -61,12 +61,6 @@ class IndexedSetting(
 val SETTINGS_INDEX: List<SettingEntry> = listOf(
     // ---------------------------------------------------------------- Performance
     SettingEntry(
-        R.string.performance_title, SettingsRoute.PERFORMANCE,
-        R.string.performance_description, 0,
-        "fps lag stutter smooth optimise optimize boost sodium mods heat throttle battery",
-        suggested = true
-    ),
-    SettingEntry(
         R.string.settings_renderer_title, SettingsRoute.PERFORMANCE,
         R.string.settings_renderer_description, R.string.settings_section_graphics,
         "opengl gles vulkan zink mobileglues driver gl4es", suggested = true

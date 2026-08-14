@@ -57,17 +57,6 @@ fun onboardingPages(): List<OnboardingPage> = listOf(
         iconRes = R.drawable.ic_x_voice,
         noteRes = R.string.onboarding_chat_note
     ),
-    // Its own page, which the rule about pages ("one feature you would not otherwise find")
-    // has to be argued for rather than assumed: the switch is the first row of Settings and
-    // perfectly findable. What somebody would not find is the reason to look, because the
-    // question it answers is the one they have before they have any question at all, and the
-    // cost of missing it is judging the launcher on defaults it could have set for them.
-    OnboardingPage(
-        titleRes = R.string.onboarding_performance_title,
-        bodyRes = R.string.onboarding_performance_body,
-        iconRes = R.drawable.ic_x_performance,
-        noteRes = R.string.onboarding_performance_note
-    ),
     OnboardingPage(
         titleRes = R.string.onboarding_files_title,
         bodyRes = R.string.onboarding_files_body,
@@ -155,10 +144,5 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // does not do is let you see which ones support a version before you have picked one, or find
     // that version without scrolling a spinner of seven hundred entries.
     ComparisonRow(R.string.onboarding_row_loaders, Support.PARTIAL, Support.YES),
-    // "Part" rather than "No", and the row is worth more for it: upstream does pick a resolution
-    // and a heap size from the device on first run, which is device-specific automatic
-    // configuration by any honest reading. What it has never had is a renderer chosen for the
-    // Minecraft version, the game's own settings touched, a mod set, a preview or an undo.
-    ComparisonRow(R.string.onboarding_row_performance, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )
