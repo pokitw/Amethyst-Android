@@ -239,14 +239,11 @@ fun LogScreen(
                             listState.layoutInfo.totalItemsCount - last > 4
                         }
                     }
-                    AnimatedVisibility(
+                    JumpToEndOverlay(
                         visible = awayFromEnd && visible.isNotEmpty(),
-                        enter = fadeIn(tween(300, easing = FastOutSlowInEasing)) +
-                                slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it / 2 },
-                        exit = fadeOut(tween(140)) + slideOutVertically(tween(140)) { it / 2 },
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
                     ) {
-                        JumpToEnd { scope.launch { listState.scrollToItem(visible.size + offset) } }
+                        scope.launch { listState.scrollToItem(visible.size + offset) }
                     }
                 }
             }
@@ -353,6 +350,32 @@ private fun Segment(labelRes: Int, selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp)
     )
+}
+
+/**
+ * The button, and its coming and going.
+ *
+ * Its own composable rather than an `AnimatedVisibility` written inline, and not for tidiness:
+ * inline it sits inside a `Box` that is itself inside a `Column`, and with no `BoxScope` overload
+ * to take, Kotlin reaches past the innermost receiver and resolves the `ColumnScope` one, which
+ * then refuses to be called on an implicit receiver that is not there. Out here there is no scope
+ * to reach for and the plain overload is the only candidate.
+ */
+@Composable
+private fun JumpToEndOverlay(
+    visible: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(300, easing = FastOutSlowInEasing)) +
+                slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it / 2 },
+        exit = fadeOut(tween(140)) + slideOutVertically(tween(140)) { it / 2 },
+        modifier = modifier
+    ) {
+        JumpToEnd(onClick)
+    }
 }
 
 @Composable

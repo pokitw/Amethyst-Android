@@ -1367,6 +1367,25 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     can only be judged by software you cannot execute should be scoped so that being wrong is
     cheap. The alternative that shipped instead had been sitting there the whole time, is
     verifiable entirely on this side of the wall, and turned out to answer the question better.
+
+24. **A scoped composable can be resolved from a scope you are not in.** `AnimatedVisibility` has
+    `RowScope` and `ColumnScope` overloads but no `BoxScope` one, so writing it inside a `Box`
+    that happens to sit inside a `Column` picks the `ColumnScope` extension, reaching past the
+    innermost receiver to one that is no longer applicable, and fails with "cannot be called in
+    this context with an implicit receiver". The same call compiles directly inside a `Row`,
+    which is why the identical line in `LaunchConsole` was fine and the one in `LogScreen` was
+    not. Lifting it into its own composable, where no scope is in reach, leaves the plain
+    overload as the only candidate. Kotlin resolves extensions by what is *in scope*, not by
+    what is nearest, and Compose's layout scopes make that difference visible.
+
+25. **Language choice is a verification decision.** The log viewer's level parsing was written in
+    Kotlin, which made it uncheckable: there is no Kotlin compiler in this container, so the only
+    harness possible re-implemented the algorithm in Python and read the constants out of the
+    source. It passed while **six of eight deliberate mutations to the shipped code went
+    unnoticed**, because what it drove was the copy. Rewritten as plain Java it compiles at
+    source 8 and the harness drives the real class; all ten mutations now fail it. Every parser
+    here that has a harness is Java, and that was not a coincidence anybody had written down.
+    **Before writing logic whose failure is silent, ask what can execute it before a user does.**
 ---
 
 ## 17. Known limitations
