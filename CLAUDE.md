@@ -764,6 +764,45 @@ re-litigated. The reasoning lives in the commit that made the change.
   is a control upstream has no equivalent of at all, which is exactly what the table is for. It
   gets **no onboarding page**, the same as slide to repeat and the sequence runner before it:
   which stick has it is answered in the editor, where it was turned on.
+- **The reachable game area** (`customcontrols/GameViewport.java` + `MainActivity.applyGameViewport`)
+  — the whole game, its HUD and every control drawn into a smaller rectangle anchored where the
+  player can actually see and reach it. Asked for by somebody with a muscular dystrophy who plays
+  lying on their side: a 6.8 inch panel held that close puts its own bottom edge outside what they
+  can see without turning their head, and what lives there is Minecraft's hotbar, health and
+  hunger.
+  **The HUD cannot be moved, so the frame it is drawn in is moved instead.** That HUD belongs to
+  the game, not the launcher, and nothing here can reposition it; but it is part of the picture
+  rather than something drawn over it, so shrinking the picture brings it in.
+  **The inset goes on `ControlLayout`, not on the surface**, and that is the whole reason this is
+  a small change rather than a rewrite. The layout holds the `dimension_tracker` child that
+  `Tools.updateWindowSize` reads for `CallbackBridge.physicalWidth/Height`, which is what control
+  positions, the hotbar-tap strip and the virtual cursor are all measured against; and
+  `MinecraftGLSurface` sizes its framebuffer from its own view bounds. So one layout parameter
+  moves the picture, the HUD, every button and the touch mapping together, in step, with nothing
+  needing to be taught that an offset exists. **The launcher was already written to derive
+  everything from the view rather than the display**, and this feature is mostly the discovery
+  that it was.
+  It reuses the resize path rotation already exercises (`requestLayout`, then re-derive window
+  size, control positions and the controller input area in the post), so the risky part is a path
+  the app runs every time the phone turns.
+  **Uniform on both axes.** The game adapts to any aspect ratio it is handed, so an uneven inset
+  would not distort anything, but it would change the field of view as a side effect of a setting
+  about reach. "The game, smaller" is a promise a player can predict.
+  **It is also a real speed-up**, which is not a side note for the person who asked: 80% of each
+  axis is 64% of the pixels, and they described the game as feeling heavy to play. The two
+  complaints have one fix.
+  The one thing that does not scale with the box is **button size**, which is set in dp. Positions
+  are stored as fractions and so compress correctly, but the buttons themselves stay the size they
+  were, which is why the floor is 50% and why the button-size slider is the companion control. Not
+  scaled automatically on purpose: it is the player's own saved preference, and silently rewriting
+  one of those is what the performance-mode entry above is a warning about.
+  Behind the Controls screen's **advanced expander**, at the owner's request. Almost nobody needs
+  the game smaller than their screen and the row would read as a mistake to everyone who does not;
+  the people it is for will go looking, and the search index carries "accessibility", "one handed"
+  and "disability" so it can be found by what it is rather than by what it is called.
+  **Editor excepted**: `CustomControlsActivity` has no dimension tracker, so it keeps the full
+  screen and arranges at full size. Positions being fractional, the arrangement is proportionally
+  identical in the smaller box; only the relative size of the buttons differs.
 - **Turnip driver manager** (`utils/TurnipDrivers.java` + `egl_bridge.c` + the Performance
   screen) — import adrenotools driver zips and pick which Vulkan driver Zink renders through.
   Upstream declined this (their issue 224, "PR it"); the loader machinery was already here,
@@ -1614,6 +1653,19 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - Auto-walk sends **the same keys a held drag would send**, nothing more: it does not sprint on
   its own, does not turn on its own, and a locked walk into lava is exactly as fatal as a held
   one. Locking is not a safety net, it is not holding the stick.
+- The reachable game area **does not shrink the buttons with it**. Their positions are stored as
+  fractions and compress correctly, but their sizes are in dp, so a strong inset crowds them. The
+  button-size slider is the companion control, and 50% is the floor because past it the layout
+  wants rebuilding rather than resizing.
+- It applies **in game only**. The editor reached from Settings has no dimension tracker, so it
+  arranges at full screen; the arrangement is proportionally the same in the smaller box, but how
+  close the buttons look to each other there is not what you will get.
+- The area outside the game is **black and inert**. Nothing is drawn there and touches in it reach
+  nothing, which is deliberate: it is not screen the game can use, so it must not be screen that
+  half-works.
+- It is **verified by simulation, not on hardware** (`scripts/viewportsim`). The geometry is
+  checked exhaustively; whether a given inset actually brings the hotbar into somebody's field of
+  view is a thing only they can answer, which is why it is a slider rather than a switch.
 - The Turnip driver picker is **Adreno only, by presence**: on any other GPU the rows are not
   shown, search does not find them, and nothing is disabled because nothing is there. An
   imported driver is validated as an arm64 ELF in an adrenotools-shaped zip, and nothing more:
@@ -1844,6 +1896,10 @@ Before pushing:
   drift from the code, and sweeps **off-grid floors** as well as the shipped pair: with the
   shipped constants alone, reversing the snap and the floor is invisible, which is exactly the
   mutation that got through the first draft.
+- **Run `sh scripts/viewportsim/run.sh`** if the game viewport geometry changed. It compiles the
+  shipped `GameViewport` and sweeps every percent and anchor across six real panels. The check
+  that matters most is that **100% is byte-for-byte the full screen**, because every player who
+  never opens the setting depends on that and a rounding error there would ship to all of them.
 - **Run `python3 scripts/check_joystick_directions.py`** if auto-walk's tap-to-direction geometry
   changed. It checks the eight compass points, the dead zone's boundary, and a tolerance band
   around each cardinal rather than only its exact centre, because a formula that drops the

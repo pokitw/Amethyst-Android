@@ -82,6 +82,9 @@ display and re-encodes it.
   places a block and clutches
 * **Joystick auto-walk**: double-tap a direction to keep walking without holding the stick, touch
   it again to take control back
+* **A reachable game area** for large phones: draw the whole game, HUD included, into part of the
+  screen instead of all of it, anchored wherever you can see and reach. Fewer pixels, so it runs
+  faster too
 * **Gyro aiming rewritten** to read raw angular velocity in player space at 1:1, replacing an
   implementation that held movement behind a threshold and then jumped
 

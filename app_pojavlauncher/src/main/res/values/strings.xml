@@ -1021,6 +1021,22 @@
     <string name="preference_typing_preview_description">Show what you are typing in a small strip at the top, so a chat box or a world name hidden behind the keyboard can still be read. It knows only what you type, not what the field already contained.</string>
     <string name="settings_section_mouse">VIRTUAL MOUSE</string>
     <string name="settings_section_gestures">GESTURES</string>
+    <string name="settings_section_reach">REACH</string>
+
+    <!-- Fitting the game to what a player can see and reach on a large phone. -->
+    <string name="preference_game_view_title">Fit the game to a smaller area</string>
+    <string name="preference_game_view_description">Draws the whole game, hotbar and health bars included, inside part of the screen instead of all of it. For when the edges of a large phone are hard to see or reach. It also renders fewer pixels, so the game runs faster.</string>
+    <string name="preference_game_view_position_title">Where the game sits</string>
+    <string name="preference_game_view_position_description">Which part of the screen the game is pulled towards.</string>
+    <string name="preference_game_view_top_left">Top left</string>
+    <string name="preference_game_view_top">Top</string>
+    <string name="preference_game_view_top_right">Top right</string>
+    <string name="preference_game_view_left">Left</string>
+    <string name="preference_game_view_centre">Centre</string>
+    <string name="preference_game_view_right">Right</string>
+    <string name="preference_game_view_bottom_left">Bottom left</string>
+    <string name="preference_game_view_bottom">Bottom</string>
+    <string name="preference_game_view_bottom_right">Bottom right</string>
     <string name="settings_section_video">VIDEO</string>
     <string name="settings_section_audio">AUDIO</string>
     <string name="settings_section_screenshots">SCREENSHOTS</string>

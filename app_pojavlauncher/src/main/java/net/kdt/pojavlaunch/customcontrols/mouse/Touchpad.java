@@ -1,6 +1,5 @@
 package net.kdt.pojavlaunch.customcontrols.mouse;
 
-import static net.kdt.pojavlaunch.Tools.currentDisplayMetrics;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -41,7 +40,10 @@ public class Touchpad extends View implements GrabListener, AbstractTouchpad {
     /** Enable the touchpad */
     private void _enable(){
         setVisibility(VISIBLE);
-        placeMouseAt(currentDisplayMetrics.widthPixels / 2f, currentDisplayMetrics.heightPixels / 2f);
+        // The play area rather than the panel: with the game inset for reach, the two are
+        // different rectangles, and the cursor's space has to be the one the game is
+        // actually drawn in or it starts in the wrong place and stops short of one edge.
+        placeMouseAt(CallbackBridge.physicalWidth / 2f, CallbackBridge.physicalHeight / 2f);
         publishPointerState(true);
     }
 
@@ -140,8 +142,8 @@ public class Touchpad extends View implements GrabListener, AbstractTouchpad {
     @Override
     public void applyMotionVector(float x, float y) {
         if (mDisplayState) { // Make sure no motion leaks through when disabling a moving cursor
-            mMouseX = Math.max(0, Math.min(currentDisplayMetrics.widthPixels, mMouseX + x * LauncherPreferences.PREF_MOUSESPEED));
-            mMouseY = Math.max(0, Math.min(currentDisplayMetrics.heightPixels, mMouseY + y * LauncherPreferences.PREF_MOUSESPEED));
+            mMouseX = Math.max(0, Math.min(CallbackBridge.physicalWidth, mMouseX + x * LauncherPreferences.PREF_MOUSESPEED));
+            mMouseY = Math.max(0, Math.min(CallbackBridge.physicalHeight, mMouseY + y * LauncherPreferences.PREF_MOUSESPEED));
             updateMousePosition();
         }
     }

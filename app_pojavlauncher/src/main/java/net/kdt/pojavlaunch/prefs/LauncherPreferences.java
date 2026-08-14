@@ -14,6 +14,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 
 import net.kdt.pojavlaunch.*;
+import net.kdt.pojavlaunch.customcontrols.GameViewport;
 import net.kdt.pojavlaunch.multirt.MultiRTUtils;
 import net.kdt.pojavlaunch.utils.FileUtils;
 import net.kdt.pojavlaunch.utils.JREUtils;
@@ -54,6 +55,16 @@ public class LauncherPreferences {
     public static boolean PREF_ARC_CAPES = false;
     public static boolean PREF_USE_ALTERNATE_SURFACE = true;
     public static float PREF_SCALE_FACTOR = 1f;
+
+    /**
+     * How much of the screen the game is allowed to fill, and where that frame sits in it.
+     *
+     * An accessibility setting: on a large phone the far edges of the panel can be outside what
+     * somebody can comfortably see or reach, and Minecraft's own hotbar and health bars sit hard
+     * against the bottom of the picture. 100 leaves everything exactly where it has always been.
+     */
+    public static int PREF_GAME_VIEW_PERCENT = 100;
+    public static int PREF_GAME_VIEW_POSITION = 4;
 
     public static boolean PREF_ENABLE_GYRO = false;
     public static float PREF_GYRO_SENSITIVITY = 1f;
@@ -127,6 +138,8 @@ public class LauncherPreferences {
         PREF_ARC_CAPES = DEFAULT_PREF.getBoolean("arc_capes",false);
         PREF_USE_ALTERNATE_SURFACE = DEFAULT_PREF.getBoolean("alternate_surface", isDevicePowerful);
         PREF_SCALE_FACTOR = DEFAULT_PREF.getInt("resolutionRatio", findBestResolution(ctx, isDevicePowerful))/100f;
+        PREF_GAME_VIEW_PERCENT = DEFAULT_PREF.getInt("gameViewPercent", 100);
+        PREF_GAME_VIEW_POSITION = DEFAULT_PREF.getInt("gameViewPosition", GameViewport.POSITION_DEFAULT);
         PREF_ENABLE_GYRO = DEFAULT_PREF.getBoolean("enableGyro", false);
         PREF_GYRO_SENSITIVITY = ((float)DEFAULT_PREF.getInt("gyroSensitivity", 100))/100f;
         PREF_GYRO_SMOOTHING = DEFAULT_PREF.getInt("gyroSmoothingLevel", 40);

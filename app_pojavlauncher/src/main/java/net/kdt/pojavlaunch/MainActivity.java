@@ -38,6 +38,8 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.Gravity;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
@@ -62,6 +64,7 @@ import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData;
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
+import net.kdt.pojavlaunch.customcontrols.GameViewport;
 import net.kdt.pojavlaunch.customcontrols.CustomControls;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.customcontrols.keyboard.LwjglCharSender;
@@ -234,6 +237,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     protected void initLayout(int resId) {
         setContentView(resId);
         bindValues();
+        // Before anything measures itself: the surface takes its framebuffer from its own bounds
+        // and the control positions come from the dimension tracker inside this layout, so
+        // applying the inset first means every one of them is computed from the real play area
+        // the first time rather than corrected afterwards.
+        applyGameViewport();
         mControlLayout.setMenuListener(this);
 
         mDrawerPullButton.setOnClickListener(v -> onClickedMenu());
@@ -333,6 +341,45 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             Tools.getDisplayMetrics(this);
             loadControls();
         });
+    }
+
+    /**
+     * Put the game where the player can actually see and reach it.
+     *
+     * The inset goes on the control layout rather than on the surface, because the layout is what
+     * every in-game coordinate is measured against: its {@code dimension_tracker} child is what
+     * {@link Tools#updateWindowSize} reads for {@code physicalWidth/Height}, which places the
+     * controls, the hotbar strip and the virtual cursor, and the surface sizes its framebuffer
+     * from its own bounds inside it. Move the layout and all of them move together, in step, with
+     * nothing needing to know an offset exists.
+     *
+     * <p>Wrapped and silent on failure. This runs on the path that starts the game, and a game
+     * that will not start is a far worse outcome than one drawn at the size it always was
+     * (handbook 16.15).
+     */
+    private void applyGameViewport() {
+        try {
+            if (mControlLayout == null) return;
+            ViewGroup.LayoutParams current = mControlLayout.getLayoutParams();
+            if (!(current instanceof FrameLayout.LayoutParams)) return;
+            int[] box = GameViewport.bounds(
+                    Tools.currentDisplayMetrics.widthPixels,
+                    Tools.currentDisplayMetrics.heightPixels,
+                    LauncherPreferences.PREF_GAME_VIEW_PERCENT,
+                    LauncherPreferences.PREF_GAME_VIEW_POSITION);
+            if (box[0] <= 0 || box[1] <= 0) return;
+            FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) current;
+            params.width = box[0];
+            params.height = box[1];
+            // LEFT rather than START: the offsets below are already absolute, and a gravity that
+            // flips under a right-to-left locale would apply them twice over.
+            params.gravity = Gravity.TOP | Gravity.LEFT;
+            params.leftMargin = box[2];
+            params.topMargin = box[3];
+            mControlLayout.setLayoutParams(params);
+        } catch (Throwable t) {
+            Log.w("MainActivity", "Could not apply the game viewport", t);
+        }
     }
 
     /** Boilerplate binding */
@@ -437,6 +484,12 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         // Layout resize is practically guaranteed on a configuration change, and `onConfigurationChanged`
         // does not implicitly start a layout. So, request a layout and expect the screen dimensions to be valid after the]
         // post.
+        // The screen the inset is a fraction of has just changed, so the fraction is recomputed
+        // before the layout pass rather than after it, and the post below then re-derives the
+        // window size, the control positions and the controller input area from the new box the
+        // same way it always has.
+        Tools.updateWindowSize(this);
+        applyGameViewport();
         mControlLayout.requestLayout();
         mControlLayout.post(()->{
             // Child of mControlLayout, so refreshing size here is correct

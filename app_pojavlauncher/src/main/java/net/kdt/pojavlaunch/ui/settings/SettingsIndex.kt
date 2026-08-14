@@ -285,6 +285,19 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         R.string.preference_wipe_controller_description, R.string.settings_advanced,
         "gamepad controller reset wipe bindings"
     ),
+    // Searchable by the words somebody would actually reach for, since this is behind the
+    // advanced expander and nobody will meet it by scrolling. "Accessibility" and "one handed"
+    // are in the keywords because they are what this is, whatever the row is called.
+    SettingEntry(
+        R.string.preference_game_view_title, SettingsRoute.CONTROLS,
+        R.string.preference_game_view_description, R.string.settings_advanced,
+        "accessibility reach one handed smaller shrink zoom hotbar hunger health edge disability"
+    ),
+    SettingEntry(
+        R.string.preference_game_view_position_title, SettingsRoute.CONTROLS,
+        R.string.preference_game_view_position_description, R.string.settings_advanced,
+        "accessibility reach corner position game area move"
+    ),
     SettingEntry(
         R.string.preference_deadzone_scale_title, SettingsRoute.CONTROLS,
         R.string.preference_deadzone_scale_description, R.string.settings_advanced,

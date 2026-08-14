@@ -839,6 +839,8 @@ private fun ControlsScreen(
     onBack: () -> Unit
 ) {
     val advanced = listOf(
+        stringResource(R.string.preference_game_view_title),
+        stringResource(R.string.preference_game_view_position_title),
         stringResource(R.string.preference_remap_controller_title),
         stringResource(R.string.preference_wipe_controller_title),
         stringResource(R.string.preference_deadzone_scale_title),
@@ -1065,6 +1067,48 @@ private fun ControlsScreen(
         }
 
         AdvancedSection(count = advanced.size, titles = advanced) {
+            // Behind the expander on purpose. Almost nobody needs the game to be smaller than
+            // their screen, and a row offering to shrink it would read as a mistake to everybody
+            // who does not; the people it is for are the ones who will go looking, and search
+            // finds it by name.
+            SectionLabel(stringResource(R.string.settings_section_reach))
+            SettingsCard {
+                val gameViewOff = stringResource(R.string.global_off)
+                val gameViewPercent = store.int("gameViewPercent", 100)
+                SliderRow(
+                    title = stringResource(R.string.preference_game_view_title),
+                    description = stringResource(R.string.preference_game_view_description),
+                    value = gameViewPercent,
+                    min = 50, max = 100, step = 5,
+                    format = { if (it >= 100) gameViewOff else "$it%" },
+                    onValueChange = { store.put("gameViewPercent", it) }
+                )
+                // Only once there is something to place: at full size every one of the nine
+                // answers puts the game in exactly the same rectangle, and a picker that cannot
+                // change anything is the one thing a settings screen must never show.
+                if (gameViewPercent < 100) {
+                    val positions = listOf(
+                        stringResource(R.string.preference_game_view_top_left),
+                        stringResource(R.string.preference_game_view_top),
+                        stringResource(R.string.preference_game_view_top_right),
+                        stringResource(R.string.preference_game_view_left),
+                        stringResource(R.string.preference_game_view_centre),
+                        stringResource(R.string.preference_game_view_right),
+                        stringResource(R.string.preference_game_view_bottom_left),
+                        stringResource(R.string.preference_game_view_bottom),
+                        stringResource(R.string.preference_game_view_bottom_right)
+                    )
+                    ChoiceRow(
+                        title = stringResource(R.string.preference_game_view_position_title),
+                        description = stringResource(R.string.preference_game_view_position_description),
+                        names = positions,
+                        values = positions.indices.map { it.toString() },
+                        selected = store.int("gameViewPosition", 4).toString(),
+                        onSelect = { store.put("gameViewPosition", it.toIntOrNull() ?: 4) }
+                    )
+                }
+            }
+
             SettingsCard {
                 NavRow(
                     title = stringResource(R.string.preference_remap_controller_title),
