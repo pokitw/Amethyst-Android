@@ -130,10 +130,22 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
      * a drag, is what lets the very next double-tap re-lock in a new direction without a dead
      * step in between: the first tap of that pair cancels the old lock here, and the second tap
      * engages the new one in {@link #engageAutoWalk}.
+     *
+     * <p><b>A second finger arrives as {@code ACTION_POINTER_DOWN}, and it has to cancel too.</b>
+     * A lock exists precisely so that no finger is on the stick, so the common way to grab it
+     * back is with another finger already on the screen holding attack or place, and a
+     * {@code ViewGroup} hands each new pointer to whatever it lands on: this view's first event
+     * of that gesture is then a pointer-down rather than a down. {@code JoystickView} copes by
+     * rewriting the action once it sees it has no pointer, but that happens inside the call
+     * below, after this has already decided. Missing it left the stick dead to the touch that
+     * was trying to rescue it, since {@code onMove} ignores everything while locked.
      */
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && mAutoWalkLocked) {
+        int action = event.getActionMasked();
+        boolean beginsATouch =
+                action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN;
+        if (beginsATouch && mAutoWalkLocked) {
             stopAutoWalk();
         }
         boolean handled = super.onTouchEvent(event);
