@@ -764,6 +764,29 @@ re-litigated. The reasoning lives in the commit that made the change.
   is a control upstream has no equivalent of at all, which is exactly what the table is for. It
   gets **no onboarding page**, the same as slide to repeat and the sequence runner before it:
   which stick has it is answered in the editor, where it was turned on.
+- **Clicking with a second finger** (`InGUIEventProcessor` + `PREF_GUI_SECOND_FINGER_CLICK`) —
+  with the virtual mouse up, a tap anywhere by a second finger clicks where the pointer already
+  is, so the finger steering it never has to be lifted. Reported as a plain gap: the click simply
+  did not register.
+  **The tap was already being detected**, which is the whole story. `TapDetector` watches
+  `ACTION_POINTER_DOWN` and `ACTION_POINTER_UP` as carefully as it watches the first finger's,
+  and it was returning true for exactly this gesture; `processTouchEvent` only ever read its
+  verdict inside the `ACTION_UP` branch, so a tap made while another finger was still down was
+  worked out and then dropped on the floor. The fix is a case in a switch, not a gesture
+  recogniser, and reusing the tuned detector rather than writing a second one is what keeps the
+  two kinds of tap agreeing about what a tap is.
+  **A scroll is told from a tap by what happens after the finger lands, not before it.** Two
+  fingers moving together already scrolls, and at the instant a second finger touches down the
+  two gestures are identical, so the click waits for the lift and refuses if the fingers have
+  travelled since: `mMultiTouchDrift` against `FINGER_STILL_THRESHOLD`. Without it a short flick
+  would click, and a spurious click in an inventory moves somebody's items.
+  **Only while the touchpad is showing.** Without it a touch in a menu already puts the cursor
+  under the finger and taps there, so a second finger would have nothing to add and could only
+  surprise.
+  The cursor deliberately **holds still during the tap**, because two pointers down is the
+  existing scroll branch rather than the move branch. That reads as the right behaviour rather
+  than a compromise: it is a click, and a click that dragged the pointer as it landed would be
+  worse.
 - **The reachable game area** (`customcontrols/GameViewport.java` + `MainActivity.applyGameViewport`)
   — the whole game, its HUD and every control drawn into a smaller rectangle anchored where the
   player can actually see and reach it. Asked for by somebody with a muscular dystrophy who plays
@@ -1653,6 +1676,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - Auto-walk sends **the same keys a held drag would send**, nothing more: it does not sprint on
   its own, does not turn on its own, and a locked walk into lava is exactly as fatal as a held
   one. Locking is not a safety net, it is not holding the stick.
+- The second-finger click is **left click only**, and only with the virtual mouse up. Right click
+  in a menu is still a bound control button, which is where it has always been.
+- It can **misfire on a very short two-finger flick**: a scroll that both starts and ends inside
+  the tap detector's window and moves less than the still threshold is, by every measure
+  available at the time, a tap. The threshold makes it unlikely rather than impossible, which is
+  why the whole thing is a switch.
 - The reachable game area **does not shrink the buttons with it**. Their positions are stored as
   fractions and compress correctly, but their sizes are in dp, so a strong inset crowds them. The
   button-size slider is the companion control, and 50% is the floor because past it the layout

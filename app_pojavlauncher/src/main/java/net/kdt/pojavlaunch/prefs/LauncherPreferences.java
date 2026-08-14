@@ -66,6 +66,15 @@ public class LauncherPreferences {
     public static int PREF_GAME_VIEW_PERCENT = 100;
     public static int PREF_GAME_VIEW_POSITION = 4;
 
+    /**
+     * Whether a tap by a second finger clicks while the first is still moving the virtual mouse.
+     *
+     * The tap was always being detected; what was missing is that its verdict was only ever read
+     * on the last finger leaving the screen, so a tap made while another finger was still down
+     * was worked out and then thrown away.
+     */
+    public static boolean PREF_GUI_SECOND_FINGER_CLICK = true;
+
     public static boolean PREF_ENABLE_GYRO = false;
     public static float PREF_GYRO_SENSITIVITY = 1f;
     /** 0 for none, 100 for the longest window. Not the old boolean, hence the new key. */
@@ -140,6 +149,7 @@ public class LauncherPreferences {
         PREF_SCALE_FACTOR = DEFAULT_PREF.getInt("resolutionRatio", findBestResolution(ctx, isDevicePowerful))/100f;
         PREF_GAME_VIEW_PERCENT = DEFAULT_PREF.getInt("gameViewPercent", 100);
         PREF_GAME_VIEW_POSITION = DEFAULT_PREF.getInt("gameViewPosition", GameViewport.POSITION_DEFAULT);
+        PREF_GUI_SECOND_FINGER_CLICK = DEFAULT_PREF.getBoolean("guiSecondFingerClick", true);
         PREF_ENABLE_GYRO = DEFAULT_PREF.getBoolean("enableGyro", false);
         PREF_GYRO_SENSITIVITY = ((float)DEFAULT_PREF.getInt("gyroSensitivity", 100))/100f;
         PREF_GYRO_SMOOTHING = DEFAULT_PREF.getInt("gyroSmoothingLevel", 40);

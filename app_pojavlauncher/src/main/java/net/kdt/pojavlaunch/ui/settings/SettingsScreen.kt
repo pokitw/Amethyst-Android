@@ -986,6 +986,11 @@ private fun ControlsScreen(
                 onValueChange = { store.put("mousespeed", it) }
             )
             SwitchRow(
+                stringResource(R.string.preference_second_finger_click_title),
+                stringResource(R.string.preference_second_finger_click_description),
+                store.bool("guiSecondFingerClick", true)
+            ) { store.put("guiSecondFingerClick", it) }
+            SwitchRow(
                 stringResource(R.string.preference_mouse_start_title),
                 stringResource(R.string.preference_mouse_start_description),
                 store.bool("mouse_start", false)

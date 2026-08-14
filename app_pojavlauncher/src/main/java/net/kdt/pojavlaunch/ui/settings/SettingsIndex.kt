@@ -221,6 +221,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "sensitivity cursor pointer speed"
     ),
     SettingEntry(
+        R.string.preference_second_finger_click_title, SettingsRoute.CONTROLS,
+        R.string.preference_second_finger_click_description, R.string.settings_section_mouse,
+        "click tap two finger second cursor mouse menu inventory trackpad"
+    ),
+    SettingEntry(
         R.string.preference_mouse_start_title, SettingsRoute.CONTROLS,
         R.string.preference_mouse_start_description, R.string.settings_section_mouse,
         "virtual mouse start launch cursor"

@@ -21,6 +21,16 @@ public class InGUIEventProcessor implements TouchEventProcessor {
     private float mStartX, mStartY;
     private final Scroller mScroller = new Scroller(FINGER_SCROLL_THRESHOLD);
 
+    /**
+     * How far the fingers have travelled since the last one landed, while more than one is down.
+     *
+     * A second finger that taps and a second finger that begins a two-finger scroll look identical
+     * at the moment it touches down, and only stop looking identical if it then moves. So the
+     * click waits for the lift and asks this: a gesture that has scrolled is a scroll, whatever
+     * the tap detector makes of how briefly it lasted.
+     */
+    private float mMultiTouchDrift = 0f;
+
     public InGUIEventProcessor() {
         mSingleTapDetector = new TapDetector(1, TapDetector.DETECTION_METHOD_BOTH);
     }
@@ -32,6 +42,7 @@ public class InGUIEventProcessor implements TouchEventProcessor {
         switch (motionEvent.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 mTracker.startTracking(motionEvent);
+                mMultiTouchDrift = 0f;
                 if(!touchpadDisplayed()) {
                     sendTouchCoordinates(motionEvent.getX(), motionEvent.getY());
 
@@ -59,7 +70,28 @@ public class InGUIEventProcessor implements TouchEventProcessor {
                         }
 
                     }
-                } else mScroller.performScroll(mTracker.getMotionVector());
+                } else {
+                    float[] vector = mTracker.getMotionVector();
+                    mMultiTouchDrift += Math.abs(vector[0]) + Math.abs(vector[1]);
+                    mScroller.performScroll(vector);
+                }
+                break;
+
+            // A finger arriving or leaving while others are still down. The tap detector is
+            // watching both edges already, which is the whole reason the click below is one
+            // condition rather than a second gesture recogniser.
+            case MotionEvent.ACTION_POINTER_DOWN:
+                // The newcomer gets its own chance to be a tap, whatever the fingers before it
+                // have been doing.
+                mMultiTouchDrift = 0f;
+                break;
+
+            case MotionEvent.ACTION_POINTER_UP:
+                if(secondFingerClicks() && !mIsMouseDown && singleTap
+                        && mMultiTouchDrift <= FINGER_STILL_THRESHOLD) {
+                    CallbackBridge.putMouseEventWithCoords(LwjglGlfwKeycode.GLFW_MOUSE_BUTTON_LEFT,
+                            CallbackBridge.mouseX, CallbackBridge.mouseY);
+                }
                 break;
 
             case MotionEvent.ACTION_CANCEL:
@@ -82,6 +114,19 @@ public class InGUIEventProcessor implements TouchEventProcessor {
 
     private boolean touchpadDisplayed() {
         return mTouchpad != null && mTouchpad.getDisplayState();
+    }
+
+    /**
+     * Whether a tap by a second finger should click where the pointer already is.
+     *
+     * Only while the virtual mouse is on the screen, which is the whole situation this answers:
+     * without it a touch in a menu puts the cursor under the finger and taps there, so there is
+     * nothing a second finger could usefully add. With it, the finger moving the pointer has to
+     * be lifted before it can tap, and lifting it is exactly what somebody keeping the pointer
+     * somewhere precise does not want to do.
+     */
+    private boolean secondFingerClicks() {
+        return LauncherPreferences.PREF_GUI_SECOND_FINGER_CLICK && touchpadDisplayed();
     }
 
     public void setAbstractTouchpad(AbstractTouchpad touchpad) {
