@@ -1,6 +1,5 @@
 package net.kdt.pojavlaunch.ui.home
 
-import android.provider.Settings
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -49,7 +48,6 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -105,16 +103,8 @@ private class HomeEntrance(val animate: Boolean)
 
 @Composable
 private fun rememberHomeEntrance(): HomeEntrance {
-    val context = LocalContext.current
+    val reduced = rememberReducedMotion()
     return remember {
-        // The platform's reduced-motion signal. Read once when home composes, never per frame
-        // (handbook 16.11), and a settings provider that throws means "animate" rather than a
-        // launcher that cannot start.
-        val reduced = runCatching {
-            Settings.Global.getFloat(
-                context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f
-            ) == 0f
-        }.getOrDefault(false)
         val entrance = HomeEntrance(!homeEntrancePlayed && !reduced)
         homeEntrancePlayed = true
         entrance

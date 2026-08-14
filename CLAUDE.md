@@ -197,8 +197,9 @@ inner elements are 16dp. Keep that relationship.
 **Motion philosophy**
 
 - Animate to explain a change, never because it is possible.
-- **The thing you touched is the thing that responds.** Progress renders inside the Play button,
-  not in a bar somewhere else. Press states squish the element pressed.
+- **The thing you touched is the thing that responds.** Pressing Play turns the launch card itself
+  into the launch console, rather than reporting in a bar somewhere else. Press states squish the
+  element pressed.
 - Durations: 140ms for press feedback, ~300ms for entrances, 500ms for value changes such as a
   progress fill. Slow, continuous motion (an indeterminate sweep) runs at ~1500ms.
 - Easing: `FastOutSlowInEasing` for anything with a start and an end; `LinearEasing` only for
@@ -286,8 +287,8 @@ reads. **Read it on the main thread.** See §12.
 `ProgressKeeper` is a static registry of named tasks (`ProgressLayout.DOWNLOAD_MINECRAFT`,
 `UNPACK_RUNTIME`, `INSTALL_MODPACK`, `AUTHENTICATE_MICROSOFT`, …). Anything can submit progress from
 any thread; listeners are called on the submitting thread. The task **count** is the same condition
-the launch path refuses on, which is why the Play button's busy state follows the count rather than
-any individual key.
+the launch path refuses on, which is why the launch card shows its console whenever the count is
+non-zero rather than following any individual key.
 
 ### Storage
 
@@ -966,6 +967,39 @@ re-litigated. The reasoning lives in the commit that made the change.
   It gets **no onboarding page and no comparison row**, on the screenshot's precedent: an opening
   is not a capability, every honest mark would be taste, and the table is only worth reading
   because it is edited.
+
+- **The launch console** (`ui/home/LaunchConsole.kt` + the stage timeline in `LaunchProgress.kt`
+  + the press echo in `MainMenuFragment`) — pressing Play turns the hero card into a staged
+  report of the launch: the profile inside a progress ring, the percentage large, a thin track,
+  and a timeline of what has actually been done, on a deepened wash. It replaced one line of
+  text inside the Play button.
+  **The whole card transforms, not the button.** The thing touched is the thing that responds
+  (§8), and swapping the version row out with the button is what stops a profile being switched
+  under a download that has already decided what it is fetching — previously that row stayed
+  live for the whole launch.
+  **A stage is a string resource, and the timeline is the downloader's own reports.** The
+  launcher was already narrating its work through `ProgressKeeper`; each report's resid is the
+  stage's identity, so the counts and speeds that churn several times a second update one line
+  in place and a new resid starts a new line, with the previous one taking a check. Nothing is
+  invented: no fixed checklist that would tick steps that never ran, and no "boosting" theatre.
+  A booster feeling built from fake stages would be the neon rule (§4) broken with words.
+  **The press is echoed locally** (`launchRequested`), because the real busy signal is the task
+  count and the first task is only submitted once the downloader thread has spun up: the card
+  must become the console in the frame the finger lifts, not when the network answers. A refused
+  launch (no account, no version) never starts a task, so the echo concedes after four seconds
+  of nothing running, and any task count reaching zero clears it too. Busy without a press still
+  opens the console, under "Getting ready" rather than "Launching", because home can be returned
+  to in the middle of work started elsewhere and a card that claimed to be launching would be
+  lying.
+  **One animated value drives the ring, the bar and the number**, so the three can never
+  disagree; it is an `Animatable` rather than `animateFloatAsState` so the first target is swept
+  to from zero, which makes the ring drawing itself in the entrance. Reduced motion swaps every
+  continuous piece for a static one: the indeterminate arc rests instead of orbiting, the
+  travelling band becomes a quiet wash.
+  **There is deliberately no completion state.** `ContextAwareDoneListener` starts the game and
+  kills the launcher process in the same breath, so the honest end of the sequence is the game
+  window appearing over it; anything designed for "done" would only ever be seen when the launch
+  had failed.
 
 - **Installing a mod loader** (`modloaders/LoaderIndex.java` + `ui/loaders/` +
   `fragments/LoaderInstallFragment.kt`) — one screen for Fabric, Quilt, Forge and NeoForge, asked

@@ -604,6 +604,9 @@
     <string name="home_sign_in">Sign in</string>
     <string name="home_manage">MANAGE</string>
     <string name="home_working">Working…</string>
+    <string name="home_launching">Launching</string>
+    <string name="home_getting_ready">Getting ready</string>
+    <string name="home_launch_starting">Starting up…</string>
     <string name="home_percent">%1$d%%</string>
     <string name="home_version_unset">No version</string>
     <string name="home_not_installed">Downloads on launch</string>

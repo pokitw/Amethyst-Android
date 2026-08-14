@@ -2,6 +2,8 @@ package net.kdt.pojavlaunch.fragments
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -52,6 +54,9 @@ import net.kdt.pojavlaunch.ui.common.ChromeOwner
 class MainMenuFragment : Fragment(), ChromeOwner {
     companion object {
         const val TAG = "MainMenuFragment"
+
+        /** How long the press echo may claim a launch is coming before conceding it was refused. */
+        private const val LAUNCH_ECHO_TIMEOUT_MS = 4000L
     }
 
     private val profiles = mutableStateListOf<GameProfile>()
@@ -59,6 +64,14 @@ class MainMenuFragment : Fragment(), ChromeOwner {
     private var selectedKey by mutableStateOf<String?>(null)
     private var currentAccount by mutableStateOf<String?>(null)
     private var recordings by mutableIntStateOf(0)
+
+    /**
+     * The press, echoed locally so the card can become the launch console in the same frame the
+     * finger lifts. The real busy signal is the task count, but the first task is only submitted
+     * once the downloader thread has spun up, and a launch that visibly hesitates first feels
+     * like a launch that did not take.
+     */
+    private var launchRequested by mutableStateOf(false)
 
     /** Built once: recreating it per recomposition would defeat skipping for no benefit. */
     private val actions by lazy { buildActions() }
@@ -69,7 +82,11 @@ class MainMenuFragment : Fragment(), ChromeOwner {
      * one finishes rather than only when it is returned to.
      */
     private val tasksFinished = TaskCountListener { count ->
-        if (count == 0) Tools.runOnUiThread { if (isResumed) refresh() }
+        if (count == 0) Tools.runOnUiThread {
+            // Whatever was running is over, so the launch echo has nothing left to stand in for.
+            launchRequested = false
+            if (isResumed) refresh()
+        }
     }
 
     override fun onCreateView(
@@ -86,7 +103,7 @@ class MainMenuFragment : Fragment(), ChromeOwner {
                     accounts = accounts,
                     currentAccount = currentAccount,
                     recordingCount = recordings,
-                    progress = rememberLaunchProgress(),
+                    progress = rememberLaunchProgress(launchRequested),
                     actions = actions
                 )
             }
@@ -96,6 +113,9 @@ class MainMenuFragment : Fragment(), ChromeOwner {
     override fun onResume() {
         super.onResume()
         refresh()
+        // A stale echo cannot survive a return here: with no tasks running there is nothing for
+        // the console to be reporting on.
+        if (ProgressKeeper.getTaskCount() == 0) launchRequested = false
         // False: the refresh above has already covered the current state.
         ProgressKeeper.addTaskCountListener(tasksFinished, false)
     }
@@ -201,12 +221,28 @@ class MainMenuFragment : Fragment(), ChromeOwner {
                 .setMessage(R.string.sodium_warning_message)
                 .setNeutralButton(R.string.delete_sodium) { _, _ ->
                     Tools.deleteSodiumMods()
-                    ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true)
+                    requestLaunch()
                 }
                 .show()
         } else {
-            ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true)
+            requestLaunch()
         }
+    }
+
+    /**
+     * Raise the launch event, with the console already on screen when it lands.
+     *
+     * The echo cannot wait on a task to clear it, because a refused launch (no account signed in,
+     * no version selected) never starts one; after a moment with nothing running it gives up
+     * quietly and the card offers Play again. On the main looper rather than a view, so a view
+     * recreated in between cannot strand the pending check.
+     */
+    private fun requestLaunch() {
+        launchRequested = true
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (ProgressKeeper.getTaskCount() == 0) launchRequested = false
+        }, LAUNCH_ECHO_TIMEOUT_MS)
+        ExtraCore.setValue(ExtraConstants.LAUNCH_GAME, true)
     }
 
     /**

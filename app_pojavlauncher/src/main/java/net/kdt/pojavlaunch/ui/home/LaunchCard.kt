@@ -1,13 +1,16 @@
 package net.kdt.pojavlaunch.ui.home
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,7 +20,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -44,13 +46,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.fillMaxSize
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.ui.theme.Amethyst20
 import net.kdt.pojavlaunch.ui.theme.Amethyst50
@@ -63,6 +64,10 @@ import net.kdt.pojavlaunch.ui.theme.Amethyst70
  * at the bottom of the screen. They are not two decisions though, they are one — play *this* — so
  * they are one object here, and it is the only thing on the screen carrying a gradient. Spending
  * all of the boldness in a single place is what lets everything around it stay quiet.
+ *
+ * While a launch is running the whole interior becomes the [LaunchConsole]: the thing that was
+ * pressed is the thing that transforms, and swapping the version row out with it is what stops a
+ * profile being switched under a download that has already decided what it is fetching.
  */
 @Composable
 fun LaunchCard(
@@ -73,6 +78,13 @@ fun LaunchCard(
     modifier: Modifier = Modifier
 ) {
     val innerShape = RoundedCornerShape(16.dp)
+    // The wash deepens while a launch runs: the ground under the console says something is
+    // happening before any text does, without a second gradient appearing anywhere.
+    val washAlpha by animateFloatAsState(
+        targetValue = if (progress.active) 0.42f else 0.30f,
+        animationSpec = tween(500, easing = FastOutSlowInEasing),
+        label = "launchWash"
+    )
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -85,7 +97,7 @@ fun LaunchCard(
                 .drawBehind {
                     drawRect(
                         Brush.radialGradient(
-                            colors = listOf(Amethyst50.copy(alpha = 0.30f), Color.Transparent),
+                            colors = listOf(Amethyst50.copy(alpha = washAlpha), Color.Transparent),
                             center = Offset.Zero,
                             radius = size.maxDimension * 1.05f
                         )
@@ -93,8 +105,25 @@ fun LaunchCard(
                 }
                 .padding(6.dp)
         ) {
-            VersionRow(profile, innerShape, onPickVersion)
-            PlayButton(profile != null, progress, innerShape, onPlay)
+            AnimatedContent(
+                targetState = progress.active,
+                transitionSpec = {
+                    (fadeIn(tween(300, easing = FastOutSlowInEasing)) +
+                            slideInVertically(tween(300, easing = FastOutSlowInEasing)) { it / 8 })
+                        .togetherWith(fadeOut(tween(140)))
+                        .using(SizeTransform { _, _ -> tween(300, easing = FastOutSlowInEasing) })
+                },
+                label = "launchCardMode"
+            ) { active ->
+                if (active) {
+                    LaunchConsole(profile, progress)
+                } else {
+                    Column {
+                        VersionRow(profile, innerShape, onPickVersion)
+                        PlayButton(profile != null, innerShape, onPlay)
+                    }
+                }
+            }
         }
     }
 }
@@ -184,12 +213,13 @@ private fun Badge(text: String, muted: Boolean = false) {
     )
 }
 
+/** The profile's picture in its well; the console borrows it at ring size. */
 @Composable
-private fun ProfileIcon(icon: ImageBitmap?) {
+internal fun ProfileIcon(icon: ImageBitmap?, size: Dp = 54.dp, corner: Dp = 14.dp) {
     Box(
         Modifier
-            .size(54.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .size(size)
+            .clip(RoundedCornerShape(corner))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest),
         contentAlignment = Alignment.Center
     ) {
@@ -198,7 +228,7 @@ private fun ProfileIcon(icon: ImageBitmap?) {
                 bitmap = icon,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(54.dp)
+                modifier = Modifier.size(size)
             )
         } else {
             Icon(
@@ -211,16 +241,15 @@ private fun ProfileIcon(icon: ImageBitmap?) {
 }
 
 /**
- * Play, and the progress indicator.
+ * Play.
  *
- * Downloads used to appear in a bar pinned to the bottom of the window, disconnected from the
- * action that started them, leaving the button itself looking inert. Here the button you pressed
- * is the thing that reports back: it fills, and its label carries the stage.
+ * Purely the action now: the moment it is pressed the card hands over to the console, so the
+ * button no longer needs a busy costume of its own. The tick on the press is the same physical
+ * acknowledgement a key gives, for the one tap here that starts something big.
  */
 @Composable
 private fun PlayButton(
     enabled: Boolean,
-    progress: LaunchProgress,
     shape: RoundedCornerShape,
     onPlay: () -> Unit
 ) {
@@ -231,30 +260,7 @@ private fun PlayButton(
         animationSpec = tween(140, easing = FastOutSlowInEasing),
         label = "playPress"
     )
-    val fill by animateFloatAsState(
-        targetValue = if (progress.busy && progress.percent >= 0) progress.percent / 100f else 0f,
-        animationSpec = tween(500, easing = FastOutSlowInEasing),
-        label = "playFill"
-    )
-    // A slow sweep for the stages that cannot report a percentage, so the button still reads as
-    // working rather than stuck.
-    val sweep by rememberInfiniteTransition(label = "playSweep").animateFloat(
-        initialValue = -0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "playSweepOffset"
-    )
-
-    val busy = progress.busy
-    val idleLabel = stringResource(R.string.main_play)
-    val busyLabel = progress.label ?: stringResource(R.string.home_working)
-    // Branched as whole modifiers rather than as one background() argument, since a colour and a
-    // brush have no common type the overloads accept.
-    val surface = if (busy) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest)
-    else Modifier.background(Brush.linearGradient(listOf(Amethyst70, Amethyst50)))
+    val view = LocalView.current
 
     Box(
         Modifier
@@ -262,70 +268,34 @@ private fun PlayButton(
             .height(60.dp)
             .scale(squish)
             .clip(shape)
-            .then(surface)
+            .background(Brush.linearGradient(listOf(Amethyst70, Amethyst50)))
             .clickable(
-                enabled = enabled && !busy,
+                enabled = enabled,
                 interactionSource = interaction,
-                indication = null,
-                onClick = onPlay
-            ),
+                indication = null
+            ) {
+                view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                onPlay()
+            },
         contentAlignment = Alignment.Center
     ) {
-        if (busy) {
-            val wash = Amethyst70.copy(alpha = 0.30f)
-            if (progress.percent >= 0) {
-                Box(
-                    Modifier
-                        .align(Alignment.CenterStart)
-                        .fillMaxHeight()
-                        .fillMaxWidth(fill)
-                        .background(wash)
-                )
-            } else {
-                Box(Modifier.fillMaxSize().drawBehind { drawSweep(sweep, wash) })
-            }
-        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.padding(horizontal = 20.dp)
         ) {
-            if (!busy) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    tint = Amethyst20,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Text(
-                text = if (busy) busyLabel else idleLabel,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (busy) MaterialTheme.colorScheme.onSurface else Amethyst20,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                // Gives way rather than pushing the percentage off the end of a long stage name.
-                modifier = Modifier.weight(1f, fill = false)
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = Amethyst20,
+                modifier = Modifier.size(20.dp)
             )
-            if (busy && progress.percent >= 0) {
-                Text(
-                    stringResource(R.string.home_percent, progress.percent),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                text = stringResource(R.string.main_play),
+                style = MaterialTheme.typography.titleMedium,
+                color = Amethyst20,
+                maxLines = 1
+            )
         }
     }
-}
-
-/** A soft band travelling across the button; the gradient clamps, so nothing spills either side. */
-private fun DrawScope.drawSweep(offset: Float, color: Color) {
-    val start = offset * size.width
-    drawRect(
-        brush = Brush.horizontalGradient(
-            colors = listOf(Color.Transparent, color, Color.Transparent),
-            startX = start,
-            endX = start + size.width * 0.45f
-        )
-    )
 }
