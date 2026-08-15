@@ -48,6 +48,11 @@ class ModBrowserActivity : BaseActivity() {
 
     // Starts empty and is filled in from IO. currentModTarget reads a profile and can parse a
     // version manifest off disk, which is not work for the thread that draws the first frame.
+    companion object {
+        /** A search to open with, sent by whatever knew what the player was looking for. */
+        const val EXTRA_QUERY = "query"
+    }
+
     private var state by mutableStateOf(ModBrowserState(target = ModTarget("", null, null, null, null), loading = true))
     private var searchJob: Job? = null
 
@@ -113,6 +118,13 @@ class ModBrowserActivity : BaseActivity() {
                     )
                 }
             }
+        }
+        // Opened with something already in mind: Game files sends the id of a dependency it found
+        // missing, so the answer to "you need Cloth Config" is the screen that installs it rather
+        // than a name to go and type in. Set before the first search rather than searched for
+        // afterwards, so there is never a flash of the default results underneath it.
+        intent?.getStringExtra(EXTRA_QUERY)?.takeIf { it.isNotEmpty() }?.let {
+            state = state.copy(query = it)
         }
         refreshTarget(thenSearch = true)
     }

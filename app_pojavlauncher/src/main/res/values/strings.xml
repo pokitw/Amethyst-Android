@@ -861,6 +861,30 @@
     <string name="content_settings_description">Worlds, mods, resource packs, shaders and screenshots</string>
     <string name="content_settings_count">%1$d items</string>
 
+    <string name="content_mod_wrong_version">Not made for %1$s</string>
+    <string name="content_mod_wrong_loader">Not a %1$s mod</string>
+    <plurals name="content_mod_missing">
+        <item quantity="one">Needs %2$s, which is not installed</item>
+        <item quantity="other">Needs %2$s, which are not installed</item>
+    </plurals>
+    <plurals name="content_mod_problems">
+        <item quantity="one">%1$d mod will not load</item>
+        <item quantity="other">%1$d mods will not load</item>
+    </plurals>
+    <string name="content_mod_problems_action">Turn them off</string>
+    <string name="content_mod_problems_hint">Turning one off keeps the file, so you can put it back.</string>
+    <plurals name="content_mod_turned_off">
+        <item quantity="one">%1$d mod turned off</item>
+        <item quantity="other">%1$d mods turned off</item>
+    </plurals>
+    <string name="content_mod_needed_title">%1$s is needed</string>
+    <plurals name="content_mod_needed_message">
+        <item quantity="one">%2$s needs this to load, and will stop working without it.</item>
+        <item quantity="other">These need it to load and will stop working without it: %2$s</item>
+    </plurals>
+    <string name="content_mod_needed_continue">Turn it off anyway</string>
+    <string name="content_mod_find">Find %1$s on Modrinth</string>
+
     <string name="content_kind_all">All</string>
     <string name="content_kind_worlds">Worlds</string>
     <string name="content_kind_mods">Mods</string>

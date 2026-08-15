@@ -9,6 +9,7 @@ import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.runtime.Immutable
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.modmeta.ModRequirements
 import java.io.File
 import java.io.InputStream
 import java.util.Locale
@@ -77,6 +78,30 @@ data class ContentItem(
      */
     val summary: String = "",
     /**
+     * What this mod says it needs, kept so the folder can be judged as a whole.
+     *
+     * Null for everything that is not a mod, and for a jar nothing could be read from.
+     */
+    val requirements: ModRequirements? = null,
+    /**
+     * The one thing wrong with this row, in words, replacing the accent line when there is one.
+     *
+     * Deliberately not a second line and not a red badge. The accent line is already where a row
+     * reports its state, a mod that will not load has nothing more useful to say than why, and a
+     * row that grew a third line would make four hundred of them taller for the sake of the two
+     * that are broken.
+     */
+    val warning: String? = null,
+    /**
+     * Enabled mods that need this one, by name, so switching it off can say who breaks.
+     *
+     * On the row rather than worked out when asked, because it comes from the same single pass
+     * that fills [warning] and a second resolve could disagree with the first.
+     */
+    val neededBy: List<String> = emptyList(),
+    /** Required dependency ids nothing installed provides, so a row can offer to go and get one. */
+    val missing: List<String> = emptyList(),
+    /**
      * Set once the picture has been read, so a row scrolling back into view does not ask again.
      *
      * Only an early exit — the screen's host keeps the real record, because an item with no
@@ -94,6 +119,9 @@ data class ContentItem(
         version?.let { append(' ').append(it.lowercase(Locale.getDefault())) }
         badge?.let { append(' ').append(it.lowercase(Locale.getDefault())) }
         append(' ').append(file.name.lowercase(Locale.getDefault()))
+        // A mod is as often looked for by the id in its crash log as by its display name.
+        requirements?.modId?.let { append(' ').append(it) }
+        warning?.let { append(' ').append(it.lowercase(Locale.getDefault())) }
     }
 
     fun matches(query: String): Boolean = query.isEmpty() || haystack.contains(query)
@@ -280,6 +308,7 @@ private fun describeMod(item: ContentItem): ContentItem {
         version = meta.version,
         badge = meta.loader,
         sizeBytes = item.file.length(),
+        requirements = meta.requirements,
         detailed = true
     )
 }

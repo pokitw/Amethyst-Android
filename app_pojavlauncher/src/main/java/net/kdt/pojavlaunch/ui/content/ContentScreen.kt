@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,6 +67,7 @@ import net.kdt.pojavlaunch.ui.settings.InfoRow
 import net.kdt.pojavlaunch.ui.settings.SectionLabel
 import net.kdt.pojavlaunch.ui.settings.SettingsCard
 import net.kdt.pojavlaunch.ui.theme.Amethyst20
+import net.kdt.pojavlaunch.ui.theme.Warning70
 import net.kdt.pojavlaunch.ui.theme.SlotWell
 
 /**
@@ -88,7 +90,16 @@ class ContentState(
     val storageLine: String,
     val filterLabel: String,
     val searching: Boolean,
-    val filtered: Boolean
+    val filtered: Boolean,
+    /** How many enabled mods the launcher believes will not load. Zero for everybody else. */
+    val modProblems: Int = 0,
+    /**
+     * The id of a dependency nothing installed provides, if there is one.
+     *
+     * Only one, and deliberately: the offer is a search, and a search takes one thing. Somebody
+     * missing three dependencies gets the first, installs it, and the count goes down by one.
+     */
+    val firstMissing: String? = null
 )
 
 /**
@@ -123,6 +134,8 @@ fun ContentScreen(
     onOpen: (ContentItem) -> Unit,
     onNeedThumbnail: (ContentItem) -> Unit,
     onOpenFolder: () -> Unit,
+    onDisableBrokenMods: () -> Unit,
+    onFindMissingMod: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var confirming by remember { mutableStateOf<ContentItem?>(null) }
@@ -171,6 +184,17 @@ fun ContentScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
+
+            if (state.modProblems > 0) {
+                item(key = "modproblems") {
+                    ModProblemCard(
+                        count = state.modProblems,
+                        missing = state.firstMissing,
+                        onDisable = onDisableBrokenMods,
+                        onFind = onFindMissingMod
                     )
                 }
             }
@@ -253,15 +277,31 @@ fun ContentScreen(
                 )
             },
             text = {
-                Text(
-                    stringResource(
-                        when {
-                            target.kind == ContentKind.WORLD -> R.string.content_delete_world
-                            target.toggleable -> R.string.content_delete_toggleable
-                            else -> R.string.content_delete_plain
-                        }
+                Column {
+                    Text(
+                        stringResource(
+                            when {
+                                target.kind == ContentKind.WORLD -> R.string.content_delete_world
+                                target.toggleable -> R.string.content_delete_toggleable
+                                else -> R.string.content_delete_plain
+                            }
+                        )
                     )
-                )
+                    // Who breaks, in the dialog that is already being shown rather than in a
+                    // second one after it. In the warning colour and not the error colour: this
+                    // is a consequence worth knowing, not a refusal.
+                    if (target.neededBy.isNotEmpty()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            pluralStringResource(
+                                R.plurals.content_mod_needed_message, target.neededBy.size,
+                                target.neededBy.size, target.neededBy.joinToString(", ")
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Warning70
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = { confirming = null; onDelete(target) }) {
@@ -392,10 +432,15 @@ private fun ContentRow(
                 )
             }
             Spacer(Modifier.height(3.dp))
+            // The accent line is where a row already reports its state, so a broken mod says why
+            // there rather than growing a third line that would make four hundred rows taller for
+            // the sake of the two that are wrong. Warning, not error: the mod is still there and
+            // still switchable, and the verdict is the launcher's reading of somebody else's
+            // metadata rather than a fact about the game.
             Text(
-                item.summary,
+                item.warning ?: item.summary,
                 style = MaterialTheme.typography.labelLarge,
-                color = colors.primary,
+                color = if (item.warning != null) Warning70 else colors.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -646,5 +691,78 @@ private fun AddChoice(iconRes: Int, labelRes: Int, onClick: () -> Unit) {
             style = MaterialTheme.typography.titleSmall,
             color = colors.onSurface
         )
+    }
+}
+
+/**
+ * How many mods will not load, and the one action that fixes all of them.
+ *
+ * <b>The count is the point, not the badge on each row.</b> A row saying "not made for 1.21" is
+ * only useful once you are already looking at that row, and on a phone with forty mods you are not.
+ * This is the thing a player needs before they scroll: how many, and can it be dealt with now.
+ *
+ * The action turns them <b>off</b> rather than deleting them. The verdict is the launcher's reading
+ * of metadata somebody else wrote, so it has to stay undoable, and the hint says so rather than
+ * leaving it to be discovered.
+ *
+ * In the warning colour rather than the error one, and drawn as an ordinary settings card rather
+ * than as an alert. Nothing has failed yet: this is state shown before the action, which is what
+ * the launch card does with the renderer and the memory.
+ */
+@Composable
+private fun ModProblemCard(
+    count: Int,
+    missing: String?,
+    onDisable: () -> Unit,
+    onFind: (String) -> Unit
+) {
+    Column {
+        Spacer(Modifier.height(18.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .padding(horizontal = 15.dp, vertical = 13.dp)
+        ) {
+            Text(
+                pluralStringResource(R.plurals.content_mod_problems, count, count),
+                style = MaterialTheme.typography.titleSmall,
+                color = Warning70
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                stringResource(R.string.content_mod_problems_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(6.dp))
+            // Finding it comes first when something is simply absent, because installing the
+            // missing mod is the fix somebody actually wants; turning the dependent off is what
+            // you settle for. Named, not counted: a search takes one thing, and "Cloth Config" is
+            // what they will recognise in the results.
+            if (missing != null) {
+                Text(
+                    stringResource(R.string.content_mod_find, missing),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable { onFind(missing) }
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                )
+            }
+            Text(
+                stringResource(R.string.content_mod_problems_action),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onDisable)
+                    .padding(horizontal = 12.dp, vertical = 9.dp)
+            )
+        }
     }
 }

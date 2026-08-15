@@ -16,6 +16,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.ui.content.ContentItem
+import net.kdt.pojavlaunch.ui.content.applyModCompat
+import net.kdt.pojavlaunch.ui.content.countModProblems
+import net.kdt.pojavlaunch.ui.content.firstMissingMod
 import net.kdt.pojavlaunch.ui.content.ContentKind
 import net.kdt.pojavlaunch.ui.content.ContentScreen
 import net.kdt.pojavlaunch.ui.content.ContentSection
@@ -29,6 +32,8 @@ import net.kdt.pojavlaunch.ui.content.readThumbnail
 import net.kdt.pojavlaunch.ui.content.scanContent
 import net.kdt.pojavlaunch.ui.content.setContentEnabled
 import net.kdt.pojavlaunch.ui.content.summarise
+import net.kdt.pojavlaunch.ui.mods.ModTarget
+import net.kdt.pojavlaunch.ui.mods.currentModTarget
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
 import net.kdt.pojavlaunch.ui.home.currentProfileLabel
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
@@ -65,6 +70,15 @@ class ContentActivity : BaseActivity() {
     private var profileLabel by mutableStateOf<String?>(null)
     private var storageLine by mutableStateOf("")
 
+    /**
+     * The profile these mods are being judged against.
+     *
+     * Read once in [onCreate], on the main thread, because it goes through `LauncherProfiles` like
+     * the game directory above. Null means nothing is checked, which is the honest answer for a
+     * snapshot profile or one whose version has never been downloaded.
+     */
+    private var modTarget: ModTarget? = null
+
     private lateinit var gameDir: File
     private var detailJob: Job? = null
     private var freeSpace = ""
@@ -90,6 +104,7 @@ class ContentActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         gameDir = runCatching { currentGameDirectory() }.getOrElse { File(Tools.DIR_GAME_NEW) }
+        modTarget = runCatching { currentModTarget() }.getOrNull()
         profileLabel = runCatching {
             val label = currentProfileLabel(this)
             listOfNotNull(label?.first, label?.second).joinToString(" · ").ifEmpty { null }
@@ -110,7 +125,9 @@ class ContentActivity : BaseActivity() {
                         storageLine = storageLine,
                         filterLabel = filter?.name ?: "all",
                         searching = lowered.isNotEmpty(),
-                        filtered = filter != null
+                        filtered = filter != null,
+                        modProblems = countModProblems(items),
+                        firstMissing = firstMissingMod(items)
                     ),
                     query = query,
                     onQuery = { query = it },
@@ -124,6 +141,8 @@ class ContentActivity : BaseActivity() {
                     onOpen = openItem,
                     onNeedThumbnail = needThumbnail,
                     onOpenFolder = { openPath(gameDir) },
+                    onDisableBrokenMods = ::disableBrokenMods,
+                    onFindMissingMod = ::browseFor,
                     onBack = ::finish
                 )
             }
@@ -262,7 +281,7 @@ class ContentActivity : BaseActivity() {
         if (updated.isEmpty()) return
         val byKey = HashMap<String, ContentItem>(updated.size * 2)
         for (item in updated) byKey[key(item)] = item
-        items = items.map { current ->
+        items = applyModCompat(this, items.map { current ->
             val fresh = byKey[key(current)] ?: return@map current
             fresh.copy(
                 file = current.file,
@@ -270,7 +289,7 @@ class ContentActivity : BaseActivity() {
                 thumbnail = current.thumbnail ?: fresh.thumbnail,
                 thumbnailRequested = current.thumbnailRequested || fresh.thumbnailRequested
             )
-        }
+        }, modTarget)
     }
 
     /**
@@ -318,6 +337,14 @@ class ContentActivity : BaseActivity() {
         startActivity(android.content.Intent(this, ModBrowserActivity::class.java))
     }
 
+    /** The same screen, opened already looking for something. */
+    private fun browseFor(query: String) {
+        startActivity(
+            android.content.Intent(this, ModBrowserActivity::class.java)
+                .putExtra(ModBrowserActivity.EXTRA_QUERY, query)
+        )
+    }
+
     private fun pick() {
         // Everything, because what it is gets decided by looking inside it rather than by asking
         // the picker to filter. A jar is handed out as octet-stream by most providers anyway.
@@ -348,12 +375,74 @@ class ContentActivity : BaseActivity() {
     }
 
     /**
+     * Turn off every mod that will not load, in one go.
+     *
+     * <b>This is the half a badge on a row cannot do.</b> Knowing that four of your mods are for
+     * the wrong version is worth very little on a phone if acting on it is four long presses and
+     * four confirmations; the whole reason a desktop launcher gets away with a column of ticks is
+     * that a mouse makes the follow-up cheap. Off rather than deleted, always, because the verdict
+     * is the launcher's reading of somebody else's metadata and being wrong must stay undoable.
+     */
+    private fun disableBrokenMods() {
+        val broken = items.filter { it.kind == ContentKind.MOD && it.enabled && it.warning != null }
+        var turnedOff = 0
+        for (item in broken) {
+            val renamed = setContentEnabled(item, false) ?: continue
+            val moved = item.copy(file = renamed, enabled = false)
+            fingerprints[key(moved)] = fingerprint(moved)
+            put(moved)
+            turnedOff++
+        }
+        items = applyModCompat(this, items, modTarget)
+        if (turnedOff == 0) {
+            toast(getString(R.string.content_toggle_failed))
+        } else {
+            toast(resources.getQuantityString(
+                R.plurals.content_mod_turned_off, turnedOff, turnedOff))
+        }
+    }
+
+    /**
      * Turn a mod on or off.
      *
      * The row is replaced rather than the folder re-read: a profile of four hundred items would
      * otherwise be rescanned, and every picture dropped and fetched again, to flip one switch.
+     *
+     * <b>Switching one off asks first when other mods need it</b>, which is the failure this
+     * cannot otherwise warn about: a mod turned off is not an error anywhere, the game simply
+     * fails to start next time with a message about a mod nobody touched. Only on the way off, and
+     * only when something enabled actually depends on it.
      */
     private fun toggle(item: ContentItem, enabled: Boolean) {
+        if (!enabled && item.neededBy.isNotEmpty()) {
+            confirmBreaking(item) { applyToggle(item, false) }
+            return
+        }
+        applyToggle(item, enabled)
+    }
+
+    /**
+     * Say who needs this before it is switched off.
+     *
+     * Only the switch asks here. Deleting already has a confirmation of its own, and that one now
+     * carries the same fact in its body, because two dialogs in a row is two questions where the
+     * player only has one decision to make.
+     *
+     * Named rather than counted: "Sodium needs this" is something a player can weigh, and "1 mod
+     * needs this" is not.
+     */
+    private fun confirmBreaking(item: ContentItem, onConfirm: () -> Unit) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.content_mod_needed_title, item.title))
+            .setMessage(resources.getQuantityString(
+                R.plurals.content_mod_needed_message, item.neededBy.size,
+                item.neededBy.size, item.neededBy.joinToString(", ")))
+            .setPositiveButton(R.string.content_mod_needed_continue) { _, _ -> onConfirm() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun applyToggle(item: ContentItem, enabled: Boolean) {
         val renamed = setContentEnabled(item, enabled)
         if (renamed == null) {
             toast(getString(R.string.content_toggle_failed))
@@ -364,6 +453,9 @@ class ContentActivity : BaseActivity() {
         val moved = item.copy(file = renamed, enabled = enabled)
         fingerprints[key(moved)] = fingerprint(moved)
         put(moved)
+        // What is switched on decides what satisfies what, so every other row's verdict can
+        // change from this one switch: turning Fabric API off breaks the twenty mods that need it.
+        items = applyModCompat(this, items, modTarget)
     }
 
     private fun delete(item: ContentItem) {
@@ -373,7 +465,7 @@ class ContentActivity : BaseActivity() {
         }
         thumbnailsAsked.remove(key(item))
         fingerprints.remove(key(item))
-        items = items.filterNot { key(it) == key(item) }
+        items = applyModCompat(this, items.filterNot { key(it) == key(item) }, modTarget)
         updateStorageLine()
     }
 

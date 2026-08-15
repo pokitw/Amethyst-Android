@@ -1333,6 +1333,45 @@ re-litigated. The reasoning lives in the commit that made the change.
   knowing, and it is the setting somebody would actually be asked to change.
   Each fact is read inside its own guard and says `unavailable` rather than throwing, because this
   runs on the launch path and a device report is never worth a game that will not start (§16.15).
+- **Checking mods against the profile** (`modmeta/` + `ui/content/ContentCompat.kt`) — every jar in
+  the folder read against the Minecraft version and loader it will actually run under, and against
+  the other jars beside it, so "will not load" is something you find out before the game does.
+  **There is no declared Minecraft version to read**, and that is the finding that shapes the
+  whole thing. In every modern format the Minecraft requirement *is* a dependency entry, sitting
+  beside the mod's other dependencies in the same grammar. So "does this match my version" and "is
+  anything it needs missing" are one parser and two questions over it, and building either alone
+  means writing both. They shipped together for that reason and should never be split.
+  **Anything not fully understood answers UNKNOWN, never CONFLICTS.** A missed warning costs a
+  player nothing, because they are exactly where they already were. A false one tells them to turn
+  off a mod that works, breaks their game, and the launcher gets the blame. Everything in
+  `VersionPredicate` fails towards silence, which is the same asymmetry `Tools.compareSHA1` encodes
+  when it fake matches on a read error, and it must survive anybody later tidying the file.
+  **Four traps in this ecosystem each produce a screen full of confident, wrong warnings**, and all
+  four are checked by name. Fabric API is forty modules that declare `provides`, and mods depend on
+  those module ids, so a graph ignoring `provides` reports a missing dependency on nearly every
+  Fabric mod installed. Platform ids (`minecraft`, `fabricloader`, `forge`) are not jars in the
+  folder. A `.disabled` jar is on disk and absent from the game, so counting it means switching
+  Fabric API off silently stops warning about the twenty mods that needed it. And **NeoForge
+  renamed Forge's `mandatory` to `type`**, so reading one spelling makes every dependency in the
+  other format either always required or never, both of which are silent.
+  **Java over Gson, not Kotlin over `org.json`**, and that is a verification decision rather than a
+  taste one (§16.25): there is no `org.json` jar in the build container and no Kotlin compiler, so
+  a parser in the existing readers' idiom could only ever have been driven by a copy of itself.
+  Written in Java it compiles at source 8 and `scripts/modmetasim` builds real jars with
+  `ZipOutputStream` and reads them back through the shipped classes.
+  **The fix is what makes it worth more than a badge.** Knowing four mods are for the wrong version
+  is worth little on a phone if acting on it is four long presses; a desktop launcher gets away
+  with a column of ticks because a mouse makes the follow-up cheap. So the count carries "turn them
+  off", and a missing dependency carries its own name into a Modrinth search that installs it.
+  **Off, never deleted**, because the verdict is the launcher's reading of somebody else's
+  metadata and being wrong has to stay undoable.
+  **Switching a mod off asks who breaks first.** That failure is otherwise completely silent: a
+  mod turned off is not an error anywhere, the game simply fails to start next time complaining
+  about a mod nobody touched. Deleting already had a confirmation, so the same fact went into that
+  dialog's body rather than into a second dialog after it.
+  The verdict replaces the row's **accent line** rather than adding a third one, because that line
+  is already where a row reports its state and four hundred rows should not get taller for the two
+  that are broken. In `Warning70`, never `Danger70`: nothing has failed, and the mod is still there.
 
 ## 15. Coding conventions
 
@@ -1890,6 +1929,28 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   rather than being omitted, so a gap is never mistaken for a value.
 - There is **no device report screen**. The facts go into the log, which the in-app viewer can
   already show and search, and a screen would be a second place for them to drift from.
+- The mod check is **the mod's own word for itself**, so a jar tagged wrongly is judged wrongly and
+  a jar that declares nothing is not judged at all. It reads what four metadata formats state; it
+  cannot run the mod.
+- It says nothing about **snapshots and pre-releases**. `ModTarget` only recognises plain releases,
+  and `VersionPredicate` refuses to order a version with a suffix, so a snapshot profile checks
+  nothing rather than condemning everything. That is the safe direction and it does mean the
+  feature is silently absent there.
+- A verdict appears **only once the jar has been opened**, which is the second of the screen's
+  three passes. A folder that is still being read shows no warnings yet rather than wrong ones.
+- **Optional dependencies are ignored entirely.** A launcher that acted on suggestions would put
+  jars in somebody's folder that they never chose, which is the same line the mod browser's
+  dependency walk already draws.
+- **Turning off the broken ones can uncover more.** A mod that depended on one just switched off is
+  now genuinely missing a dependency, so the count can go up before it goes down. That is true
+  rather than a bug, and each round strictly reduces what is enabled, so it ends.
+- Finding a missing dependency opens **a search, not an install**. The id a mod declares is not
+  always what the project is called on Modrinth, so the results are offered rather than the first
+  hit installed silently.
+- Game files runs in the **`:launcher` process**, which caches preferences separately from the
+  process that writes them, so the profile it judges against is the one selected when that process
+  last read it. Switching profile and coming straight back is right, because the activity re-reads
+  on creation; a `:launcher` process left alive from before a switch is the case that can be stale.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2007,6 +2068,15 @@ Before pushing:
   than Python's own `%`, because Java's double remainder keeps the sign of the dividend and
   Python's floored one does not; the first draft used `%`, which silently repaired an unwrapped
   negative angle into the right answer and could not tell a working wrap from a removed one.
+- **Run `sh scripts/modmetasim/run.sh`** if the mod metadata parser, the version grammars or the
+  dependency graph changed. It compiles the shipped `ModRequirements`, `VersionPredicate` and
+  `ModGraph` at source 8 and drives them with **real jars written by the harness**, whose metadata
+  is copied from what mods actually ship rather than from what the parser expects (§16.20). Two
+  assertions matter more than the rest: that a folder of real, mutually consistent mods produces
+  **exactly zero** warnings, because over-flagging is the failure mode and only a positive
+  assertion on a good set can see it; and that every shape the parser does not model comes out
+  UNKNOWN rather than CONFLICTS. One input is guarded in three places and no single removal is
+  observable, which `run.sh` states rather than hides.
 - **Run `sh scripts/memsim/run.sh`** if the heap ceiling, the default allocation or the pre-launch
   memory check changed. It compiles the shipped `HeapAdvice` and sweeps every device size against
   every allocation the slider can produce. The assertion that matters most is that **the

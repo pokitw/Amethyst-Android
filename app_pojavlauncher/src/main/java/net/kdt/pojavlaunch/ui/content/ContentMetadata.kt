@@ -1,6 +1,7 @@
 package net.kdt.pojavlaunch.ui.content
 
 import android.graphics.Bitmap
+import net.kdt.pojavlaunch.modmeta.ModRequirements
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -12,7 +13,16 @@ class ModMetadata(
     val description: String?,
     val version: String?,
     val loader: String?,
-    val iconPath: String?
+    val iconPath: String?,
+    /**
+     * What it says it needs: its id, its dependencies and the Minecraft versions it declares.
+     *
+     * Read off the same open jar as everything above rather than through a second call, because
+     * opening a mod is the expensive half of the scan and this folder can hold four hundred of
+     * them. Null when nothing in the jar could be parsed, which reads as "not checked" throughout
+     * rather than as a problem.
+     */
+    val requirements: ModRequirements?
 )
 
 /** What a resource or shader pack says about itself. */
@@ -28,15 +38,22 @@ class PackMetadata(val description: String?, val format: Int?)
  */
 fun readModMetadata(file: File): ModMetadata? = try {
     ZipFile(file).use { zip ->
-        readQuilt(zip)
+        val described = readQuilt(zip)
             ?: readFabric(zip)
             ?: readToml(zip, "META-INF/neoforge.mods.toml", "NEOFORGE")
             ?: readToml(zip, "META-INF/mods.toml", "FORGE")
             ?: readLegacyForge(zip)
+        // Off the same handle, and only once the jar has proved to be a mod at all. The
+        // requirements reader walks the same five formats in the same order, so it agrees with
+        // the loader named above by construction rather than by both being kept in step.
+        described?.withRequirements(ModRequirements.read(zip))
     }
 } catch (t: Throwable) {
     null
 }
+
+private fun ModMetadata.withRequirements(requirements: ModRequirements?) =
+    ModMetadata(name, description, version, loader, iconPath, requirements)
 
 /** The icon a mod ships, decoded small. */
 fun readModIcon(file: File, maxPixels: Int): Bitmap? = try {
@@ -119,7 +136,8 @@ private fun readFabric(zip: ZipFile): ModMetadata? {
         description = json.optStringOrNull("description"),
         version = json.optStringOrNull("version"),
         loader = "FABRIC",
-        iconPath = json.optIconPath()
+        iconPath = json.optIconPath(),
+        requirements = null
     )
 }
 
@@ -131,7 +149,8 @@ private fun readQuilt(zip: ZipFile): ModMetadata? {
         description = metadata?.optStringOrNull("description"),
         version = loader.optStringOrNull("version"),
         loader = "QUILT",
-        iconPath = metadata?.optIconPath()
+        iconPath = metadata?.optIconPath(),
+        requirements = null
     )
 }
 
@@ -150,7 +169,8 @@ private fun readLegacyForge(zip: ZipFile): ModMetadata? {
         description = entry.optStringOrNull("description"),
         version = entry.optStringOrNull("version"),
         loader = "FORGE",
-        iconPath = entry.optStringOrNull("logoFile")
+        iconPath = entry.optStringOrNull("logoFile"),
+        requirements = null
     )
 }
 
@@ -170,7 +190,8 @@ private fun readToml(zip: ZipFile, path: String, loader: String): ModMetadata? {
         // Forge writes a literal ${file.jarVersion} here, filled in from the manifest at build time.
         version = fields["version"]?.takeUnless { it.contains("\${") },
         loader = loader,
-        iconPath = fields["logoFile"]
+        iconPath = fields["logoFile"],
+        requirements = null
     )
 }
 
