@@ -1963,7 +1963,24 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 1. Nothing outstanding from the previous list; see the ledger in §14.
 
 **Next**
-2. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
+2. **Discord Rich Presence.** Newly possible: the Social SDK 1.10 added unauthenticated Android
+   presence on 3 August 2026, verified in `discord/discord-api-docs` commit `364e399`, which
+   deleted the "desktop client only" line the whole ecosystem was working from. PojavLauncher
+   closed this request three times as `wontfix` on that basis and those closures now predate the
+   fact. The route needs no credential from a player: `Client::SetApplicationId` then
+   `Client::UpdateRichPresence`, with no `Connect()`, talking to the installed Discord app.
+   **Never the account token route**, whatever convenience it offers: it is a self-bot under
+   Discord's own developer policy, the token bypasses 2FA and owns the whole account, and this
+   codebase has already had a session token reach `latestlog.txt` next to a share button.
+   `discord/PresenceCard.java` and `scripts/presencesim` are the half that could be built and
+   checked here: what the card says, which version and loader it names, and the standing rule that
+   **the account name is never in it**. What is missing is the SDK itself, which downloads from a
+   portal this container cannot reach, and an Application ID. Also outstanding: a C++ SDK at API
+   24 against `minSdk` 21, `ndkBuild` where Discord documents CMake, and ABI coverage, which is
+   how the same feature crashes upstream (PojavLauncher #3409, a mod's `libdiscord-rpc.so` built
+   for the wrong architecture). The card will read "Playing Amethyst X", since the title is the
+   Discord application's name.
+3. Bring the runtime manager and gamepad remapper onto the new components (see §17), which also
    gets their settings into the search index.
 4. A layout picker worth the name — the editor's Load is still a file list. Layouts should be a
    gallery with a preview, since a control layout is a picture, not a filename.
@@ -2068,6 +2085,11 @@ Before pushing:
   than Python's own `%`, because Java's double remainder keeps the sign of the dividend and
   Python's floored one does not; the first draft used `%`, which silently repaired an unwrapped
   negative angle into the right answer and could not tell a working wrap from a removed one.
+- **Run `sh scripts/presencesim/run.sh`** if the Discord presence card changed. It compiles the
+  shipped `PresenceCard` at source 8 and checks what it would publish. Two failures matter and
+  both are permanent once seen by a stranger: a field naming the wrong Minecraft version, and a
+  field naming the player. The identity check is written as a property of the output rather than
+  trusted to the call sites, because a username reaching a public profile cannot be taken back.
 - **Run `sh scripts/modmetasim/run.sh`** if the mod metadata parser, the version grammars or the
   dependency graph changed. It compiles the shipped `ModRequirements`, `VersionPredicate` and
   `ModGraph` at source 8 and drives them with **real jars written by the harness**, whose metadata
