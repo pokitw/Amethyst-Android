@@ -174,7 +174,8 @@ private fun rendererLabel(profile: MinecraftProfile, renderers: Tools.RenderersL
     return if (index >= 0) renderers!!.rendererDisplayNames[index] else id
 }
 
-private fun formatMemory(megabytes: Int): String = when {
+/** Megabytes as a player reads them. Shared with the pre-launch memory dialog, which quotes both. */
+internal fun formatMemory(megabytes: Int): String = when {
     megabytes >= 1024 && megabytes % 1024 == 0 ->
         String.format(Locale.getDefault(), "%d GB", megabytes / 1024)
     megabytes >= 1024 -> String.format(Locale.getDefault(), "%.1f GB", megabytes / 1024f)

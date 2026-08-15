@@ -72,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.prefs.HeapAdvice
 import net.kdt.pojavlaunch.ui.home.Avatar
 import net.kdt.pojavlaunch.ui.theme.Amethyst50
 import net.kdt.pojavlaunch.ui.theme.SlotWell
@@ -741,7 +742,9 @@ private fun PerformanceScreen(
                 title = stringResource(R.string.mcl_memory_allocation),
                 description = stringResource(R.string.mcl_memory_allocation_subtitle),
                 value = store.int("allocation", environment.maxMemoryMb),
-                min = 256, max = environment.maxMemoryMb.coerceAtLeast(512), step = 8,
+                // Bounds from HeapAdvice, through the environment: the pre-launch check tests
+                // against the same ceiling, so anything offered here is a value it will accept.
+                min = HeapAdvice.MINIMUM_MB, max = environment.maxMemoryMb, step = HeapAdvice.STEP_MB,
                 format = { formatMemory(it) + " / " + formatMemory(environment.deviceMemoryMb) },
                 onValueChange = { store.put("allocation", it) }
             )

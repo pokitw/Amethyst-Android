@@ -605,6 +605,12 @@
     <string name="home_getting_ready">Getting ready</string>
     <string name="home_launch_starting">Starting up…</string>
     <string name="home_percent">%1$d%%</string>
+    <string name="launch_memory_low_title">Not enough memory right now</string>
+    <string name="launch_memory_low_message">Minecraft is set to take %1$s and only %2$s is free at the moment, so it may crash or be closed by Android. Closing other apps will free some up.</string>
+    <string name="launch_memory_over_title">More memory than this device can give</string>
+    <string name="launch_memory_over_message">Minecraft is set to take %1$s. This device should not be asked for more than %2$s, and going above it makes the game slower rather than faster.</string>
+    <string name="launch_memory_lower">Use %1$s instead</string>
+    <string name="launch_memory_continue">Launch anyway</string>
     <string name="home_version_unset">No version</string>
     <string name="home_not_installed">Downloads on launch</string>
     <string name="home_no_profile">No profile yet</string>

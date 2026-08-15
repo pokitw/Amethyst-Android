@@ -215,21 +215,15 @@ public class LauncherPreferences {
      * Put not enough RAM ? Minecraft will lag and crash.
      * Put too much RAM ?
      * The GC will lag, android won't be able to breathe properly.
+     *
+     * The tiering itself lives in {@link HeapAdvice}, which is also what the memory slider's
+     * ceiling and the pre-launch check are built from. Three copies of this arithmetic in three
+     * files is how a launcher ends up offering a value its own launch screen refuses.
      * @param ctx Context needed to get the total memory of the device.
      * @return The best default value found.
      */
     private static int findBestRAMAllocation(Context ctx){
-        int deviceRam = Tools.getTotalDeviceMemory(ctx);
-        if (deviceRam < 1024) return 296;
-        if (deviceRam < 1536) return 448;
-        if (deviceRam < 2048) return 656;
-        // Limit the max for 32 bits devices more harshly
-        if (is32BitsDevice()) return 696;
-
-        if (deviceRam < 3064) return 936;
-        if (deviceRam < 4096) return 1144;
-        if (deviceRam < 6144) return 1536;
-        return 2048; //Default RAM allocation for 64 bits
+        return HeapAdvice.recommended(Tools.getTotalDeviceMemory(ctx), is32BitsDevice());
     }
 
     /// Find a correct resolution for the device

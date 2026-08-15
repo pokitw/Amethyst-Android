@@ -57,6 +57,7 @@ import androidx.fragment.app.FragmentTransaction;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import net.kdt.pojavlaunch.customcontrols.GameViewport;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutorTask;
 import net.kdt.pojavlaunch.lifecycle.LifecycleAwareAlertDialog;
@@ -1409,17 +1410,140 @@ public final class Tools {
         android.os.Process.killProcess(android.os.Process.myPid());
     }
 
-    public static void printLauncherInfo(String gameVersion, String javaArguments, int deviceRam) {
+    /**
+     * The header every log opens with, which is the whole of what a bug report can be built from.
+     *
+     * <b>This is the only place in the app that can write it.</b> The log file is opened with
+     * {@code O_TRUNC} by {@code Logger.begin}, and only the game process and the Java installer
+     * ever call that, so anything the launcher wrote beforehand would be erased by the launch it
+     * was describing. Which makes this function the assembly point rather than one of several.
+     *
+     * <p>It answers the questions actually asked when a report arrives: what is this device, what
+     * was it told to render with, and how much memory was there at the moment it started. The
+     * renderer is the <i>choice</i> as well as the driver's own name for itself, because a report
+     * saying "Adreno" tells nobody whether the game was going through gl4es, ANGLE or Zink, and
+     * that is usually the first thing worth knowing.
+     *
+     * <p>Every optional fact is read inside its own guard. This runs on the launch path, where
+     * anything that can throw is a game that will not start (§16.15), and a device report is never
+     * worth that. A fact that cannot be read says so and the rest of the header still arrives.
+     */
+    public static void printLauncherInfo(Context ctx, String gameVersion, String javaArguments, int deviceRam) {
         Logger.appendToLog("Info: Launcher version: " + BuildConfig.VERSION_NAME);
         Logger.appendToLog("Info: Architecture: " + Architecture.archAsString(DEVICE_ARCHITECTURE));
         Logger.appendToLog("Info: Device model: " + Build.MANUFACTURER + " " +Build.MODEL);
+        Logger.appendToLog("Info: Chipset: " + describeChipset());
+        Logger.appendToLog("Info: CPU cores: " + Runtime.getRuntime().availableProcessors()
+                + " (" + describeAbis() + ")");
         Logger.appendToLog(String.format("Info: Total RAM: %s MB", deviceRam != 0 ? deviceRam : "unavailable"));
+        Logger.appendToLog("Info: Free RAM at launch: " + describeFreeMemory(ctx));
         Logger.appendToLog("Info: Allocated RAM: " + LauncherPreferences.PREF_RAM_ALLOCATION + "MB");
-        Logger.appendToLog("Info: API version: " + SDK_INT);
+        Logger.appendToLog("Info: Free storage: " + describeFreeStorage());
+        Logger.appendToLog("Info: API version: " + SDK_INT + " (Android " + Build.VERSION.RELEASE + ")");
+        Logger.appendToLog("Info: Screen: " + describeScreen(ctx));
+        Logger.appendToLog("Info: Renderer: " + describeRenderer());
+        Logger.appendToLog("Info: Java runtime: " + describeRuntime());
         Logger.appendToLog("Info: Selected Minecraft version: " + gameVersion);
         Logger.appendToLog("Info: Custom Java arguments: \"" + javaArguments + "\"");
         GLInfoUtils.GLInfo info = GLInfoUtils.getGlInfo();
         Logger.appendToLog("Info: Graphics device: "+info.vendor+ " "+info.renderer+" (OpenGL ES "+info.glesMajorVersion+")");
+    }
+
+    /** What every unreadable fact in the header says, so a gap is never mistaken for a value. */
+    private static final String INFO_UNAVAILABLE = "unavailable";
+
+    private static String describeChipset() {
+        try {
+            // SOC_MANUFACTURER and SOC_MODEL are the real answer and arrived in Android 12; below
+            // that HARDWARE is the closest thing, and is often the platform codename rather than
+            // anything a person would recognise.
+            if (SDK_INT >= 31) {
+                String soc = Build.SOC_MANUFACTURER + " " + Build.SOC_MODEL;
+                if (isValidString(soc.trim())) return soc + " (" + Build.HARDWARE + ")";
+            }
+            return Build.HARDWARE;
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
+    }
+
+    private static String describeAbis() {
+        try {
+            StringBuilder builder = new StringBuilder();
+            for (String abi : Build.SUPPORTED_ABIS) {
+                if (builder.length() > 0) builder.append(", ");
+                builder.append(abi);
+            }
+            return builder.length() == 0 ? INFO_UNAVAILABLE : builder.toString();
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
+    }
+
+    private static String describeFreeMemory(Context ctx) {
+        try {
+            int free = getFreeDeviceMemory(ctx);
+            return free > 0 ? free + " MB" : INFO_UNAVAILABLE;
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
+    }
+
+    private static String describeFreeStorage() {
+        try {
+            long usable = new File(DIR_GAME_HOME).getUsableSpace();
+            return usable > 0 ? (usable / 1048576L) + " MB" : INFO_UNAVAILABLE;
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
+    }
+
+    /**
+     * The panel, the resolution the game was actually given, and how much of it it was allowed to
+     * use. Three separate settings land on the size of the framebuffer, and a report that only
+     * carried the panel would send anyone reading it after the wrong one.
+     */
+    private static String describeScreen(Context ctx) {
+        try {
+            DisplayMetrics metrics = ctx.getResources().getDisplayMetrics();
+            String screen = metrics.widthPixels + "x" + metrics.heightPixels
+                    + " @" + metrics.densityDpi + "dpi, scale "
+                    + Math.round(LauncherPreferences.PREF_SCALE_FACTOR * 100) + "%";
+            if (LauncherPreferences.PREF_GAME_VIEW_PERCENT < GameViewport.MAX_PERCENT) {
+                screen += ", game area " + LauncherPreferences.PREF_GAME_VIEW_PERCENT + "%";
+            }
+            return screen;
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
+    }
+
+    /**
+     * Which renderer was chosen, not which driver answered.
+     *
+     * The GL strings below say what the hardware is; this says what the game was told to go
+     * through, which is the setting somebody would actually be asked to change. The Vulkan driver
+     * only appears where it can matter, since a Turnip build has no bearing on an OpenGL path.
+     */
+    private static String describeRenderer() {
+        try {
+            String renderer = isValidString(LOCAL_RENDERER) ? LOCAL_RENDERER : INFO_UNAVAILABLE;
+            if (renderer.contains("zink")) {
+                renderer += ", Vulkan driver " + LauncherPreferences.PREF_TURNIP_DRIVER;
+            }
+            return renderer;
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
+    }
+
+    private static String describeRuntime() {
+        try {
+            return isValidString(LauncherPreferences.PREF_DEFAULT_RUNTIME)
+                    ? LauncherPreferences.PREF_DEFAULT_RUNTIME : INFO_UNAVAILABLE;
+        } catch (Throwable t) {
+            return INFO_UNAVAILABLE;
+        }
     }
 
     public interface DownloaderFeedback {

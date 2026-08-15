@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
+import net.kdt.pojavlaunch.Architecture
 import net.kdt.pojavlaunch.CustomControlsActivity
 import net.kdt.pojavlaunch.LauncherActivity
 import net.kdt.pojavlaunch.LogActivity
@@ -25,6 +26,7 @@ import net.kdt.pojavlaunch.SkinActivity
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.extra.ExtraConstants
 import net.kdt.pojavlaunch.extra.ExtraCore
+import net.kdt.pojavlaunch.prefs.HeapAdvice
 import net.kdt.pojavlaunch.prefs.LauncherPreferences
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener
@@ -36,6 +38,7 @@ import net.kdt.pojavlaunch.ui.home.HomeScreen
 import net.kdt.pojavlaunch.ContentActivity
 import net.kdt.pojavlaunch.ui.home.currentAccountName
 import net.kdt.pojavlaunch.ui.home.currentProfileKey
+import net.kdt.pojavlaunch.ui.home.formatMemory
 import net.kdt.pojavlaunch.ui.home.loadAccounts
 import net.kdt.pojavlaunch.ui.home.loadProfiles
 import net.kdt.pojavlaunch.ui.home.recordingCount
@@ -214,8 +217,83 @@ class MainMenuFragment : Fragment(), ChromeOwner {
         onShareLogs = { Tools.shareLog(requireContext()) }
     )
 
+    /**
+     * The memory question, asked here rather than after the download.
+     *
+     * The launcher has always checked whether the heap will fit, at the top of
+     * `Tools.launchMinecraft`. On a desktop that is a small annoyance; on a phone it lands after
+     * several hundred megabytes have been fetched, frequently over mobile data, in the game
+     * process, which is started by killing this one, so the settings it advises changing are no
+     * longer reachable. And it is an OK-only dialog that launches anyway, so being told changes
+     * nothing at all.
+     *
+     * Asked in front of the button instead, the same fact costs nothing to act on and can carry
+     * the fix with it: [HeapAdvice] knows the largest value that would clear the warning, so the
+     * dialog offers it as a button rather than a number to go and type in somewhere else.
+     *
+     * Nothing is checked when the device will not report its memory. A reading of zero from
+     * `ActivityManager` is a failure rather than a device with no memory, and a warning built on
+     * it would fire on every launch and mean nothing.
+     */
+    private fun checkMemory(onContinue: () -> Unit) {
+        val context = requireContext()
+        val total = runCatching { Tools.getTotalDeviceMemory(context) }.getOrDefault(0)
+        if (total <= 0) {
+            onContinue()
+            return
+        }
+        val available = runCatching { Tools.getFreeDeviceMemory(context) }.getOrDefault(0)
+        val advice = HeapAdvice.advise(
+            total, available, LauncherPreferences.PREF_RAM_ALLOCATION, Architecture.is32BitsDevice()
+        )
+        if (advice.level == HeapAdvice.Level.OK) {
+            onContinue()
+            return
+        }
+
+        val allocation = formatMemory(LauncherPreferences.PREF_RAM_ALLOCATION)
+        val builder = AlertDialog.Builder(context)
+        if (advice.level == HeapAdvice.Level.OVER_CEILING) {
+            builder.setTitle(R.string.launch_memory_over_title)
+                .setMessage(getString(
+                    R.string.launch_memory_over_message, allocation, formatMemory(advice.ceilingMb)
+                ))
+        } else {
+            builder.setTitle(R.string.launch_memory_low_title)
+                .setMessage(getString(
+                    R.string.launch_memory_low_message, allocation, formatMemory(available)
+                ))
+        }
+        // The reduction goes first because it is the one that fixes anything. Launching anyway
+        // stays available on every path: the availability arm is about this moment rather than
+        // this device, and somebody who knows they are about to close another app is right.
+        if (advice.suggestedMb > 0) {
+            builder.setPositiveButton(
+                getString(R.string.launch_memory_lower, formatMemory(advice.suggestedMb))
+            ) { _, _ ->
+                applyAllocation(advice.suggestedMb)
+                onContinue()
+            }
+        }
+        builder.setNegativeButton(R.string.launch_memory_continue) { _, _ -> onContinue() }
+        builder.show()
+    }
+
+    /**
+     * Write the heap size and make it true for the launch it was just chosen for.
+     *
+     * `PREF_RAM_ALLOCATION` is a static cached at `loadPreferences` time, so writing the
+     * preference alone would launch with the old value and leave the card showing it too. This is
+     * the shape `SettingsStore.write` already uses, for the same reason.
+     */
+    private fun applyAllocation(megabytes: Int) {
+        LauncherPreferences.DEFAULT_PREF.edit().putInt("allocation", megabytes).apply()
+        LauncherPreferences.loadPreferences(requireContext())
+        refresh()
+    }
+
     /** Unchanged from the button this replaces, including the Sodium warning. */
-    private fun play() {
+    private fun play() = checkMemory {
         val overridden = LauncherPreferences.DEFAULT_PREF.getBoolean("sodium_override", false)
         if (Tools.hasMods("sodium") && !overridden) {
             AlertDialog.Builder(requireContext())

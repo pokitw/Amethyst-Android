@@ -37,6 +37,7 @@ import net.kdt.pojavlaunch.ui.settings.ControlStyleOption
 import net.kdt.pojavlaunch.customcontrols.textures.TexturePackExport
 import net.kdt.pojavlaunch.customcontrols.textures.TexturePackImport
 import net.kdt.pojavlaunch.multirt.MultiRTConfigDialog
+import net.kdt.pojavlaunch.prefs.HeapAdvice
 import net.kdt.pojavlaunch.prefs.screens.LauncherPreferenceRendererSettingsFragment
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
 import net.kdt.pojavlaunch.ui.home.currentAccount
@@ -168,12 +169,10 @@ class SettingsFragment : Fragment(), ChromeOwner {
     private fun readEnvironment(): SettingsEnvironment {
         val context = requireContext()
         val deviceMemory = Tools.getTotalDeviceMemory(context)
-        // The same headroom the memory slider always kept, so the device can still breathe.
-        val maxMemory = if (Architecture.is32BitsDevice() || deviceMemory < 2048) {
-            minOf(1024, deviceMemory)
-        } else {
-            deviceMemory - if (deviceMemory < 3064) 800 else 1024
-        }
+        // The same headroom the memory slider always kept, so the device can still breathe. Read
+        // from HeapAdvice rather than worked out here, because the pre-launch check tests against
+        // exactly this bound and a slider that offered more would be refused by it.
+        val maxMemory = HeapAdvice.ceiling(deviceMemory, Architecture.is32BitsDevice())
         val version = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull().orEmpty()

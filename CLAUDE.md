@@ -1291,6 +1291,48 @@ re-litigated. The reasoning lives in the commit that made the change.
   the crash screen has nothing left to crash on. Rules live in the Kotlin/Python-shared regex
   subset because `scripts/check_crash_rules.py` re-runs the shipped patterns against fixture
   logs before every push (§19). New rule = new `Rule(...)` + strings + a fixture.
+- **The memory question, asked before the download** (`prefs/HeapAdvice.java` + the dialog in
+  `MainMenuFragment.play`) — whether the heap will fit is now asked in front of the Play button,
+  with the fix attached, instead of after the game has been fetched.
+  **The check already existed and was in the only place it could not be acted on.**
+  `Tools.launchMinecraft` has always compared the allocation against free memory. On a desktop
+  that is a small annoyance. Here it lands after several hundred megabytes have been downloaded,
+  frequently over mobile data; it runs in the game process, which is started by killing the
+  launcher, so the settings it advises changing are no longer reachable; and it is an OK-only
+  dialog that then launches anyway, so being told changes nothing. Moving the same question
+  earlier fixes all three at once and costs nothing to act on.
+  **Three numbers became one definition.** The ceiling the memory slider enforces, the default a
+  fresh install gets and the bound the launch check tests against were three pieces of arithmetic
+  in three files with nothing making them agree. A launch screen that refuses a value Settings
+  offers is a launcher arguing with itself, and it is not a bug anybody would think to look for.
+  **The threshold is deliberately the shipped one and not a better one.** The heap is committed up
+  front (`-Xms` equals `-Xmx`), so "you are asking for more than the device says is free" needs no
+  invented constant for the game's native overhead. Moving the question and attaching a fix is the
+  improvement; changing the threshold in the same breath would be changing two things at once with
+  nothing to check the new one against.
+  **The address space arm stays in the game process.** `getMaxContinuousAddressSpaceSize` parses
+  `/proc/self/maps`, so it describes whichever process asks, and the launcher's map is not the
+  game's. An answer from the wrong process is worse than no answer.
+  **An unreadable reading is not a reading of zero.** `ActivityManager` returning nothing looks
+  exactly like a device with no memory free, and believing it would warn on every launch on every
+  device that will not answer. Unknown means check nothing, which is the same rule the snapshot
+  version and `Tools.compareSHA1` both follow.
+  The fix goes through `loadPreferences` as well as the editor, because `PREF_RAM_ALLOCATION` is a
+  static cached at load time and writing the preference alone would launch with the old value.
+  It gets **no comparison row**: upstream has this check too, in the same wrong place, and the
+  difference is where it is asked rather than whether it exists.
+- **What a log opens with** (`Tools.printLauncherInfo`) — the header now carries the chipset, the
+  core count and ABIs, free memory and free storage at launch, the Android release, the panel and
+  the resolution actually rendered, the renderer **choice** and the Java runtime, alongside what it
+  already had. Every bug report the project receives is built from these lines.
+  **This is the only place that can write them.** `Logger.begin` opens the file with `O_TRUNC` and
+  only the game process and the Java installer ever call it, so anything the launcher wrote first
+  would be erased by the launch it was describing.
+  **The renderer choice matters more than the driver's own name.** "Adreno" says nothing about
+  whether the game was going through gl4es, ANGLE or Zink, which is usually the first thing worth
+  knowing, and it is the setting somebody would actually be asked to change.
+  Each fact is read inside its own guard and says `unavailable` rather than throwing, because this
+  runs on the launch path and a device report is never worth a game that will not start (§16.15).
 
 ## 15. Coding conventions
 
@@ -1834,6 +1876,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - Anyone who **raised the sensitivity to compensate** for the dead horizontal axis while lying down
   now has both axes at that setting and will want to lower it again. There is nothing that can
   detect that honestly, so the release notes have to say it.
+- The pre-launch memory check is **a heuristic about a moment, not a fact about a limit**. Linux
+  overcommits, so a heap larger than free memory still starts and is killed or thrashes later; and
+  Android's own available figure moves as other apps come and go, so the same launch can warn once
+  and not the next time. Launching anyway is always offered, and is often the right answer.
+- It **cannot see the game process's address space**, which is where a 32-bit device actually runs
+  out. That arm stays in `Tools.launchMinecraft`, after the download, because it is the only place
+  the process being measured is the one about to start a JVM.
+- It **says nothing at all** on a device whose `ActivityManager` will not report its memory, which
+  is correct and does mean the check is silently absent there rather than degraded.
+- The device facts in the log header are **read once, at launch**, so a report describes the
+  session it came from and not the phone as it is now. Anything unreadable says `unavailable`
+  rather than being omitted, so a gap is never mistaken for a value.
+- There is **no device report screen**. The facts go into the log, which the in-app viewer can
+  already show and search, and a screen would be a second place for them to drift from.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -1951,6 +2007,15 @@ Before pushing:
   than Python's own `%`, because Java's double remainder keeps the sign of the dividend and
   Python's floored one does not; the first draft used `%`, which silently repaired an unwrapped
   negative angle into the right answer and could not tell a working wrap from a removed one.
+- **Run `sh scripts/memsim/run.sh`** if the heap ceiling, the default allocation or the pre-launch
+  memory check changed. It compiles the shipped `HeapAdvice` and sweeps every device size against
+  every allocation the slider can produce. The assertion that matters most is that **the
+  launcher's own default never warns**, which is memsim's counterpart to viewportsim's
+  "100% is byte-for-byte the full screen": if the check disagreed with the launcher's own choice,
+  every fresh install would be warned on its first launch about a value it never made. Two
+  mutations are known **not** to be caught and are listed in `run.sh` with the reason, because
+  today's constants and the clamps that guard them hide each other's removal, which is the
+  resizesim situation and is covered by sweeping every megabyte rather than the realistic sizes.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release
