@@ -27,6 +27,20 @@ public final class PresenceCard {
     private PresenceCard() {}
 
     /**
+     * The Discord application this launcher publishes as.
+     *
+     * <b>Safe to have in the open, unlike almost everything else called an id in this codebase.</b>
+     * An application id is a public client identifier: it appears in every OAuth URL and in every
+     * presence payload the Discord client receives, and it grants nothing on its own. It is not
+     * the client secret, and no secret is needed here at all, because the unauthenticated presence
+     * path never calls {@code Connect}.
+     *
+     * A {@code long} rather than a string so a truncated paste fails to compile rather than
+     * failing on somebody's profile: Discord ids are snowflakes and this one is 19 digits.
+     */
+    public static final long APPLICATION_ID = 1538259396545749012L;
+
+    /**
      * Discord's limit on each activity string.
      *
      * Everything here is far shorter, so this is a guard against a version id from a modpack

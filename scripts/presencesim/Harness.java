@@ -22,6 +22,7 @@ public class Harness {
         nothingIsInventedFromNothing();
         nothingIdentifiesThePlayer();
         fieldsFitDiscordsLimits();
+        theApplicationIdIsPlausible();
 
         System.out.println(sChecks + " checks");
         if (!FAILURES.isEmpty()) {
@@ -136,6 +137,26 @@ public class Harness {
                 "a field of exactly the limit was cut");
         check(PresenceCard.truncate(exact.toString() + "y").length() == PresenceCard.FIELD_LIMIT,
                 "a field one over the limit was not cut");
+    }
+
+    /**
+     * The application id is a Discord snowflake, and a truncated one is the failure to guard
+     * against: it would compile, it would look right, and presence would simply never appear
+     * because it named an application that does not exist.
+     */
+    private static void theApplicationIdIsPlausible() {
+        long id = PresenceCard.APPLICATION_ID;
+        check(id > 0, "the application id is not set");
+        String digits = Long.toString(id);
+        check(digits.length() >= 17 && digits.length() <= 20,
+                "the application id is " + digits.length()
+                        + " digits, which is not the shape of a Discord snowflake");
+        // Snowflakes carry a timestamp in their high bits: (id >> 22) + the Discord epoch, in
+        // milliseconds. An id from before Discord existed, or from the future, is a wrong number
+        // rather than merely an odd one.
+        long epochMs = (id >>> 22) + 1420070400000L;
+        check(epochMs > 1420070400000L, "the application id predates Discord itself");
+        check(epochMs < 4102444800000L, "the application id claims to be from the next century");
     }
 
     /* ------------------------------------------------------------------ plumbing */
