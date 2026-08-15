@@ -1433,7 +1433,10 @@ public final class Tools {
         Logger.appendToLog("Info: Architecture: " + Architecture.archAsString(DEVICE_ARCHITECTURE));
         Logger.appendToLog("Info: Device model: " + Build.MANUFACTURER + " " +Build.MODEL);
         Logger.appendToLog("Info: Chipset: " + describeChipset());
-        Logger.appendToLog("Info: CPU cores: " + Runtime.getRuntime().availableProcessors()
+        // Fully qualified: this file imports the launcher's own Runtime, which is a Java runtime
+        // the user installed and shadows java.lang.Runtime entirely.
+        Logger.appendToLog("Info: CPU cores: "
+                + java.lang.Runtime.getRuntime().availableProcessors()
                 + " (" + describeAbis() + ")");
         Logger.appendToLog(String.format("Info: Total RAM: %s MB", deviceRam != 0 ? deviceRam : "unavailable"));
         Logger.appendToLog("Info: Free RAM at launch: " + describeFreeMemory(ctx));
