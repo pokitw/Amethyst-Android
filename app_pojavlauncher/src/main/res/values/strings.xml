@@ -697,6 +697,7 @@
 
     <string name="onboarding_row_play">Plays Minecraft: Java Edition</string>
     <string name="onboarding_row_record">Built-in gameplay recorder</string>
+    <string name="onboarding_row_modcheck">Warns about mods that will not load</string>
     <string name="onboarding_row_crash">Crash cause explained</string>
     <string name="onboarding_row_log">Searchable log in the app</string>
     <string name="onboarding_row_gyro">Smooth gyro aiming</string>

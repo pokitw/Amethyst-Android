@@ -111,6 +111,12 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // modpacks, and installing one builds a whole new profile. Adding one mod to the profile you
     // have is the thing neither had until now.
     ComparisonRow(R.string.onboarding_row_mods, Support.PARTIAL, Support.YES),
+    // A capability upstream has no equivalent of, which is what earns a row rather than taste: it
+    // ships the same Modrinth search and the same mods folder, and nothing anywhere reads what a
+    // jar declares. The pre-launch memory check deliberately gets no row beside this one, because
+    // upstream does make that check, in the wrong place, and where a question is asked is not
+    // something an honest tick can say.
+    ComparisonRow(R.string.onboarding_row_modcheck, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
     // "Part" for upstream and it has to be: it shows the log live over the running game, which
     // this build kept. What it cannot do is read the log afterwards, which is when a crash is
