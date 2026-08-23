@@ -19,6 +19,12 @@
 #include <stdatomic.h>
 #include <math.h>
 
+// Moved up from beside critical_send_key: pojavPumpEvents needs it now, and that is far above.
+#define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
 #define TAG __FILE_NAME__
 #include "log.h"
 #include "utils.h"
@@ -143,6 +149,17 @@ void pojavPumpEvents(void* window) {
                 if(pojav_environ->GLFW_invoke_CharMods) pojav_environ->GLFW_invoke_CharMods(window, event.i1, event.i2);
                 break;
             case EVENT_TYPE_KEY:
+                // Stamped here, as the event is dispatched, rather than where it was sent from.
+                //
+                // glfwGetKey reads keyDownBuffer and nothing else, and Minecraft polls it: the
+                // profiler chart is decided on F3's RELEASE by asking whether Shift is still down.
+                // Written at send time, every key one touch event produced reached its final state
+                // before the first callback was delivered, so by F3's release Shift already read
+                // released and the order the two were sent in could not be observed at all. That is
+                // why a button holding Shift and F3 opened the debug overlay and never the chart,
+                // in either binding order, every single time. Real GLFW updates its key array
+                // immediately before invoking the callback; this now does the same.
+                pojav_environ->keyDownBuffer[max(0, event.i1-31)] = (jbyte) event.i3;
                 if(pojav_environ->GLFW_invoke_Key) pojav_environ->GLFW_invoke_Key(window, event.i1, event.i2, event.i3, event.i4);
                 break;
             case EVENT_TYPE_MOUSE_BUTTON:
@@ -405,16 +422,17 @@ void critical_send_cursor_pos(jfloat x, jfloat y) {
 void noncritical_send_cursor_pos(__attribute__((unused)) JNIEnv* env, __attribute__((unused)) jclass clazz,  jfloat x, jfloat y) {
     critical_send_cursor_pos(x, y);
 }
-#define max(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a > _b ? _a : _b; })
 void critical_send_key(jint key, jint scancode, jint action, jint mods) {
     if (pojav_environ->GLFW_invoke_Key && pojav_environ->isInputReady) {
-        pojav_environ->keyDownBuffer[max(0, key-31)] = (jbyte) action;
         if (pojav_environ->isUseStackQueueCall) {
+            // keyDownBuffer is written by pojavPumpEvents, where this event is dispatched, so the
+            // polled state and the callbacks agree about when each key changed. It also puts both
+            // the write and glfwGetKey's read on the game thread, where before a store from the
+            // Android UI thread was read unsynchronised by the render thread.
             sendData(EVENT_TYPE_KEY, key, scancode, action, mods);
         } else {
+            // Nothing is deferred on this path, so the poll and the callback are already in step.
+            pojav_environ->keyDownBuffer[max(0, key-31)] = (jbyte) action;
             pojav_environ->GLFW_invoke_Key((void*) pojav_environ->showingWindow, key, scancode, action, mods);
         }
     }

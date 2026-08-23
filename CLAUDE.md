@@ -387,6 +387,12 @@ cheaper than a screen recorder, which composites the whole display and re-encode
     `controlmap/new_default.json` and leaves their own default alone — that is `AsyncAssetManager`
     working as intended, not a bug to fix. Note `Tools.compareSHA1` "fake matches" on a read
     error, which is what makes a fresh install take the `else` branch and write `default.json`.
+13. **The polled key state is written where the event is dispatched, never where it is sent.**
+    `keyDownBuffer` is the whole of what `glfwGetKey` reads, and the callbacks are queued, so
+    stamping it at send time puts the poll a frame ahead of the callbacks and makes the order keys
+    were sent in unobservable. That is not a micro-optimisation to restore: it is the Shift+F3 bug.
+    `mouseDownBuffer` still has the same shape, deliberately left alone, since no chord the
+    launcher can express is decided by a `glfwGetMouseButton` poll.
 
 ---
 
@@ -1372,6 +1378,35 @@ re-litigated. The reasoning lives in the commit that made the change.
   The verdict replaces the row's **accent line** rather than adding a third one, because that line
   is already where a row reports its state and four hundred rows should not get taller for the two
   that are broken. In `Warning70`, never `Danger70`: nothing has failed, and the mod is still there.
+- **Two keys on one button** (`customcontrols/KeyCombo.java` + the dispatch-time key state in
+  `jni/input_bridge_v3.c`) — a button bound to Shift and F3 opened the debug overlay and never the
+  profiler chart, in either binding order, every time. Reported with the half that solved it: the
+  launcher's own on-screen keyboard did the same combination correctly.
+  **The state a poll reads was written a frame before the callbacks it belongs to.**
+  `critical_send_key` stamped `keyDownBuffer` at send time and queued the callback for
+  `pojavPumpEvents`, so every key one touch event produced reached its final state before the first
+  of them was delivered. Minecraft decides the chart on F3's *release*
+  (`renderDebugCharts = renderDebug && Screen.hasShiftDown()`) and `hasShiftDown` polls
+  `glfwGetKey`, which reads that buffer and nothing else. So when F3's release arrived, Shift had
+  already been stamped released. The keyboard worked because a latched Shift is held across frames,
+  which is the one arrangement that survives the gap.
+  **The order the keys were sent in could not be observed at all**, which is why every theory about
+  the array being the wrong way round was wrong, and worth remembering: with an eager write in
+  front of a queue, no amount of reordering on the sending side is visible to a reader that polls.
+  Stamping the buffer where the event is dispatched is what makes send order mean something, and
+  puts the write and `glfwGetKey`'s read on the same thread into the bargain.
+  **A chord is not a set.** With the poll fixed, the launcher still has to send one: modifiers
+  down first, and released last, which is the reverse of the press rather than a second rule that
+  could disagree with it. A control button has no truth to report here, since one finger lifts and
+  both keys leave together, so it has to choose a model, and the only faithful one is the one a
+  hand performs.
+  **`isModifier` and `setModifiers` are one list**, checked by `scripts/combosim/check_agreement.py`.
+  A key ordered first that no flag follows promises something nothing downstream can honour; a flag
+  written for a key not ordered first is set after the key it was meant to modify has gone. Super
+  is in neither, because there is no `holdingSuper` and `getCurrentMods` cannot express it.
+  Right Shift, Right Control and Right Alt now set their flags, which they never did.
+  It gets **no comparison row**: upstream has the same bug, and a row saying so would be about
+  upstream rather than about a capability.
 
 ## 15. Coding conventions
 
@@ -1951,6 +1986,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   process that writes them, so the profile it judges against is the one selected when that process
   last read it. Switching profile and coming straight back is right, because the activity re-reads
   on creation; a `:launcher` process left alive from before a switch is the case that can be stale.
+- A multi-key button is **a chord typed in slot order, modifiers excepted**. The launcher can
+  order GLFW modifiers because "modifier" is a fact about the protocol, present in the event's
+  mods, in `setModifiers` and in `hasShiftDown`. It cannot order F3, because "F3 is a chord prefix"
+  is a fact about Minecraft's keybinds in one version range. So `[G, F3]` sends G first and does
+  not open the chunk-border view, and the fix is to bind them the other way round.
+- **Shift+F3 stopped being the pie chart in 23w33a.** From 1.20.2 the profiler chart is F3 then 1,
+  so on those versions the combination to bind is a latched F3 and the `1` key, and no launcher
+  change makes the old one work.
+- Two controls bound to the **same modifier** still clash: `holdingShift` is one boolean with no
+  reference count, so releasing either clears it while the other is held. Pre-existing, and the
+  layout report already names keys bound to two controls.
+- A modifier inside a **sequence** cannot work, because a sequence releases each step before
+  pressing the next. That is what a sequence is for, and it is the wrong tool for a chord.
+- `keyDownBuffer` now lags the send by up to one frame, which is GLFW's own contract and what makes
+  send order observable, but it does mean a mod polling `glfwGetKey` from its own thread reads a
+  value written a frame later than it used to.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2085,6 +2136,16 @@ Before pushing:
   than Python's own `%`, because Java's double remainder keeps the sign of the dividend and
   Python's floored one does not; the first draft used `%`, which silently repaired an unwrapped
   negative angle into the right answer and could not tell a working wrap from a removed one.
+- **Run `sh scripts/combosim/run.sh` and `sh scripts/chordsim/run.sh`** if anything about how a
+  control button sends several keys changed, or if `critical_send_key` or `pojavPumpEvents` did.
+  combosim drives the shipped ordering; chordsim lifts the three native functions **verbatim** out
+  of `input_bridge_v3.c`, compiles them against a stub environment and asks the one question
+  Minecraft asks, which is whether a poll of Shift still reads pressed when F3's release is
+  dispatched. Its most important mutation is the one-line revert that restores the eager
+  `keyDownBuffer` write, because that mutation *is* the shipped bug and a check that cannot see it
+  would have passed on the broken build. Also run
+  `python3 scripts/combosim/check_agreement.py`, which compares `KeyCombo.isModifier` against
+  `CallbackBridge.setModifiers` as declarations rather than re-implementing either.
 - **Run `sh scripts/presencesim/run.sh`** if the Discord presence card changed. It compiles the
   shipped `PresenceCard` at source 8 and checks what it would publish. Two failures matter and
   both are permanent once seen by a stranger: a field naming the wrong Minecraft version, and a

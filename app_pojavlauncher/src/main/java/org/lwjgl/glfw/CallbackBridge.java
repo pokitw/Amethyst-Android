@@ -278,17 +278,28 @@ public class CallbackBridge {
         return currMods;
     }
 
+    /**
+     * Mirror one key into the modifier flags, whichever hand it belongs to.
+     *
+     * The right hand variants used to be missing, so a control button bound to Right Shift sent a
+     * perfectly good key event and never set the flag, and every key sent with it went out
+     * unmodified. Silent, and impossible to tell from the left hand version by looking at the
+     * editor, which names both of them "Shift".
+     */
     public static void setModifiers(int keyCode, boolean isDown){
         switch (keyCode){
             case LwjglGlfwKeycode.GLFW_KEY_LEFT_SHIFT:
+            case LwjglGlfwKeycode.GLFW_KEY_RIGHT_SHIFT:
                 CallbackBridge.holdingShift = isDown;
                 return;
 
             case LwjglGlfwKeycode.GLFW_KEY_LEFT_CONTROL:
+            case LwjglGlfwKeycode.GLFW_KEY_RIGHT_CONTROL:
                 CallbackBridge.holdingCtrl = isDown;
                 return;
 
             case LwjglGlfwKeycode.GLFW_KEY_LEFT_ALT:
+            case LwjglGlfwKeycode.GLFW_KEY_RIGHT_ALT:
                 CallbackBridge.holdingAlt = isDown;
                 return;
 

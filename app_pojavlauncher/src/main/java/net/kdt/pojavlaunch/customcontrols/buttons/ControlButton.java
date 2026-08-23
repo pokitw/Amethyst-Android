@@ -27,6 +27,7 @@ import net.kdt.pojavlaunch.MainActivity;
 import net.kdt.pojavlaunch.R;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
+import net.kdt.pojavlaunch.customcontrols.KeyCombo;
 import net.kdt.pojavlaunch.customcontrols.ControlGlyphs;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
@@ -446,7 +447,11 @@ public class ControlButton extends TextView implements ControlInterface {
             if(isDown) startSequence();
             return;
         }
-        for(int keycode : mProperties.keycodes){
+        // Ordered rather than taken as they come: a modifier has to be held before the key struck
+        // underneath it, and the slots are in whatever order somebody filled them in. Binding F3
+        // and then Shift used to send F3 while nothing held Shift, which is a debug overlay and
+        // never a profiler chart.
+        for(int keycode : KeyCombo.order(mProperties.keycodes, isDown)){
             sendSingleKey(keycode, isDown);
         }
     }
@@ -466,8 +471,13 @@ public class ControlButton extends TextView implements ControlInterface {
             return;
         }
         if(keycode >= GLFW_KEY_UNKNOWN){
-            sendKeyPress(keycode, EfficientAndroidLWJGLKeycode.getLwjglChar(keycode), CallbackBridge.getCurrentMods(), isDown);
+            // The flag first, then the send, which is the order the on-screen keyboard already
+            // used and this did not. It matters twice over: the modifier's own event then carries
+            // itself, the way GLFW reports one, and every key sent after it in the same press
+            // reads a bitfield that is already true. Releasing sets the flag first as well, so a
+            // modifier coming up is reported as released rather than as still holding itself.
             CallbackBridge.setModifiers(keycode, isDown);
+            sendKeyPress(keycode, EfficientAndroidLWJGLKeycode.getLwjglChar(keycode), CallbackBridge.getCurrentMods(), isDown);
         }else{
             Log.i("punjabilauncher", "sendSpecialKey("+keycode+","+isDown+")");
             sendSpecialKey(keycode, isDown);
@@ -621,7 +631,9 @@ public class ControlButton extends TextView implements ControlInterface {
      * {@link #onDraw(Canvas)} says what is happening instead, once.
      */
     private void sendRepeatEdge(boolean isDown){
-        for(int keycode : mProperties.keycodes){
+        // The same ordering as an ordinary press, for the same reason: a repeating button that
+        // holds a modifier has to hold it around each strike rather than beside it.
+        for(int keycode : KeyCombo.order(mProperties.keycodes, isDown)){
             sendSingleKey(keycode, isDown);
         }
     }
