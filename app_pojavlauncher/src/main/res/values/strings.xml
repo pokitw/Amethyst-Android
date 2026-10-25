@@ -565,17 +565,23 @@
     <string name="mg_renderer_title_fsr">AMD FSR 1 Upscaling</string>
     <string name="autorendererselectfailed">Auto-renderer select failed, defaulting to HolyGL4ES</string>
     <string name="mcl_setting_renderer_vulkan_kopper_zink">Kopper Zink (Vulkan) - (all versions, mid)</string>
-    <string name="sodium_warning_title">Sodium detected!</string>
-    <string name="sodium_warning_message">It appears you are using sodium, this is unsupported and may lead to graphical issues or crashes. Please remove it and all dependent mods.</string>
-    <string name="delete_sodium">Delete Sodium and Launch</string>
-    <string name="sodium_override_title">Run sodium forcefully</string>
-    <string name="sodium_override_summaryOff">Using sodium may cause visual bugs and crashes. You have been warned.</string>
-    <string name="sodium_override_summaryOn">Sodium is not supported. No help will be given if you encounter any issues.</string>
-    <!--  Make sure the people turning this on can read English.  -->
-    <string name="sodium_math_warning_title" translatable="false">Solve the math question to enable</string>
-    <string name="sodium_math_warning_message" translatable="false">
-    Sodium is unsupported, you are on your own. No support will be given in the discord server.\nUsing sodium may result in bugs, glitches, and crashes. No help will be given even if you lose any of your worlds or saves.\n\nNow what\'s %1$s multiplied by %2$s plus %3$s minus %4$s?
-    </string>
+    <!--
+      The Sodium question, asked about the renderer rather than about the mod. The old strings
+      refused outright and the only button deleted the mod, which made Iris and every shader pack
+      unreachable. These name the renderer, because that is the thing that decides the answer and
+      the thing a player can change.
+    -->
+    <string name="sodium_renderer_title">Sodium needs a different renderer</string>
+    <string name="sodium_renderer_message">Sodium needs OpenGL 3.3. %1$s cannot reach it, so the game will crash or render nothing.\n\nZink runs real OpenGL through Vulkan, which is what Sodium and shader packs need.</string>
+    <string name="sodium_untested_title">Sodium may not work here</string>
+    <string name="sodium_untested_message">Sodium needs OpenGL 3.3. %1$s may reach it on this device and may not, and shader packs are less likely to work.\n\nZink runs real OpenGL through Vulkan, which is the renderer Sodium and Iris are tested on.</string>
+    <string name="sodium_renderer_automatic">The automatic renderer</string>
+    <string name="sodium_switch_renderer">Use %1$s and launch</string>
+    <string name="sodium_launch_anyway">Launch anyway</string>
+    <string name="sodium_delete_failed">Could not delete every Sodium file. Check the mods folder in Game files.</string>
+    <string name="delete_sodium">Delete Sodium</string>
+    <string name="settings_sodium_warning_title">Warn about Sodium</string>
+    <string name="settings_sodium_warning_description">Check the renderer before launching when Sodium or Iris is installed. Turn this off if you have decided your renderer works.</string>
     <string name="not_modpack_file">Not a modpack file!</string>
     <string name="global_not_installed">Not Installed</string>
     <string name="global_download">Download</string>
@@ -698,6 +704,7 @@
     <string name="onboarding_row_play">Plays Minecraft: Java Edition</string>
     <string name="onboarding_row_record">Built-in gameplay recorder</string>
     <string name="onboarding_row_modcheck">Warns about mods that will not load</string>
+    <string name="onboarding_row_shaders">Shader packs, with the renderer checked for you</string>
     <string name="onboarding_row_crash">Crash cause explained</string>
     <string name="onboarding_row_log">Searchable log in the app</string>
     <string name="onboarding_row_gyro">Smooth gyro aiming</string>

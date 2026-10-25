@@ -66,6 +66,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "opengl gles vulkan zink mobileglues driver gl4es", suggested = true
     ),
     SettingEntry(
+        R.string.settings_sodium_warning_title, SettingsRoute.PERFORMANCE,
+        R.string.settings_sodium_warning_description, R.string.settings_section_graphics,
+        "sodium iris shader shaders embeddium rubidium optifine fps performance mod"
+    ),
+    SettingEntry(
         R.string.mcl_setting_title_resolution_scaler, SettingsRoute.PERFORMANCE,
         R.string.mcl_setting_subtitle_resolution_scaler, R.string.settings_section_graphics,
         "resolution scale render fps performance lag sharpness", suggested = true

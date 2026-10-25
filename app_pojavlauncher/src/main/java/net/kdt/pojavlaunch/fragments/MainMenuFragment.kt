@@ -28,6 +28,7 @@ import net.kdt.pojavlaunch.extra.ExtraConstants
 import net.kdt.pojavlaunch.extra.ExtraCore
 import net.kdt.pojavlaunch.prefs.HeapAdvice
 import net.kdt.pojavlaunch.prefs.LauncherPreferences
+import net.kdt.pojavlaunch.sodium.SodiumSupport
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener
 import net.kdt.pojavlaunch.recorder.RecordingsActivity
@@ -44,6 +45,7 @@ import net.kdt.pojavlaunch.ui.home.loadProfiles
 import net.kdt.pojavlaunch.ui.home.recordingCount
 import net.kdt.pojavlaunch.ui.home.rememberLaunchProgress
 import net.kdt.pojavlaunch.ui.home.selectProfile
+import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 import net.kdt.pojavlaunch.ui.common.ChromeOwner
 
@@ -292,21 +294,108 @@ class MainMenuFragment : Fragment(), ChromeOwner {
         refresh()
     }
 
-    /** Unchanged from the button this replaces, including the Sodium warning. */
+    /**
+     * The Sodium question, asked about the renderer rather than about the mod.
+     *
+     * <b>This used to be a dead end, and that was this fork's own doing.</b> A Sodium family mod
+     * in the folder opened a dialog whose only button was "Delete Sodium and Launch". The
+     * preference that skipped it survived the Compose settings rewrite and the switch that set it
+     * did not, so there was no way past: Sodium became unrunnable, and with it Iris, and with Iris
+     * every shader pack.
+     *
+     * The refusal was also asking the wrong question. Sodium needs an OpenGL 3.3 context, which is
+     * a fact about the renderer and not about the mod, and one of the renderers here is a real
+     * OpenGL implementation on which Sodium is ordinary. So the dialog is now about that, it never
+     * appears on a renderer that can run it, and on one that cannot it offers the fix rather than
+     * only the deletion.
+     */
     private fun play() = checkMemory {
-        val overridden = LauncherPreferences.DEFAULT_PREF.getBoolean("sodium_override", false)
-        if (Tools.hasMods("sodium") && !overridden) {
-            AlertDialog.Builder(requireContext())
-                .setTitle(R.string.sodium_warning_title)
-                .setMessage(R.string.sodium_warning_message)
-                .setNeutralButton(R.string.delete_sodium) { _, _ ->
-                    Tools.deleteSodiumMods()
-                    requestLaunch()
-                }
-                .show()
+        if (!LauncherPreferences.DEFAULT_PREF.getBoolean("sodium_warning", true)) {
+            requestLaunch()
+            return@checkMemory
+        }
+        val store = SettingsStore(requireContext())
+        val renderer = runCatching { store.currentRenderer() }.getOrNull()
+        val sodiumIsHere = runCatching { Tools.hasSodiumFamily() }.getOrDefault(false)
+        if (!SodiumSupport.shouldWarn(SodiumSupport.verdict(renderer, sodiumIsHere))) {
+            requestLaunch()
+            return@checkMemory
+        }
+
+        val kopperAvailable = runCatching {
+            Tools.checkRendererCompatible(requireContext(), SodiumSupport.ZINK_KOPPER)
+        }.getOrDefault(false)
+        val better = SodiumSupport.betterRenderer(renderer, kopperAvailable)
+
+        val name = rendererLabel(store)
+        val builder = AlertDialog.Builder(requireContext())
+        if (SodiumSupport.verdict(renderer, sodiumIsHere) == SodiumSupport.Verdict.UNSUPPORTED) {
+            builder.setTitle(R.string.sodium_renderer_title)
+                .setMessage(getString(R.string.sodium_renderer_message, name))
         } else {
+            builder.setTitle(R.string.sodium_untested_title)
+                .setMessage(getString(R.string.sodium_untested_message, name))
+        }
+        // The fix first, where there is one. Switching the renderer is the thing that actually
+        // makes Sodium work, and it is one tap from here rather than a trip to Settings.
+        if (better != null) {
+            builder.setPositiveButton(
+                getString(R.string.sodium_switch_renderer, shortRendererName(better))
+            ) { _, _ ->
+                runCatching { store.setCurrentRenderer(better) }
+                refresh()
+                requestLaunch()
+            }
+            builder.setNegativeButton(R.string.sodium_launch_anyway) { _, _ -> requestLaunch() }
+        } else {
+            builder.setPositiveButton(R.string.sodium_launch_anyway) { _, _ -> requestLaunch() }
+        }
+        // Still offered, because somebody who wants it gone should not have to find the folder,
+        // and from Android 11 they cannot. Last, and quiet, because it is the irreversible one.
+        builder.setNeutralButton(R.string.delete_sodium) { _, _ ->
+            runCatching { Tools.deleteSodiumMods() }
+                .onFailure { toast(getString(R.string.sodium_delete_failed)) }
             requestLaunch()
         }
+        builder.show()
+    }
+
+    /**
+     * The renderer as a player reads it, which is what the dialog has to name.
+     *
+     * `rendererLabel` returns null when the profile has no renderer of its own, and that is not a
+     * missing value: the game picks one at launch from the version's asset index. Naming it "the
+     * automatic renderer" is the honest version, and it is never Zink either way, which is why the
+     * verdict for an unset renderer still warns and still offers the switch.
+     */
+    private fun rendererLabel(store: SettingsStore): String =
+        runCatching { store.rendererLabel() }.getOrNull()?.let(::trimSuffix)
+            ?: getString(R.string.sodium_renderer_automatic)
+
+    /**
+     * The display name of a renderer id, as the picker shows it.
+     *
+     * Read from the same array the picker reads rather than written out here, so the button cannot
+     * come to name something the renderer row calls by another name.
+     */
+    private fun shortRendererName(rendererId: String): String = runCatching {
+        val list = Tools.getCompatibleRenderers(requireContext())
+        val index = list.rendererIds.indexOf(rendererId)
+        if (index >= 0) trimSuffix(list.rendererDisplayNames[index]) else rendererId
+    }.getOrDefault(rendererId)
+
+    /**
+     * Drop the editorial tail the renderer names carry.
+     *
+     * They read "Kopper Zink (Vulkan) - (all versions, mid)", which is useful in a picker and
+     * unreadable in the middle of a sentence. Everything from the first standalone hyphen is the
+     * commentary, so the name is what is left of it.
+     */
+    private fun trimSuffix(name: String): String =
+        name.substringBefore(" - ").trim().ifEmpty { name }
+
+    private fun toast(message: String) {
+        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
     }
 
     /**

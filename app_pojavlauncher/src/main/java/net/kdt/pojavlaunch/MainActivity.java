@@ -76,6 +76,7 @@ import net.kdt.pojavlaunch.customcontrols.mouse.Touchpad;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
+import net.kdt.pojavlaunch.sodium.SodiumSupport;
 import net.kdt.pojavlaunch.media.GalleryExport;
 import net.kdt.pojavlaunch.recorder.GameRecorder;
 import net.kdt.pojavlaunch.recorder.RecorderPreferences;
@@ -626,8 +627,20 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         } catch (NumberFormatException e) { folder.mkdir(); }
 
         MinecraftAccount minecraftAccount = PojavProfile.getCurrentProfileContent(this, null);
-        if (hasMods("sodium"))
-            Logger.appendToLog("WARNING: Sodium is being used, Amethyst-Android does NOT support this mod, you are on your own");
+        // Said against the renderer rather than against the mod, and said here because this is the
+        // one point where LOCAL_RENDERER has finished resolving: the profile's choice, the
+        // automatic pick, and the fallback for an incompatible one have all been applied above.
+        // Every bug report this project receives is built from these lines, so "Sodium on gl4es"
+        // and "Sodium on Zink" must not read the same.
+        if (Tools.hasSodiumFamily()) {
+            SodiumSupport.Verdict verdict =
+                    SodiumSupport.verdict(Tools.LOCAL_RENDERER, true);
+            Logger.appendToLog("Sodium family mod present, renderer " + Tools.LOCAL_RENDERER
+                    + ", verdict " + verdict
+                    + (verdict == SodiumSupport.Verdict.SUPPORTED
+                        ? " (real OpenGL through Mesa, shader packs expected to work)"
+                        : " (needs OpenGL " + SodiumSupport.REQUIRED_GL + ")"));
+        }
         Logger.appendToLog("--------- Starting game with Launcher Debug!");
         Tools.printLauncherInfo(this, versionId, Tools.isValidString(minecraftProfile.javaArgs) ? minecraftProfile.javaArgs : LauncherPreferences.PREF_CUSTOM_JAVA_ARGS, Tools.getTotalDeviceMemory(this));
         if(Tools.LOCAL_RENDERER.equals("opengles_mobileglues")) {

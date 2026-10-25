@@ -117,6 +117,14 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // upstream does make that check, in the wrong place, and where a question is asked is not
     // something an honest tick can say.
     ComparisonRow(R.string.onboarding_row_modcheck, Support.NO, Support.YES),
+    // "Part" for upstream, and getting this mark right matters more than most: upstream can run
+    // Sodium. Its warning has a way past it, a maths question in the experimental settings, which
+    // is upstream's own code and works. Marking it "No" would be the overclaim this table exists
+    // to avoid. What it does not do is check whether the renderer can reach OpenGL 3.3 before
+    // launching, say nothing at all when it can, or offer the renderer that would fix it; it tells
+    // you instead that you are on your own. This fork was briefly worse than upstream here, having
+    // deleted the screen that held the way past, which is the other reason the row cannot say "No".
+    ComparisonRow(R.string.onboarding_row_shaders, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_crash, Support.NO, Support.YES),
     // "Part" for upstream and it has to be: it shows the log live over the running game, which
     // this build kept. What it cannot do is read the log afterwards, which is when a crash is

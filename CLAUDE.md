@@ -1378,6 +1378,67 @@ re-litigated. The reasoning lives in the commit that made the change.
   The verdict replaces the row's **accent line** rather than adding a third one, because that line
   is already where a row reports its state and four hundred rows should not get taller for the two
   that are broken. In `Warning70`, never `Danger70`: nothing has failed, and the mod is still there.
+- **Running Sodium, and therefore shaders** (`sodium/SodiumSupport.java` + the dialog in
+  `MainMenuFragment.play`) — the renderer is asked about before launching, and on the one renderer
+  that is real OpenGL nothing is asked at all. Reported as "we can't run Sodium because it shows a
+  popup", which was exactly right.
+  **The dead end was this fork's own doing**, and that is the half worth keeping. The dialog had
+  always been a warning with a way past it: a `sodium_override` preference, set by a
+  `MathQuestionPreference` in `pref_experimental.xml`. The Compose settings rewrite
+  (`eec3e6f`) deleted that screen and that class. The *read* of the preference survived; the only
+  *write* did not. So the dialog's sole remaining button was "Delete Sodium and Launch", and Sodium
+  became unrunnable, and with it Iris, and with Iris every shader pack. **Deleting a settings
+  screen can orphan the write half of a preference and leave the read half enforcing it**, which
+  nothing in the build can see.
+  **The flat refusal was the wrong question anyway.** Sodium needs an OpenGL 3.3 core context,
+  which is a fact about the renderer, not about the mod. Kopper Zink is Mesa executing real OpenGL
+  on the device's Vulkan driver, so Sodium there is an ordinary mod; gl4es tops out two whole
+  versions below the floor, so there it cannot work at all. One question, four answers, and the
+  renderer is the thing the player can change, so the dialog offers the change.
+  **Nothing is asked on a renderer that can run it.** That is the point of the class rather than a
+  nicety: a warning that fires on every launch when the setup is already correct is how a player
+  learns to dismiss warnings without reading them.
+  **Unknown is UNTESTED, never UNSUPPORTED.** A renderer id this class has never heard of is one it
+  has no business condemning, the same asymmetry `VersionPredicate` and `Tools.compareSHA1` encode.
+  An unset renderer lands there too, and correctly: the automatic pick is gl4es or MobileGlues
+  depending on the version's asset index, never Zink, so warning and offering the switch is right
+  whichever it turns out to be, and the launcher cannot know which without the version JSON.
+  **`shadersViable` is deliberately narrower than Sodium's own floor**: Zink or nothing. Iris
+  requires Sodium and shader packs lean on compute shaders and storage buffers, so a translator
+  that scrapes past 3.3 will carry Sodium and not a shader pack. Two questions, two answers.
+  **Sodium's own anti-launcher check does not fire here**, which is worth writing down because it
+  looks like it should. `PostLaunchChecks.isUsingPojavLauncher` tests an environment variable this
+  fork renamed to `AMETHYST_RENDERER` and a `java.library.path` regex anchored on
+  `net.kdt.pojavlaunch`, and the application id is `org.angelauramc.amethyst`. So no Podium shim is
+  needed. `ISSUE_2561` is a separate LWJGL version-string check and is still turned off by the
+  `-Dsodium.checks.issue2561=false` the launch path already passed.
+  **The mixin properties the launcher used to write had never done anything**, and that was found
+  by reading rather than guessed: Sodium resolves a mixin option by the mixin's own *package path*,
+  and neither `mixin.features.buffer_builder.intrinsics` nor `mixin.features.chunk_rendering` is a
+  path in any version (the modern ones are `features/render/immediate/buffer_builder` and
+  `features/render/chunk`; the 0.3 era namespace was the singular `mixin.feature.*`). It wrote four
+  junk files into the config folder on every launch, through a loop whose `if` tested the whole
+  array on each pass. Deleted rather than corrected, because the one spelling that *would* have
+  matched is a documented crash on joining a world (Sodium issue 842), so the fix for "we don't
+  want more people complaining" would have caused the complaint.
+  **Detection and deletion are two lists on purpose.** `SodiumSupport.FAMILY` is six renderer
+  replacements, because the question is "is there a Sodium family renderer here".
+  `Tools.deleteSodiumMods` keeps its own longer list, because removing a renderer mod and leaving
+  Iris and Indium behind is a crash on startup rather than a tidy removal. The matcher is one
+  definition in pure Java so `scripts/sodiumsim` drives the real thing rather than a transcription
+  of it (16.25).
+  **The log line now names the renderer and the verdict.** It used to say Sodium "is unsupported,
+  you are on your own" whatever the renderer, which is wrong on Zink and is the first line of every
+  bug report this project receives. It is written where `LOCAL_RENDERER` has finished resolving,
+  which is after the profile's choice, the automatic pick and the incompatible-renderer fallback.
+  It gets **no onboarding page** and **a comparison row** marked `Part` for upstream, and that mark
+  is the entry's last load-bearing fact: **upstream can run Sodium.** Its warning has a way past
+  it, the maths question in the experimental settings, which is upstream's own code and works.
+  Marking the row `No` would be the overclaim the table exists to avoid, and this fork was briefly
+  *worse* than upstream here, having deleted the screen that held the way past. What upstream does
+  not do is check the renderer first, stay silent when it is already right, or offer the renderer
+  that would fix it.
+
 - **Two keys on one button** (`customcontrols/KeyCombo.java` + the dispatch-time key state in
   `jni/input_bridge_v3.c`) — a button bound to Shift and F3 opened the debug overlay and never the
   profiler chart, in either binding order, every time. Reported with the half that solved it: the
@@ -1613,6 +1674,28 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     source 8 and the harness drives the real class; all ten mutations now fail it. Every parser
     here that has a harness is Java, and that was not a coincidence anybody had written down.
     **Before writing logic whose failure is silent, ask what can execute it before a user does.**
+
+27. **Deleting a settings screen can orphan the write half of a preference and leave the read
+    half enforcing it.** The Sodium warning was always a warning with a way past: a
+    `sodium_override` boolean, set by a `MathQuestionPreference` row in `pref_experimental.xml`.
+    The Compose settings rewrite deleted that screen and that class, and the only *writer* of the
+    preference went with them. The *reader*, in the launch path, was untouched and carried on
+    refusing, so the dialog's one remaining button deleted the mod and Sodium became unrunnable,
+    taking Iris and every shader pack with it. Nothing in the build can see this: both halves
+    compile, the preference key still resolves to `false`, and the screen that is gone is gone from
+    a different file. The generalisation is that a preference is a *pair*, and a migration that
+    moves settings has to account for every key by both halves: a reader with no writer is a
+    constant, and a constant that gates a feature off is a feature deletion nobody wrote.
+    Worth grepping for on any future settings move: every `getBoolean`/`getString` key in the app
+    against the keys the new screens actually write. That scan was run when this was found, and
+    the only other reader with no writer is `disable_autojre_select` in
+    `JavaGUILauncherActivity`, which is left alone deliberately: it defaults to `false` and
+    `false` is the automatic behaviour, so the orphan makes a rarely wanted override unreachable
+    rather than gating a feature off. `controlPocketSkin` and `zinkPreferSystemDriver` also read
+    without being written, and both are the documented read-once migrations in §14.
+    **That asymmetry is the thing to check first.** An orphaned reader whose default is the
+    permissive value is a lost option; one whose default is the restrictive value, which
+    `sodium_override` was, is a feature deleted silently.
 
 26. **A harness in another language inherits that language's arithmetic, not the shipped one's.**
     `check_joystick_directions.py` transcribes an eight-way `((angle + 22.5) / 45) % 8` bucket out
@@ -2002,6 +2085,37 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - `keyDownBuffer` now lags the send by up to one frame, which is GLFW's own contract and what makes
   send order observable, but it does mean a mod polling `glfwGetKey` from its own thread reads a
   value written a frame later than it used to.
+- **Sodium runs on Kopper Zink and is refused by nothing**, but "runs" is the launcher's reading
+  of the renderer rather than a promise about a particular mod list. The verdict is about the GL
+  version the renderer can reach; whether a given Sodium build, on a given Minecraft version, with
+  a given pile of other mods, works is between those mods and the device.
+- **Shader packs need Zink specifically**, which is narrower than Sodium's own floor and is why
+  `shadersViable` is a separate question. Iris will install and may even start on MobileGlues; a
+  shader pack leans on compute shaders and storage buffers that a GL to GL ES translator does not
+  carry. The launcher says "less likely" rather than "no" because that is the honest strength of
+  the claim.
+- **Zink is the slower renderer on most devices**, so the fix the dialog offers is a trade and not
+  a free upgrade: Mesa executing OpenGL over Vulkan costs more than gl4es translating to GL ES. A
+  player on a weak device may genuinely prefer gl4es without Sodium to Zink with it, which is why
+  "Launch anyway" is always present and why nothing is switched without a tap.
+- The verdict is **keyed on the renderer id, so a renderer added later is UNTESTED until listed**.
+  That is the safe direction and it does mean a future renderer that runs Sodium perfectly will
+  still produce a warning until somebody adds it to `SodiumSupport`.
+- **An unset profile renderer cannot be resolved on the launcher side.** The automatic pick depends
+  on the version's asset index, which the launcher process does not read, so the dialog names it
+  "the automatic renderer" rather than guessing between gl4es and MobileGlues. Both warn and both
+  get the same offer, so the player is never misdirected, but the message is vaguer there.
+- Detection is **a substring match on jar file names**, so a mod whose name happens to contain one
+  of the six family names is taken for Sodium, and a Sodium fork named something else entirely is
+  missed. `scripts/sodiumsim` asserts the list does not match a set of popular unrelated mods,
+  which is the direction that costs something: a false match sends somebody with no Sodium to
+  change their renderer.
+- A `.disabled` jar is **not** detected, matching the mod checker's rule: a disabled mod is absent
+  from the game, so warning about it would be warning about nothing.
+- **Nothing was done about Sodium's own compatibility checks beyond what was already there.**
+  Sodium's anti-launcher detection does not fire on this fork (renamed environment variable,
+  different application id), and `ISSUE_2561` was already turned off. If a future Sodium version
+  adds a check this fork does trip, that is a new problem and not one this handles in advance.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2169,6 +2283,14 @@ Before pushing:
   mutations are known **not** to be caught and are listed in `run.sh` with the reason, because
   today's constants and the clamps that guard them hide each other's removal, which is the
   resizesim situation and is covered by sweeping every megabyte rather than the realistic sizes.
+- **Run `sh scripts/sodiumsim/run.sh`** if the Sodium verdict, the renderer ids or the detection
+  list changed. It compiles the shipped `SodiumSupport` at source 8 and drives it. Two groups of
+  checks matter most. The verdict table is written out against the ids in
+  `res/values/headings_array.xml`, so a renderer renamed there and not here falls through to
+  UNTESTED, which is exactly the silent degradation that would make the feature pointless. And the
+  detection checks are written to catch **over-matching**, with a list of popular unrelated mods
+  that a widened entry would hit: a missed mod leaves a player where they already were, a false
+  match tells somebody with no Sodium to change their renderer, and they will act on it.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

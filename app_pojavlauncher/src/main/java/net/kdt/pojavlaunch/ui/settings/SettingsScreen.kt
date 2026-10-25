@@ -734,6 +734,14 @@ private fun PerformanceScreen(
                 format = { "$it%" },
                 onValueChange = { store.put("resolutionRatio", it) }
             )
+            // Directly under the renderer row, because it is a statement about the renderer. The
+            // check itself is silent on Zink, so this is only for somebody who has decided a
+            // translating renderer works for them and does not want asking again.
+            SwitchRow(
+                stringResource(R.string.settings_sodium_warning_title),
+                stringResource(R.string.settings_sodium_warning_description),
+                store.bool("sodium_warning", true)
+            ) { store.put("sodium_warning", it) }
         }
 
         SectionLabel(stringResource(R.string.settings_section_memory))

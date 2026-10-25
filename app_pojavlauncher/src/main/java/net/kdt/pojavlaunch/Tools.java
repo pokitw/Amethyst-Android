@@ -67,6 +67,7 @@ import net.kdt.pojavlaunch.multirt.MultiRTUtils;
 import net.kdt.pojavlaunch.multirt.Runtime;
 import net.kdt.pojavlaunch.plugins.FFmpegPlugin;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
+import net.kdt.pojavlaunch.sodium.SodiumSupport;
 import net.kdt.pojavlaunch.tasks.AsyncAssetManager;
 import net.kdt.pojavlaunch.utils.DateUtils;
 import net.kdt.pojavlaunch.utils.DownloadUtils;
@@ -381,12 +382,28 @@ public final class Tools {
         return info.isAdreno() && info.glesMajorVersion >= 3;
     }
 
-    private static String[] sodiumMods = {"sodium", "embeddium", "rubidium", "xenon"};
+    /**
+     * Whether a Sodium family renderer mod is in the selected profile's mods folder.
+     *
+     * The list lives in {@link SodiumSupport#FAMILY} so the launch path and the dialog that asks
+     * about the renderer before launching cannot disagree about what counts as Sodium. Deletion
+     * keeps its own, broader list, because removing a renderer mod and leaving its dependents is
+     * a crash rather than a tidy removal.
+     */
+    public static boolean hasSodiumFamily() {
+        File modsDir = new File(getGameDir(), "mods");
+        File[] modFiles = modsDir.listFiles(File::isFile);
+        if (modFiles == null) return false;
+        for (File file : modFiles) {
+            if (SodiumSupport.matchesFamily(file.getName())) return true;
+        }
+        return false;
+    }
 
     private static boolean affectedByLTWRenderDistanceIssue() {
         if(!"opengles3_ltw".equals(Tools.LOCAL_RENDERER)) return false;
         if(!affectedByRenderDistanceIssue()) return false;
-        if(hasMods(sodiumMods)) return false;
+        if(hasSodiumFamily()) return false;
 
         int renderDistance;
         try {
@@ -507,37 +524,18 @@ public final class Tools {
         javaArgList.add("-Dimgui.library.name=imgui-java");
         // We use an abomination to support all DH versions with a single library.
         javaArgList.add("-DZstdNativePath="+Tools.NATIVE_LIB_DIR+"/libzstd-jni-1.5.7-6-dhcompat.so");
-        // We only ever reach this point when user has already used the force run switch
-        boolean hasSodiumMod = false;
-        for (String modName : sodiumMods) {
-            if (hasMods(sodiumMods)) {
-                hasSodiumMod = true;
-                File mixinPropertiesConfigFile = new File(getGameDir(), "config/" + modName + "-mixins.properties");
-                // Write mixin configs to somewhat help stability. We don't want more people complaining.
-                String[] propertiesToAdd = {
-                        "mixin.features.buffer_builder.intrinsics=false",
-                        "mixin.features.chunk_rendering=false"
-                };
-                List<String> mixinPropertiesConfigStrings = null;
-                try {
-                    mixinPropertiesConfigStrings = org.apache.commons.io.FileUtils.readLines(mixinPropertiesConfigFile, "UTF-8");
-                } catch (IOException ignored) {}
-                if (mixinPropertiesConfigStrings == null) {
-                    mixinPropertiesConfigStrings = new ArrayList<>();
-                }
-                for (String newLine : propertiesToAdd) {
-                    if (!mixinPropertiesConfigStrings.contains(newLine)) {
-                        mixinPropertiesConfigStrings.add(newLine);
-                    }
-                }
-                try {
-                    org.apache.commons.io.FileUtils.writeLines(mixinPropertiesConfigFile, mixinPropertiesConfigStrings);
-                } catch (IOException ignored) {} // If we can't write it, we tried our best.
-
-            }
-        }
-        // We use a janky lwjgl setup. We don't want more people complaining it crashes.
-        if (hasSodiumMod) javaArgList.add("-Dsodium.checks.issue2561=false");
+        // Sodium's own LWJGL check tests a version string, and this launcher's LWJGL reports one
+        // it does not recognise, so the flag is needed and is the one Sodium itself documents.
+        //
+        // What used to sit here as well wrote mixin.features.buffer_builder.intrinsics=false and
+        // mixin.features.chunk_rendering=false into four *-mixins.properties files. Removed
+        // because those keys have never matched anything: Sodium resolves a mixin option by the
+        // mixin's own PACKAGE PATH, and neither path exists in any version (the modern ones are
+        // features/render/immediate/buffer_builder and features/render/chunk, and the 0.3 era
+        // namespace was the singular mixin.feature.*). So it was writing junk into the config
+        // folder on every launch. Correcting the spelling would have been worse than deleting it:
+        // disabling chunk rendering is a known crash on joining a world, Sodium issue 842.
+        if (hasSodiumFamily()) javaArgList.add("-Dsodium.checks.issue2561=false");
         javaArgList.add(versionInfo.mainClass);
         javaArgList.addAll(Arrays.asList(launchArgs));
         // ctx.appendlnToLog("full args: "+javaArgList.toString());
