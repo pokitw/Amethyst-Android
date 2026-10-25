@@ -898,6 +898,7 @@
     <string name="content_kind_mods">Mods</string>
     <string name="content_kind_packs">Resource packs</string>
     <string name="content_kind_shaders">Shaders</string>
+    <string name="content_shader_renderer">Needs the Zink renderer and Iris to do anything</string>
     <string name="content_kind_screenshots">Screenshots</string>
 
     <string name="content_empty_all">Nothing here yet</string>

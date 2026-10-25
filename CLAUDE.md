@@ -1431,6 +1431,15 @@ re-litigated. The reasoning lives in the commit that made the change.
   you are on your own" whatever the renderer, which is wrong on Zink and is the first line of every
   bug report this project receives. It is written where `LOCAL_RENDERER` has finished resolving,
   which is after the profile's choice, the automatic pick and the incompatible-renderer fallback.
+  **A shader pack row says so too**, through `shadersViable` on the Game files rows
+  (`ui/content/ContentCompat.kt`). That is a gap the dialog cannot close: the dialog only speaks
+  when a Sodium family mod is present, and a shader pack dropped in before Iris is installed is
+  otherwise completely silent, because it appears in the folder, appears in the game's own shader
+  list, and does nothing with no error anywhere. It replaces the row's accent line rather than
+  adding a third, in `Warning70` not `Danger70` on the mod check's reasoning: nothing has failed
+  and the pack is still there. The renderer is **handed in rather than read there**, for the reason
+  `modTarget` is: reading it parses the profile JSON and the compat pass runs again on every
+  background batch of a folder scan (16.11).
   It gets **no onboarding page** and **a comparison row** marked `Part` for upstream, and that mark
   is the entry's last load-bearing fact: **upstream can run Sodium.** Its warning has a way past
   it, the maths question in the experimental settings, which is upstream's own code and works.
@@ -2089,8 +2098,8 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   of the renderer rather than a promise about a particular mod list. The verdict is about the GL
   version the renderer can reach; whether a given Sodium build, on a given Minecraft version, with
   a given pile of other mods, works is between those mods and the device.
-- **Shader packs need Zink specifically**, which is narrower than Sodium's own floor and is why
-  `shadersViable` is a separate question. Iris will install and may even start on MobileGlues; a
+- **Shader packs need Zink specifically**, which is narrower than Sodium's own floor, is why
+  `shadersViable` is a separate question, and is what the shader pack rows in Game files report. Iris will install and may even start on MobileGlues; a
   shader pack leans on compute shaders and storage buffers that a GL to GL ES translator does not
   carry. The launcher says "less likely" rather than "no" because that is the honest strength of
   the claim.
@@ -2112,6 +2121,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   change their renderer.
 - A `.disabled` jar is **not** detected, matching the mod checker's rule: a disabled mod is absent
   from the game, so warning about it would be warning about nothing.
+- The shader pack row's line is **about the renderer and nothing else**. It does not check whether
+  Iris is installed, whether the pack's own format matches the Iris version, or whether the pack
+  works: those are the pack's business and Iris's. It answers the one question that is knowable
+  from here and is wrong often enough to be worth saying.
+- It is read from the **profile selected when the activity was created**, like the mod check beside
+  it, so switching renderer in another process and coming back without the activity being recreated
+  shows the old answer.
 - **Nothing was done about Sodium's own compatibility checks beyond what was already there.**
   Sodium's anti-launcher detection does not fire on this fork (renamed environment variable,
   different application id), and `ISSUE_2561` was already turned off. If a future Sodium version

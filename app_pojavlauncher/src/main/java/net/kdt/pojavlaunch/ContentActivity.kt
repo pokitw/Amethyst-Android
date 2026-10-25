@@ -36,6 +36,7 @@ import net.kdt.pojavlaunch.ui.mods.ModTarget
 import net.kdt.pojavlaunch.ui.mods.currentModTarget
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
 import net.kdt.pojavlaunch.ui.home.currentProfileLabel
+import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 import java.io.File
 import java.util.Locale
@@ -79,6 +80,14 @@ class ContentActivity : BaseActivity() {
      */
     private var modTarget: ModTarget? = null
 
+    /**
+     * The profile's renderer, which is the whole of what a shader pack row can be told.
+     *
+     * Read once here for the same reason [modTarget] is: it means parsing the profile JSON, and
+     * the compat pass runs again on every background batch (16.11).
+     */
+    private var rendererId: String? = null
+
     private lateinit var gameDir: File
     private var detailJob: Job? = null
     private var freeSpace = ""
@@ -105,6 +114,7 @@ class ContentActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         gameDir = runCatching { currentGameDirectory() }.getOrElse { File(Tools.DIR_GAME_NEW) }
         modTarget = runCatching { currentModTarget() }.getOrNull()
+        rendererId = runCatching { SettingsStore(this).currentRenderer() }.getOrNull()
         profileLabel = runCatching {
             val label = currentProfileLabel(this)
             listOfNotNull(label?.first, label?.second).joinToString(" · ").ifEmpty { null }
@@ -289,7 +299,7 @@ class ContentActivity : BaseActivity() {
                 thumbnail = current.thumbnail ?: fresh.thumbnail,
                 thumbnailRequested = current.thumbnailRequested || fresh.thumbnailRequested
             )
-        }, modTarget)
+        }, modTarget, rendererId)
     }
 
     /**
@@ -393,7 +403,7 @@ class ContentActivity : BaseActivity() {
             put(moved)
             turnedOff++
         }
-        items = applyModCompat(this, items, modTarget)
+        items = applyModCompat(this, items, modTarget, rendererId)
         if (turnedOff == 0) {
             toast(getString(R.string.content_toggle_failed))
         } else {
@@ -455,7 +465,7 @@ class ContentActivity : BaseActivity() {
         put(moved)
         // What is switched on decides what satisfies what, so every other row's verdict can
         // change from this one switch: turning Fabric API off breaks the twenty mods that need it.
-        items = applyModCompat(this, items, modTarget)
+        items = applyModCompat(this, items, modTarget, rendererId)
     }
 
     private fun delete(item: ContentItem) {
@@ -465,7 +475,9 @@ class ContentActivity : BaseActivity() {
         }
         thumbnailsAsked.remove(key(item))
         fingerprints.remove(key(item))
-        items = applyModCompat(this, items.filterNot { key(it) == key(item) }, modTarget)
+        items = applyModCompat(
+            this, items.filterNot { key(it) == key(item) }, modTarget, rendererId
+        )
         updateStorageLine()
     }
 

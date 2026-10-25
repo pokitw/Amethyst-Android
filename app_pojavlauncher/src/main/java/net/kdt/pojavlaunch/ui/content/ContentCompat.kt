@@ -3,6 +3,7 @@ package net.kdt.pojavlaunch.ui.content
 import android.content.Context
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.modmeta.ModGraph
+import net.kdt.pojavlaunch.sodium.SodiumSupport
 import net.kdt.pojavlaunch.ui.mods.ModTarget
 
 /**
@@ -20,8 +21,20 @@ import net.kdt.pojavlaunch.ui.mods.ModTarget
  * `scripts/modmetasim` can drive it.
  */
 
-/** The graph's verdicts, folded back into the rows they came from. */
+/**
+ * Everything the rows can be told about the profile they are sitting in.
+ *
+ * Two passes rather than one, because they answer different questions over different kinds: the
+ * graph reads what the mods declare, and the shader pass reads only the renderer.
+ */
 fun applyModCompat(
+    context: Context,
+    items: List<ContentItem>,
+    target: ModTarget?,
+    rendererId: String?
+): List<ContentItem> = applyGraph(context, applyShaderCompat(context, items, rendererId), target)
+
+private fun applyGraph(
     context: Context,
     items: List<ContentItem>,
     target: ModTarget?
@@ -57,6 +70,41 @@ fun applyModCompat(
         } else {
             item.copy(warning = warning, neededBy = neededBy, missing = result.missing)
         }
+    }
+}
+
+/**
+ * The one thing a shader pack row can say for itself, which is whether the renderer can run it.
+ *
+ * <b>A shader pack on the wrong renderer is otherwise completely silent.</b> It installs, it
+ * appears in the folder, it appears in the game's own shader list, and it does nothing, with no
+ * error anywhere. That is the gap this closes: the launch dialog only speaks when a Sodium family
+ * mod is present, and somebody can perfectly well drop a shader pack in before installing Iris.
+ *
+ * The question is deliberately narrower than Sodium's own floor, which is why
+ * [SodiumSupport.shadersViable] is a separate predicate: Iris needs Sodium to start at all, and a
+ * shader pack on top of that needs compute shaders and storage buffers that a GL to GL ES
+ * translator will not carry even where it scrapes past OpenGL 3.3.
+ *
+ * It replaces the row's accent line rather than adding a third one, the same way a mod's verdict
+ * does, and it is in `Warning70` and not `Danger70`: nothing has failed, and the pack is still
+ * there.
+ *
+ * The renderer is handed in rather than read here, for the reason `modTarget` is: reading it means
+ * loading and parsing the profile JSON, and this runs again on every background batch during a
+ * folder scan (16.11). The activity reads it once when it is created.
+ */
+private fun applyShaderCompat(
+    context: Context,
+    items: List<ContentItem>,
+    rendererId: String?
+): List<ContentItem> {
+    if (items.none { it.kind == ContentKind.SHADER_PACK }) return items
+    if (SodiumSupport.shadersViable(rendererId)) return items
+    val warning = context.getString(R.string.content_shader_renderer)
+    return items.map { item ->
+        if (item.kind != ContentKind.SHADER_PACK || item.warning == warning) item
+        else item.copy(warning = warning)
     }
 }
 
