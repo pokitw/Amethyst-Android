@@ -28,6 +28,7 @@ import net.kdt.pojavlaunch.extra.ExtraConstants
 import net.kdt.pojavlaunch.extra.ExtraCore
 import net.kdt.pojavlaunch.prefs.HeapAdvice
 import net.kdt.pojavlaunch.prefs.LauncherPreferences
+import net.kdt.pojavlaunch.sodium.GpuProfile
 import net.kdt.pojavlaunch.sodium.SodiumSupport
 import net.kdt.pojavlaunch.progresskeeper.ProgressKeeper
 import net.kdt.pojavlaunch.progresskeeper.TaskCountListener
@@ -304,10 +305,13 @@ class MainMenuFragment : Fragment(), ChromeOwner {
      * every shader pack.
      *
      * The refusal was also asking the wrong question. Sodium needs an OpenGL 3.3 context, which is
-     * a fact about the renderer and not about the mod, and one of the renderers here is a real
-     * OpenGL implementation on which Sodium is ordinary. So the dialog is now about that, it never
-     * appears on a renderer that can run it, and on one that cannot it offers the fix rather than
-     * only the deletion.
+     * a fact about the renderer and the device rather than about the mod. So the dialog is now
+     * about that, it never appears where there is positive evidence the pair works, and where
+     * there is not it names the actual obstacle and offers the fix rather than only the deletion.
+     *
+     * The device half is not optional: the first version of this asked only about the renderer and
+     * was therefore silent on Zink everywhere, including on Mali, where Mesa lands below Sodium's
+     * floor. See [SodiumSupport] for why a reported GL version cannot be used to tell.
      */
     private fun play() = checkMemory {
         if (!LauncherPreferences.DEFAULT_PREF.getBoolean("sodium_warning", true)) {
@@ -317,7 +321,12 @@ class MainMenuFragment : Fragment(), ChromeOwner {
         val store = SettingsStore(requireContext())
         val renderer = runCatching { store.currentRenderer() }.getOrNull()
         val sodiumIsHere = runCatching { Tools.hasSodiumFamily() }.getOrDefault(false)
-        if (!SodiumSupport.shouldWarn(SodiumSupport.verdict(renderer, sodiumIsHere))) {
+        // Read once per press, never inside a composition (16.11), and unable to throw because
+        // this is the launch path (16.15): an unreadable device comes back as Gpu.unknown().
+        val gpu = runCatching { GpuProfile.read(requireContext()) }
+            .getOrElse { SodiumSupport.Gpu.unknown() }
+        val verdict = SodiumSupport.verdict(renderer, sodiumIsHere, gpu)
+        if (!SodiumSupport.shouldWarn(verdict)) {
             requestLaunch()
             return@checkMemory
         }
@@ -325,17 +334,14 @@ class MainMenuFragment : Fragment(), ChromeOwner {
         val kopperAvailable = runCatching {
             Tools.checkRendererCompatible(requireContext(), SodiumSupport.ZINK_KOPPER)
         }.getOrDefault(false)
-        val better = SodiumSupport.betterRenderer(renderer, kopperAvailable)
+        val better = SodiumSupport.betterRenderer(renderer, kopperAvailable, gpu)
 
         val name = rendererLabel(store)
         val builder = AlertDialog.Builder(requireContext())
-        if (SodiumSupport.verdict(renderer, sodiumIsHere) == SodiumSupport.Verdict.UNSUPPORTED) {
-            builder.setTitle(R.string.sodium_renderer_title)
-                .setMessage(getString(R.string.sodium_renderer_message, name))
-        } else {
-            builder.setTitle(R.string.sodium_untested_title)
-                .setMessage(getString(R.string.sodium_untested_message, name))
-        }
+        builder.setTitle(
+            if (verdict == SodiumSupport.Verdict.INCOMPATIBLE) R.string.sodium_renderer_title
+            else R.string.sodium_untested_title
+        ).setMessage(reasonMessage(SodiumSupport.reasonFor(renderer, sodiumIsHere, gpu), name, gpu))
         // The fix first, where there is one. Switching the renderer is the thing that actually
         // makes Sodium work, and it is one tap from here rather than a trip to Settings.
         if (better != null) {
@@ -358,6 +364,44 @@ class MainMenuFragment : Fragment(), ChromeOwner {
             requestLaunch()
         }
         builder.show()
+    }
+
+    /**
+     * One sentence naming the actual obstacle.
+     *
+     * A `when` over the reason rather than a string built up in pieces, so every branch is a whole
+     * sentence a translator can work with and none of them can come out half assembled. The
+     * unproven-driver branch is the only one that names the GPU, because there the driver is the
+     * whole of what is wrong.
+     */
+    private fun reasonMessage(
+        reason: SodiumSupport.Reason,
+        rendererName: String,
+        gpu: SodiumSupport.Gpu
+    ): String = when (reason) {
+        SodiumSupport.Reason.NO_VULKAN ->
+            getString(R.string.sodium_reason_no_vulkan, rendererName)
+        SodiumSupport.Reason.GL_TOO_OLD ->
+            getString(R.string.sodium_reason_gl_too_old, rendererName)
+        SodiumSupport.Reason.DRIVER_UNPROVEN ->
+            getString(R.string.sodium_reason_driver_unproven, rendererName, gpuLabel(gpu))
+        SodiumSupport.Reason.TURNIP_OFF ->
+            getString(R.string.sodium_reason_turnip_off, rendererName)
+        SodiumSupport.Reason.TRANSLATOR ->
+            getString(R.string.sodium_reason_translator, rendererName)
+        // NONE cannot reach here, because shouldWarn already returned false for it; falling to the
+        // vaguest honest sentence rather than throwing on the launch path.
+        SodiumSupport.Reason.RENDERER_UNKNOWN, SodiumSupport.Reason.NONE ->
+            getString(R.string.sodium_reason_unknown_renderer, rendererName)
+    }
+
+    /** The chip family as a word, or a neutral one when the device would not say. */
+    private fun gpuLabel(gpu: SodiumSupport.Gpu): String = when (gpu.family) {
+        SodiumSupport.GpuFamily.ADRENO -> "Adreno"
+        SodiumSupport.GpuFamily.MALI -> "Mali"
+        SodiumSupport.GpuFamily.POWERVR -> "PowerVR"
+        SodiumSupport.GpuFamily.XCLIPSE -> "Xclipse"
+        else -> getString(R.string.sodium_gpu_generic)
     }
 
     /**

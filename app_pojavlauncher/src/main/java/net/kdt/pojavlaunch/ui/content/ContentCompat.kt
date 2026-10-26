@@ -31,8 +31,9 @@ fun applyModCompat(
     context: Context,
     items: List<ContentItem>,
     target: ModTarget?,
-    rendererId: String?
-): List<ContentItem> = applyGraph(context, applyShaderCompat(context, items, rendererId), target)
+    rendererId: String?,
+    gpu: SodiumSupport.Gpu?
+): List<ContentItem> = applyGraph(context, applyShaderCompat(context, items, rendererId, gpu), target)
 
 private fun applyGraph(
     context: Context,
@@ -86,6 +87,10 @@ private fun applyGraph(
  * shader pack on top of that needs compute shaders and storage buffers that a GL to GL ES
  * translator will not carry even where it scrapes past OpenGL 3.3.
  *
+ * It is a question about the renderer AND the device. Asking only about the renderer, which is
+ * what shipped first, made this pass silent on Zink everywhere, which removed the warning on
+ * exactly the Mali devices that most needed it.
+ *
  * It replaces the row's accent line rather than adding a third one, the same way a mod's verdict
  * does, and it is in `Warning70` and not `Danger70`: nothing has failed, and the pack is still
  * there.
@@ -97,10 +102,11 @@ private fun applyGraph(
 private fun applyShaderCompat(
     context: Context,
     items: List<ContentItem>,
-    rendererId: String?
+    rendererId: String?,
+    gpu: SodiumSupport.Gpu?
 ): List<ContentItem> {
     if (items.none { it.kind == ContentKind.SHADER_PACK }) return items
-    if (SodiumSupport.shadersViable(rendererId)) return items
+    if (SodiumSupport.shadersViable(rendererId, gpu ?: SodiumSupport.Gpu.unknown())) return items
     val warning = context.getString(R.string.content_shader_renderer)
     return items.map { item ->
         if (item.kind != ContentKind.SHADER_PACK || item.warning == warning) item

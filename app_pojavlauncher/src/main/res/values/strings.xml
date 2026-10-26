@@ -572,9 +572,19 @@
       the thing a player can change.
     -->
     <string name="sodium_renderer_title">Sodium needs a different renderer</string>
-    <string name="sodium_renderer_message">Sodium needs OpenGL 3.3. %1$s cannot reach it, so the game will crash or render nothing.\n\nZink runs real OpenGL through Vulkan, which is what Sodium and shader packs need.</string>
     <string name="sodium_untested_title">Sodium may not work here</string>
-    <string name="sodium_untested_message">Sodium needs OpenGL 3.3. %1$s may reach it on this device and may not, and shader packs are less likely to work.\n\nZink runs real OpenGL through Vulkan, which is the renderer Sodium and Iris are tested on.</string>
+    <!--
+      One message per reason, because a generic "this might not work" is what teaches somebody to
+      dismiss a dialog without reading it. Each names the actual obstacle and each has a different
+      thing to do about it. %1$s is the renderer as the picker names it.
+    -->
+    <string name="sodium_reason_no_vulkan">%1$s runs real OpenGL on top of Vulkan, and this device does not report Vulkan support, so there is nothing for it to run on.</string>
+    <string name="sodium_reason_gl_too_old">Sodium needs OpenGL 3.3. %1$s cannot reach it on this device, so the game will crash or render nothing.</string>
+    <string name="sodium_reason_driver_unproven">Sodium needs OpenGL 3.3. %1$s reaches it through this device\'s Vulkan driver, and on %2$s drivers Mesa often stops short of 3.3. It may work and it may fail, and shader packs are less likely to work.</string>
+    <string name="sodium_reason_turnip_off">Sodium needs OpenGL 3.3. %1$s reaches it on Adreno through the Turnip driver, which is currently switched off in Performance settings. Turning Turnip back on is the most likely fix.</string>
+    <string name="sodium_reason_translator">Sodium needs OpenGL 3.3. %1$s may reach it on this device and may not, and shader packs are less likely to work.</string>
+    <string name="sodium_reason_unknown_renderer">Sodium needs OpenGL 3.3. This launcher has nothing to say about %1$s, so it may work and it may fail.</string>
+    <string name="sodium_gpu_generic">this</string>
     <string name="sodium_renderer_automatic">The automatic renderer</string>
     <string name="sodium_switch_renderer">Use %1$s and launch</string>
     <string name="sodium_launch_anyway">Launch anyway</string>
@@ -898,7 +908,7 @@
     <string name="content_kind_mods">Mods</string>
     <string name="content_kind_packs">Resource packs</string>
     <string name="content_kind_shaders">Shaders</string>
-    <string name="content_shader_renderer">Needs the Zink renderer and Iris to do anything</string>
+    <string name="content_shader_renderer">Needs Iris, and a renderer that reaches OpenGL 3.3 on this device</string>
     <string name="content_kind_screenshots">Screenshots</string>
 
     <string name="content_empty_all">Nothing here yet</string>

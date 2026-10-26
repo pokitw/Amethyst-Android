@@ -1390,11 +1390,33 @@ re-litigated. The reasoning lives in the commit that made the change.
   became unrunnable, and with it Iris, and with Iris every shader pack. **Deleting a settings
   screen can orphan the write half of a preference and leave the read half enforcing it**, which
   nothing in the build can see.
-  **The flat refusal was the wrong question anyway.** Sodium needs an OpenGL 3.3 core context,
-  which is a fact about the renderer, not about the mod. Kopper Zink is Mesa executing real OpenGL
-  on the device's Vulkan driver, so Sodium there is an ordinary mod; gl4es tops out two whole
-  versions below the floor, so there it cannot work at all. One question, four answers, and the
-  renderer is the thing the player can change, so the dialog offers the change.
+  **The flat refusal was the wrong question anyway.** Sodium needs OpenGL 3.3, which is a fact
+  about the renderer and the device rather than about the mod; gl4es tops out two whole versions
+  below the floor, so there it cannot work at all. One question, four answers, and the renderer is
+  the thing the player can change, so the dialog offers the change.
+  **The renderer alone was also the wrong question, and that shipped.** The first version returned
+  SUPPORTED for Zink on every device. Zink is Mesa, and Mesa gates the GL version it can advertise
+  on specific Vulkan features of the driver underneath: GL 2.1 on `logicOp`, `fillModeNonSolid`,
+  `alphaToOne` and `shaderClipDistance`, GL 3.2 on `VK_EXT_depth_clip_enable`, GL 3.3 on
+  `VK_EXT_vertex_attribute_divisor`. The bundled Mesa Turnip carries all of them, so Adreno with
+  Turnip clears the floor; a stock ARM Mali driver fails several outright and lands around GL 3.1,
+  which is *below* it. So the class was silent on exactly the devices that most needed telling, and
+  a Mali player got a crash with no dialog where they had previously had one. The verdict now takes
+  a `Gpu` read by `sodium/GpuProfile.java`, and **`VERIFIED` is reachable only by Zink on an Adreno
+  with a Turnip driver actually loading**, which is the one Vulkan feature set this build knows.
+  **The three levels are named for their evidence**: `VERIFIED` has evidence for, `INCOMPATIBLE`
+  has evidence against, `UNTESTED` has neither. The previous spelling of the first was `SUPPORTED`,
+  which read as a promise about the device when all it ever meant was "this renderer is the real
+  OpenGL one". That name is what made the bug easy to write.
+  **Mali is UNTESTED and not INCOMPATIBLE**, deliberately. The evidence that stock Mali drivers
+  fall short is real but it is about driver versions in general, and the Vulkan feature set cannot
+  be queried from the launcher, so condemning a specific device would claim more than this build
+  can read. The warning is specific instead: a `Reason` per obstacle, so the dialog names the
+  driver rather than shrugging.
+  **Turnip must be loading, not merely available.** `JREUtils` only loads it inside an
+  `info.isAdreno()` branch and the user can choose the system driver, so `GpuProfile` computes
+  `turnipActive` exactly as the launch does. A verdict that assumed Turnip where the launch will
+  not load it would be the same bug with a different cause.
   **Nothing is asked on a renderer that can run it.** That is the point of the class rather than a
   nicety: a warning that fires on every launch when the setup is already correct is how a player
   learns to dismiss warnings without reading them.
@@ -1403,9 +1425,12 @@ re-litigated. The reasoning lives in the commit that made the change.
   An unset renderer lands there too, and correctly: the automatic pick is gl4es or MobileGlues
   depending on the version's asset index, never Zink, so warning and offering the switch is right
   whichever it turns out to be, and the launcher cannot know which without the version JSON.
-  **`shadersViable` is deliberately narrower than Sodium's own floor**: Zink or nothing. Iris
-  requires Sodium and shader packs lean on compute shaders and storage buffers, so a translator
-  that scrapes past 3.3 will carry Sodium and not a shader pack. Two questions, two answers.
+  **`shadersViable` is defined as "the verdict is VERIFIED"**, which makes it exactly as strong as
+  the evidence and no stronger. Iris requires Sodium and shader packs lean on compute shaders and
+  storage buffers, so anywhere Sodium itself is only UNTESTED a shader pack is certainly not
+  something to promise. It was Zink-on-any-GPU first, and that is the second place the
+  renderer-only answer was wrong: being true everywhere Zink was selected, it *removed* the shader
+  pack warning on precisely the Mali devices that needed it.
   **Sodium's own anti-launcher check does not fire here**, which is worth writing down because it
   looks like it should. `PostLaunchChecks.isUsingPojavLauncher` tests an environment variable this
   fork renamed to `AMETHYST_RENDERER` and a `java.library.path` regex anchored on
@@ -1705,6 +1730,25 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     **That asymmetry is the thing to check first.** An orphaned reader whose default is the
     permissive value is a lost option; one whose default is the restrictive value, which
     `sodium_override` was, is a feature deleted silently.
+
+28. **A renderer is not a capability, and a version you forced is not a measurement.** The Sodium
+    verdict asked "which renderer is selected" and answered SUPPORTED for Zink everywhere. Zink is
+    Mesa, and Mesa's advertised GL version is a function of the Vulkan driver beneath it: the
+    bundled Turnip carries every feature it gates GL 3.3 on, a stock ARM Mali driver fails three of
+    the six it gates GL **2.1** on. So the one renderer the launcher was proudest of was silent on
+    the devices that most needed a warning, and a Mali player got a crash where the dead-end dialog
+    had at least said something. **The general form: an abstraction layer's ceiling is the layer
+    under it, so a verdict about a layer has to name what it is standing on.**
+    The second half is why it could not be caught from inside. `JREUtils` sets
+    `MESA_GL_VERSION_OVERRIDE=4.6COMPAT` for every zink renderer, so the context reports 4.6 on a
+    device that cannot do 3.3, and Mesa documents that the override "may not really implement all
+    the features of the given version". **Code that forces an override can never use the overridden
+    value as a check**, and the reflex that saves you is to ask which of your inputs you wrote
+    yourself. `Gpu` therefore carries no reported-GL field, and `sodiumsim` asserts the Zink verdict
+    is invariant across every GL ES version rather than testing a case, so adding one back fails.
+    It was found by an adversarial pass told to **refute** the claim rather than check it, and the
+    evidence it brought was a real Mali-G78 log plus upstream's own renderer docs, neither of which
+    this project would have produced on its own. The claim had sounded right for a week.
 
 26. **A harness in another language inherits that language's arithmetic, not the shipped one's.**
     `check_joystick_directions.py` transcribes an eight-way `((angle + 22.5) / 45) % 8` bucket out
@@ -2094,22 +2138,46 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - `keyDownBuffer` now lags the send by up to one frame, which is GLFW's own contract and what makes
   send order observable, but it does mean a mod polling `glfwGetKey` from its own thread reads a
   value written a frame later than it used to.
-- **Sodium runs on Kopper Zink and is refused by nothing**, but "runs" is the launcher's reading
-  of the renderer rather than a promise about a particular mod list. The verdict is about the GL
-  version the renderer can reach; whether a given Sodium build, on a given Minecraft version, with
-  a given pile of other mods, works is between those mods and the device.
-- **Shader packs need Zink specifically**, which is narrower than Sodium's own floor, is why
-  `shadersViable` is a separate question, and is what the shader pack rows in Game files report. Iris will install and may even start on MobileGlues; a
-  shader pack leans on compute shaders and storage buffers that a GL to GL ES translator does not
-  carry. The launcher says "less likely" rather than "no" because that is the honest strength of
-  the claim.
+- **`VERIFIED` means "this build has positive evidence for this configuration", not "tested on
+  your phone".** It is reached only by Zink on an Adreno with a Turnip driver loading, and the
+  evidence is that the bundled Mesa Turnip carries every Vulkan feature Mesa gates GL 3.3 on. It
+  is not a promise about a particular Sodium build, a particular Minecraft version, or a pile of
+  other mods. **Nothing here has been run on a device by this project**: there is no phone in CI
+  and no Vulkan loader in the build container, so every verdict is a reading of what the device
+  reports plus what Mesa documents, and the only real confirmation is somebody launching it.
+- **Mali on Zink is UNTESTED, which is weaker than the evidence and deliberately so.** Two
+  independent Zink-on-Mali projects and upstream PojavLauncher's own renderer docs put a stock ARM
+  driver around GL 3.1, below Sodium's floor, and a real Mali-G78 log shows Mesa refusing three of
+  Zink's six GL 2.1 base requirements. That is evidence about driver versions in general, and the
+  launcher cannot query a Vulkan feature set, so a specific device is warned about rather than
+  condemned. If somebody reports Sodium working on a recent Mali, that is consistent with this
+  and the verdict stays as it is.
+- **Shader packs are promised only where the verdict is VERIFIED**, which is narrower than
+  Sodium's own floor and is why `shadersViable` is a separate question. Iris will install and may
+  even start on a translator; a shader pack leans on compute shaders and storage buffers a GL to
+  GL ES layer does not carry. On Mali and on Adreno without Turnip the shader pack rows in Game
+  files warn, which is the case the first version got backwards.
 - **Zink is the slower renderer on most devices**, so the fix the dialog offers is a trade and not
   a free upgrade: Mesa executing OpenGL over Vulkan costs more than gl4es translating to GL ES. A
   player on a weak device may genuinely prefer gl4es without Sodium to Zink with it, which is why
   "Launch anyway" is always present and why nothing is switched without a tap.
-- The verdict is **keyed on the renderer id, so a renderer added later is UNTESTED until listed**.
-  That is the safe direction and it does mean a future renderer that runs Sodium perfectly will
-  still produce a warning until somebody adds it to `SodiumSupport`.
+- The verdict is **keyed on the renderer id and the GPU family, so anything new is UNTESTED until
+  listed**. That is the safe direction and it does mean a future renderer, or a future chip whose
+  Vulkan driver is excellent, still produces a warning until somebody adds it to `SodiumSupport`.
+- **The GPU read is three facts and not a capability query.** `GpuProfile` has the GL ES driver's
+  vendor and renderer strings, the GL ES major version it will actually give a current context,
+  whether the package manager reports Vulkan, and whether Turnip will load. It cannot call
+  `vkGetPhysicalDeviceFeatures`, which is the thing that would actually answer the question, so
+  a Vulkan probe is the obvious future improvement and is not built.
+- The reported GL version is **deliberately not an input**. `JREUtils` sets
+  `MESA_GL_VERSION_OVERRIDE=4.6COMPAT` for every renderer id containing "zink", so a Zink context
+  reports 4.6 whatever the driver can do, and Mesa's own documentation says it "may not really
+  implement all the features of the given version". `SodiumSupport.Gpu` carries no reported-GL
+  field at all, and `sodiumsim` asserts the Zink verdict is invariant across every GL ES version,
+  so wiring one in later cannot pass quietly.
+- **The GL ES version bounds the translators only.** It decides MobileGlues and LTW, because a GL
+  to GL ES translator cannot expose more than its backend, and it decides nothing about Zink,
+  which does not go through GL ES. A reading of 0 means unknown and decides nothing either way.
 - **An unset profile renderer cannot be resolved on the launcher side.** The automatic pick depends
   on the version's asset index, which the launcher process does not read, so the dialog names it
   "the automatic renderer" rather than guessing between gl4es and MobileGlues. Both warn and both
@@ -2299,14 +2367,25 @@ Before pushing:
   mutations are known **not** to be caught and are listed in `run.sh` with the reason, because
   today's constants and the clamps that guard them hide each other's removal, which is the
   resizesim situation and is covered by sweeping every megabyte rather than the realistic sizes.
-- **Run `sh scripts/sodiumsim/run.sh`** if the Sodium verdict, the renderer ids or the detection
-  list changed. It compiles the shipped `SodiumSupport` at source 8 and drives it. Two groups of
-  checks matter most. The verdict table is written out against the ids in
-  `res/values/headings_array.xml`, so a renderer renamed there and not here falls through to
-  UNTESTED, which is exactly the silent degradation that would make the feature pointless. And the
-  detection checks are written to catch **over-matching**, with a list of popular unrelated mods
-  that a widened entry would hit: a missed mod leaves a player where they already were, a false
-  match tells somebody with no Sodium to change their renderer, and they will act on it.
+- **Run `sh scripts/sodiumsim/run.sh`** if the Sodium verdict, the renderer ids, the GPU families
+  or the detection list changed. It compiles the shipped `SodiumSupport` at source 8 and sweeps
+  every renderer against every GPU family, GL ES version, Vulkan flag and Turnip flag. Three
+  checks matter more than the rest. `maliOnZinkStillWarns` fails on the one-line revert that drops
+  the GPU dimension, which *is* the shipped bug, so it has chordsim's property of being able to
+  see the thing it was written for. `aReportedGlVersionCannotDecideZink` is written as an
+  invariance property rather than a case, because `MESA_GL_VERSION_OVERRIDE` makes a reported
+  version worthless and the mistake to prevent is somebody wiring one in later.
+  `familyAgreesWithTheTurnipPredicate` reads the real `GLInfoUtils.isAdreno()` source rather than
+  restating its rule, so the two cannot drift into promising a Turnip driver that will not load.
+  The detection checks still catch **over-matching**, with a list of popular unrelated mods a
+  widened entry would hit.
+- **Run `sh scripts/gpusim/run.sh`** if `GpuProfile` changed. It stubs the two framework types and
+  four project classes it touches, compiles the **real** shipped source at source 8, and drives
+  it. That compile is the point as much as the checks are: `GpuProfile` is new Java calling six
+  signatures and CI is otherwise the only compiler (§16.6). Every stub can be made to refuse, one
+  at a time and all at once, because the single thing this class must never do is throw on the
+  launch path (§16.15), and a stub that can only succeed tests nothing about the guard around it
+  (§16.16). One mutation is known **not** to be caught and `run.sh` says why.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

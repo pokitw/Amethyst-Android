@@ -76,6 +76,7 @@ import net.kdt.pojavlaunch.customcontrols.mouse.Touchpad;
 import net.kdt.pojavlaunch.lifecycle.ContextExecutor;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
+import net.kdt.pojavlaunch.sodium.GpuProfile;
 import net.kdt.pojavlaunch.sodium.SodiumSupport;
 import net.kdt.pojavlaunch.media.GalleryExport;
 import net.kdt.pojavlaunch.recorder.GameRecorder;
@@ -633,13 +634,14 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         // Every bug report this project receives is built from these lines, so "Sodium on gl4es"
         // and "Sodium on Zink" must not read the same.
         if (Tools.hasSodiumFamily()) {
+            SodiumSupport.Gpu gpu = GpuProfile.read(this);
             SodiumSupport.Verdict verdict =
-                    SodiumSupport.verdict(Tools.LOCAL_RENDERER, true);
+                    SodiumSupport.verdict(Tools.LOCAL_RENDERER, true, gpu);
             Logger.appendToLog("Sodium family mod present, renderer " + Tools.LOCAL_RENDERER
+                    + ", " + GpuProfile.describe(gpu)
                     + ", verdict " + verdict
-                    + (verdict == SodiumSupport.Verdict.SUPPORTED
-                        ? " (real OpenGL through Mesa, shader packs expected to work)"
-                        : " (needs OpenGL " + SodiumSupport.REQUIRED_GL + ")"));
+                    + " (" + SodiumSupport.reasonFor(Tools.LOCAL_RENDERER, true, gpu) + ")"
+                    + ", needs OpenGL " + SodiumSupport.REQUIRED_GL);
         }
         Logger.appendToLog("--------- Starting game with Launcher Debug!");
         Tools.printLauncherInfo(this, versionId, Tools.isValidString(minecraftProfile.javaArgs) ? minecraftProfile.javaArgs : LauncherPreferences.PREF_CUSTOM_JAVA_ARGS, Tools.getTotalDeviceMemory(this));

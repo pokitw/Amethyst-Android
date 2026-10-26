@@ -36,6 +36,8 @@ import net.kdt.pojavlaunch.ui.mods.ModTarget
 import net.kdt.pojavlaunch.ui.mods.currentModTarget
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
 import net.kdt.pojavlaunch.ui.home.currentProfileLabel
+import net.kdt.pojavlaunch.sodium.GpuProfile
+import net.kdt.pojavlaunch.sodium.SodiumSupport
 import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.theme.AmethystXTheme
 import java.io.File
@@ -88,6 +90,14 @@ class ContentActivity : BaseActivity() {
      */
     private var rendererId: String? = null
 
+    /**
+     * What the device can actually do, read once beside [rendererId].
+     *
+     * The renderer alone does not answer whether a shader pack can work: Zink's ceiling is the
+     * device's Vulkan driver. Read here for the same reason the renderer is (16.11).
+     */
+    private var gpu: SodiumSupport.Gpu? = null
+
     private lateinit var gameDir: File
     private var detailJob: Job? = null
     private var freeSpace = ""
@@ -115,6 +125,7 @@ class ContentActivity : BaseActivity() {
         gameDir = runCatching { currentGameDirectory() }.getOrElse { File(Tools.DIR_GAME_NEW) }
         modTarget = runCatching { currentModTarget() }.getOrNull()
         rendererId = runCatching { SettingsStore(this).currentRenderer() }.getOrNull()
+        gpu = runCatching { GpuProfile.read(this) }.getOrElse { SodiumSupport.Gpu.unknown() }
         profileLabel = runCatching {
             val label = currentProfileLabel(this)
             listOfNotNull(label?.first, label?.second).joinToString(" · ").ifEmpty { null }
@@ -299,7 +310,7 @@ class ContentActivity : BaseActivity() {
                 thumbnail = current.thumbnail ?: fresh.thumbnail,
                 thumbnailRequested = current.thumbnailRequested || fresh.thumbnailRequested
             )
-        }, modTarget, rendererId)
+        }, modTarget, rendererId, gpu)
     }
 
     /**
@@ -403,7 +414,7 @@ class ContentActivity : BaseActivity() {
             put(moved)
             turnedOff++
         }
-        items = applyModCompat(this, items, modTarget, rendererId)
+        items = applyModCompat(this, items, modTarget, rendererId, gpu)
         if (turnedOff == 0) {
             toast(getString(R.string.content_toggle_failed))
         } else {
@@ -465,7 +476,7 @@ class ContentActivity : BaseActivity() {
         put(moved)
         // What is switched on decides what satisfies what, so every other row's verdict can
         // change from this one switch: turning Fabric API off breaks the twenty mods that need it.
-        items = applyModCompat(this, items, modTarget, rendererId)
+        items = applyModCompat(this, items, modTarget, rendererId, gpu)
     }
 
     private fun delete(item: ContentItem) {
@@ -476,7 +487,7 @@ class ContentActivity : BaseActivity() {
         thumbnailsAsked.remove(key(item))
         fingerprints.remove(key(item))
         items = applyModCompat(
-            this, items.filterNot { key(it) == key(item) }, modTarget, rendererId
+            this, items.filterNot { key(it) == key(item) }, modTarget, rendererId, gpu
         )
         updateStorageLine()
     }
