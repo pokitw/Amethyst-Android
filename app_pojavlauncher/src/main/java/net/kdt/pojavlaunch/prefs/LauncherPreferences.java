@@ -297,7 +297,6 @@ public class LauncherPreferences {
         // Using .getInt() leads to a class cast exception and using integer-arrays will just crash the layout/fragment.
         MGConfigJson.put("enableANGLE", Integer.parseInt(DEFAULT_PREF.getString("mg_renderer_setting_angle", "0")));
         MGConfigJson.put("enableNoError", Integer.parseInt(DEFAULT_PREF.getString("mg_renderer_setting_errorSetting", "0")));
-        MGConfigJson.put("fsr1Setting", Integer.parseInt(DEFAULT_PREF.getString("mg_renderer_setting_fsr", "0")));
 
         // These guys are SwitchPreferences so they get special treatment, they need to be converted to ints
         int computeShaderext = DEFAULT_PREF.getBoolean("mg_renderer_computeShaderext", false) ? 1 : 0;

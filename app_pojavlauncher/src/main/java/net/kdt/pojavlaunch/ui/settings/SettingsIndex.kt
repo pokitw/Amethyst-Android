@@ -140,7 +140,7 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry(
         R.string.mcl_setting_title_renderer_settings, SettingsRoute.PERFORMANCE,
         R.string.mcl_setting_title_renderer_subtitle, R.string.settings_advanced,
-        "mobileglues angle fsr multidraw glsl cache"
+        "mobileglues angle multidraw glsl cache"
     ),
 
     // ------------------------------------------------------------------- Controls

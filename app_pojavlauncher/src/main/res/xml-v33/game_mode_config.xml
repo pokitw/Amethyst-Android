@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Android 13 Game Mode. This app declares appCategory="game" and isGame="true", so the platform
+  hands it to the OEM's game interventions, and the two it would apply are resolution downscaling
+  and a frame rate override.
+
+  Both are refused here because this launcher owns both of them itself and a player has set them
+  deliberately: the resolution scaler on the Performance screen, and the reachable game area,
+  whose whole promise is "the game, smaller" at a size the player chose. An OEM downscale stacked
+  on somebody's own 80% inset is exactly the silent rewriting of a saved preference the
+  performance-mode entry in the handbook is a warning about.
+
+  The battery and performance modes themselves are opted into: those let the player pick a profile
+  without the OEM touching the picture.
+-->
+<game-mode-config
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:allowGameDownscaling="false"
+    android:allowGameFpsOverride="false"
+    android:supportsBatteryGameMode="true"
+    android:supportsPerformanceGameMode="true"
+    />

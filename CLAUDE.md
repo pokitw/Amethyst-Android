@@ -846,7 +846,12 @@ re-litigated. The reasoning lives in the commit that made the change.
   identical in the smaller box; only the relative size of the buttons differs.
 - **Turnip driver manager** (`utils/TurnipDrivers.java` + `egl_bridge.c` + the Performance
   screen) — import adrenotools driver zips and pick which Vulkan driver Zink renders through.
-  Upstream declined this (their issue 224, "PR it"); the loader machinery was already here,
+  Upstream has declined to build it, and the accurate version of that is worth keeping because
+  the handbook previously carried a quote ("PR it") that **is not on the page**: issue 224 is
+  still open, and what the maintainer wrote on 28 September 2026, after rewriting how Vulkan
+  natives are loaded, is "Implementing this should now be easy but am not willing to do it". That
+  is a stronger fact for this fork than a closure would have been. The loader machinery was
+  already here,
   hardcoded to the one bundled `libvulkan_freedreno.so`. The feature is the choice, not the
   loading: `POJAV_TURNIP_DIR`/`POJAV_TURNIP_SONAME` point the existing namespace loader at an
   imported folder, and every failure still lands on the system driver, so the worst a bad
@@ -1472,6 +1477,58 @@ re-litigated. The reasoning lives in the commit that made the change.
   *worse* than upstream here, having deleted the screen that held the way past. What upstream does
   not do is check the renderer first, stay silent when it is already right, or offer the renderer
   that would fix it.
+
+- **Taking what is worth taking from upstream** (`scripts/check_renderer_env.py`,
+  `check_log_formats.py`, `check_ported_fixes.py`) — 21 commits landed upstream between
+  2026-08-27 and 2026-09-22, all by one maintainer, and nothing since. Five were ported, three
+  were deliberately refused, and the refusals are the half worth recording.
+  **Ported.** MobileGlues was being handed a GL ES 2 context, and an ES 1 one on rd and indev
+  versions (upstream `3ad110090`, one line). IME range clamping, which fixes a real crash from
+  swiping an IME's space key to the end of the input box: our file was byte-identical to
+  upstream's pre-fix version, so the fix was taken as the whole file rather than as a patch
+  (`8da3cf972`, from the TouchController organisation, the one outside contribution in the
+  window). The AMD FSR 1 upscaling picker, removed because upstream's own commit body says it
+  "does next to nothing visually and has some graphical bugs on some adrenos" (`90668f783`): the
+  control *works*, which is worse than a dead row, because its label promises upscaling it does
+  not deliver. Android 13 Game Mode (`c11e6f995`). And one bug of our own found while diffing for
+  the port, `sdl_hook.c` logging two `%p` with one argument on the hook-init path at every launch,
+  which came in on a fork-side commit upstream's default branch never took.
+  **Refused, and these must stay refused without a fresh reading.** Upstream's Turnip rewrite
+  (`cc4fc5c74`) deletes both readers of `POJAV_TURNIP_DIR` and `POJAV_TURNIP_SONAME`, so merging
+  it silently reduces the driver picker from "system, bundled, and N imported" to "system and
+  bundled" with no error anywhere; it also reshapes the `nsbypass` API and adds an SSH-only
+  submodule as a build dependency. Removing `libcutils.so` from the kopper-zink AAR
+  (`b04dfa2ce`) would break Kopper Zink outright here. And the two MobileGlues removals that are
+  not FSR are live rows for us, because we ship MobileGlues 1.3.4 and upstream's reasoning
+  follows their 2.0.0 bump.
+  **The SDL controller-detection rewrite is deferred rather than refused** (`bc0736010`). We do
+  carry the bug: `sdlEnabled` is set from SDL subsystem init, so a mod initialising the gamepad
+  or joystick subsystem for any reason takes the launcher's own pad emulation away for the
+  session, and `onDirectInputEnable` is one-way with no disable anywhere in the tree. But the fix
+  is 332 lines of bytehook C and Java across four files, it cannot be exercised without a
+  controller and a device, upstream needed a follow-up two hours later for copy-pasted action
+  numbers, and their `DEINIT` arm re-enables direct input on the way out. That is 16.23's
+  arithmetic: a long loop, an invisible failure, and nothing on this side of the wall that can
+  judge it. It wants a device, not another careful reading.
+  **Each port got the check it could have.** The MobileGlues fix is the one that generalises, so
+  the rule it encodes is per-branch rather than per-renderer: every `opengles*` branch in
+  `setJavaEnvironment` must set `LIBGL_ES` itself, because the generic derivation below is guarded
+  on `containsKey` and `OPEN_GL_VERSION` has already filled it with a number chosen for a
+  different purpose. Writing that check found a **second** `opengles_mobileglues` branch in
+  `loadGraphicsLibrary` that the analysis had missed, which turned out to be correct as it stands
+  and is why the check pins the call order too: `setJavaEnvironment` applies the map before the
+  renderer is dlopened, and swapping them would load MobileGlues before its context version was
+  decided. The log-format check generalises the `sdl_hook.c` defect across the whole JNI tree, as
+  an arity counter rather than a type checker, and it reports what it skipped so the coverage
+  number stays honest. Game Mode and the IME clamping get structural guards and nothing stronger,
+  which is said plainly: one is a manifest declaration only the platform reads, the other is
+  inside an Android view class.
+  **Upstream's Game Mode declaration is very likely inert and ours is not.** They put the
+  `<meta-data>` as a direct child of `<manifest>`, where `<meta-data>` is not a valid element and
+  the platform does not look; it belongs inside `<application>`. Worth having at all because we
+  own both knobs an OEM would reach for, the resolution scaler and the reachable game area, and a
+  downscale stacked on somebody's own 80% inset is exactly the silent rewriting of a saved
+  preference the performance-mode entry warns about.
 
 - **Two keys on one button** (`customcontrols/KeyCombo.java` + the dispatch-time key state in
   `jni/input_bridge_v3.c`) — a button bound to Shift and F3 opened the debug overlay and never the
@@ -2200,6 +2257,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   Sodium's anti-launcher detection does not fire on this fork (renamed environment variable,
   different application id), and `ISSUE_2561` was already turned off. If a future Sodium version
   adds a check this fork does trip, that is a new problem and not one this handles in advance.
+- **This fork is now behind upstream on the SDL controller path, knowingly.** A mod that
+  initialises the SDL gamepad or joystick subsystem still takes the launcher's own pad emulation
+  away for the rest of the session, and `onDirectInputEnable` has no counterpart. Upstream's fix
+  exists and is not ported, because it cannot be exercised without a controller and a device.
+- **MobileGlues is 1.3.4 here and upstream has moved to 2.0.0.** Two of their settings removals
+  are correct for 2.0.0 and wrong for us, so the renderer tuning screen deliberately diverges.
+  Anyone bumping the AAR has to revisit the multidraw rows in the same change.
+- **Game Mode is a declaration, not a behaviour**, and nothing here can confirm an OEM honours
+  it. It is inert below Android 13 and on any device whose vendor ignores the manifest.
+- The FSR removal leaves `mg_renderer_setting_fsr` in SharedPreferences with **no reader and no
+  writer**, so MobileGlues falls back to its own default for anyone who had set it. That is the
+  safe direction of §16.27's asymmetry rather than an oversight: a reader with no writer is the
+  dangerous one, and there is no reader left.
+- The ported fixes are **verified structurally, not run**. `check_renderer_env.py` reads
+  `JREUtils` as source, `check_ported_fixes.py` reads the manifest and one Java file as text, and
+  `check_log_formats.py` counts conversions. None of them starts a game.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2386,6 +2459,27 @@ Before pushing:
   at a time and all at once, because the single thing this class must never do is throw on the
   launch path (§16.15), and a stub that can only succeed tests nothing about the guard around it
   (§16.16). One mutation is known **not** to be caught and `run.sh` says why.
+- **Run `python3 scripts/check_renderer_env.py`** if a renderer branch, the launch env order or
+  the MobileGlues settings changed. The invariant is per-branch and not per-renderer: every
+  `opengles*` branch in `setJavaEnvironment` must set `LIBGL_ES` itself, because the generic
+  derivation below is guarded on `containsKey` and `OPEN_GL_VERSION` has already filled it with
+  "1" or "2". A renderer added without the line inherits a number chosen for something else,
+  which is the MobileGlues bug. It also pins that `setJavaEnvironment` runs before
+  `loadGraphicsLibrary`, since that ordering is what makes one line enough, and that the FSR
+  picker is gone from all five places it lived: the value array was inverted (0,4,3,2,1), so a
+  half removal mis-maps quality levels rather than failing.
+- **Run `python3 scripts/check_log_formats.py`** if anything under `jni/` logs. It counts printf
+  conversions against arguments in every LOG call, which is the class of bug `sdl_hook.c` shipped:
+  two `%p` and one argument, reading an uninitialised vararg slot at every launch. `-Wformat`
+  would have caught it, and a warning in an ndkBuild log nobody reads is a warning nobody reads.
+  Deliberately an arity counter and not a type checker, and it prints what it skipped so the
+  coverage number does not quietly shrink.
+- **Run `python3 scripts/check_ported_fixes.py`** if the manifest, the Game Mode config or
+  `TouchControllerInputView` changed. Both guards are structural rather than executed, which is
+  stated in the file: one is a manifest declaration only the platform reads, the other is inside
+  an Android view class. The one that matters is placement, because upstream's own copy of the
+  Game Mode declaration sits under `<manifest>` where `<meta-data>` is not valid and the platform
+  does not look, so "we match upstream" is the wrong thing to assert.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

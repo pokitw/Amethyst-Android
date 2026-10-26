@@ -225,6 +225,13 @@ public class JREUtils {
             }
             if(LOCAL_RENDERER.equals("opengles_mobileglues")){
                 envMap.put("MG_DIR_PATH", Tools.DIR_DATA + "/MobileGlues");
+                // MobileGlues is a GL to GL ES 3 translator and was being handed an ES 2 context,
+                // or an ES 1 one on rd/indev versions: LIBGL_ES is already populated above from
+                // OPEN_GL_VERSION, which OldVersionsUtils sets to "1" or "2" on every launch, so
+                // the generic derivation further down is skipped and this branch never set it.
+                // Upstream 3ad110090. Do not "tidy" this into the derivation: the guard there is
+                // containsKey, which is already true by this point.
+                envMap.put("LIBGL_ES", "3");
                 envMap.put("POJAVEXEC_EGL","libmobileglues.so");
             }
             if(LOCAL_RENDERER.equals("opengles2")){

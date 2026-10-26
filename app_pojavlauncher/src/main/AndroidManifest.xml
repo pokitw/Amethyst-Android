@@ -44,6 +44,17 @@
             android:name="android.max_aspect"
             android:value="ratio_float" />
 
+        <!--
+          Inside <application> on purpose. Upstream c11e6f995 put this as a direct child of
+          <manifest>, where <meta-data> is not a valid element and the platform does not look for
+          it, so their copy is very likely inert. The game mode service reads
+          android.game_mode_config from the application's meta-data.
+          The resource lives only in res/xml-v33, which is correct: nothing below API 33 reads it.
+        -->
+        <meta-data
+            android:name="android.game_mode_config"
+            android:resource="@xml/game_mode_config" />
+
         <activity
             android:name=".TestStorageActivity"
             android:exported="true"
