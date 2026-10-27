@@ -227,6 +227,108 @@ public final class ClipPlan {
         return framesUs[insertion];
     }
 
+    /* ------------------------------------------------------------------ the timeline */
+
+    /**
+     * The spans the editor draws between its two handles, divided at every split point.
+     *
+     * This is what makes cutting work the way a video editor's does: the playhead is put
+     * somewhere, Split adds a boundary there, and a span between two boundaries becomes a thing
+     * that can be selected and deleted. The previous arrangement asked for a cut of a fixed
+     * length at the marker, which is a different and much worse question, because the length of
+     * the thing you want gone is exactly what you know and the launcher does not.
+     *
+     * Split points outside the trim are ignored rather than clamped: a trim handle dragged past
+     * a split must not drag the split with it, or moving the start of a clip would silently
+     * re-cut the middle of it.
+     */
+    public static List<Range> timelineSegments(long inUs, long outUs, long[] splitsUs) {
+        List<Range> spans = new ArrayList<Range>();
+        if (outUs <= inUs) return spans;
+        long[] splits = normaliseSyncs(splitsUs);
+        long cursor = inUs;
+        for (int i = 0; i < splits.length; i++) {
+            long at = splits[i];
+            if (at <= cursor || at >= outUs) continue;
+            spans.add(new Range(cursor, at));
+            cursor = at;
+        }
+        spans.add(new Range(cursor, outUs));
+        return spans;
+    }
+
+    /**
+     * Whether a span has been deleted.
+     *
+     * Exact equality rather than overlap, because a span is deleted by adding that very span to
+     * the cut list: anything else would mean a cut the player never made could mark a span as
+     * gone, and then undeleting it would not give it back.
+     */
+    public static boolean isRemoved(Range span, List<Range> cuts) {
+        if (span == null || cuts == null) return false;
+        for (int i = 0; i < cuts.size(); i++) {
+            Range cut = cuts.get(i);
+            if (cut != null && cut.startUs == span.startUs && cut.endUs == span.endUs) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The span holding a time, or -1.
+     *
+     * Half open like everything else here, with the last span taking its own end so the playhead
+     * parked at the very end of the clip still selects something.
+     */
+    public static int segmentAt(List<Range> spans, long atUs) {
+        if (spans == null) return -1;
+        for (int i = 0; i < spans.size(); i++) {
+            Range span = spans.get(i);
+            boolean last = i == spans.size() - 1;
+            if (atUs >= span.startUs && (atUs < span.endUs || (last && atUs == span.endUs))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Re-express a set of deletions against a timeline whose shape has changed.
+     *
+     * {@link #isRemoved} is exact equality, which is only safe while every cut is one of the
+     * current spans. Moving a trim handle or adding a split changes what the spans are, so the
+     * cuts have to be re-stated in terms of the new ones or the shading would stop agreeing
+     * with the plan: a deletion would still be carried out and no longer be visible.
+     *
+     * <b>Any overlap deletes the span</b>, rather than a majority or a complete cover. All three
+     * agree in the ordinary cases and they differ at the edges, where this is the conservative
+     * direction: it keeps removing what was asked to be removed, which is the same asymmetry
+     * that makes a resume point snap forward. The concrete cases are splitting inside a deleted
+     * span, which leaves both halves deleted, and pulling a trim handle through one, which
+     * keeps the part that is left deleted.
+     *
+     * <p>The result is always a subset of {@code spans}, which is the invariant the whole
+     * display rests on.
+     */
+    public static List<Range> retime(List<Range> cuts, List<Range> spans) {
+        List<Range> kept = new ArrayList<Range>();
+        if (spans == null || cuts == null) return kept;
+        for (int i = 0; i < spans.size(); i++) {
+            Range span = spans.get(i);
+            if (span == null || span.endUs <= span.startUs) continue;
+            for (int j = 0; j < cuts.size(); j++) {
+                Range cut = cuts.get(j);
+                if (cut == null) continue;
+                if (cut.startUs < span.endUs && cut.endUs > span.startUs) {
+                    kept.add(span);
+                    break;
+                }
+            }
+        }
+        return kept;
+    }
+
     /* ------------------------------------------------------------------ the plan */
 
     /**

@@ -403,7 +403,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Onboarding | **Compose** | `ui/onboarding/`, `OnboardingActivity.kt`; runs once, before the launcher is built |
 | Launcher home | **Compose** | `ui/home/`, hosted by `MainMenuFragment.kt` |
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
-| Clip editor · screenshot editor | **Compose** | `ui/mediaedit/`, `MediaEditorActivity.kt`; reached from both galleries |
+| Clip editor · screenshot editor | **Compose** | `ui/mediaedit/`, `MediaEditorActivity.kt`; reached from both galleries. The clip preview is a `TextureView` in an `AndroidView`, driven by `ClipPlayer` |
 | Game files (worlds, mods, packs, shaders, screenshots) | **Compose** | `ui/content/`, `ContentActivity.kt` |
 | Profile / account pickers on home | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
@@ -1589,6 +1589,87 @@ re-litigated. The reasoning lives in the commit that made the change.
   has no equivalent of at all. It gets **no onboarding page**, on the precedent of slide to
   repeat and the sequence runner: you meet it on the thing you wanted to edit.
 
+- **The clip editor, rebuilt around playback** (`ui/mediaedit/ClipPlayer.kt` +
+  `ClipEditScreen.kt` + `ClipPlan.timelineSegments`/`isRemoved`/`segmentAt`/`retime`) — the
+  first version had a still, a scrub bar and a button that cut a fixed two seconds at the
+  marker, and no way to watch anything. Reported in those words, with a CapCut screenshot
+  attached: there is no playback, and cutting should be as easy as it is there.
+  **The two complaints are one complaint.** You cannot find the part you do not want without
+  watching, and you cannot state its length in advance; a fixed-length cut is the control you
+  design when the screen cannot play, and a screen that can play does not need one. So the
+  shape is the one every video editor converged on, for the reason they converged on it: the
+  picture is the biggest thing and it plays, the transport is directly under it, the timeline
+  is a filmstrip with a playhead, and the tools act on what is selected.
+  **Split and delete, not "remove this part".** Put the playhead somewhere, Split divides the
+  span, select a span and Delete removes it from the output. Two steps instead of one, and
+  better because each step shows its own result. Delete and Restore are **one control with two
+  labels** rather than a Delete and a separate Restore, so a mis-tap costs one tap instead of
+  the whole edit through Reset.
+  **`MediaPlayer` and a `TextureView`, not media3.** There is no ExoPlayer in this build and
+  release builds do not run R8, so adding one ships a whole player; what this screen needs is
+  the easy half of what a player does. A `TextureView` rather than a `SurfaceView` because a
+  surface punches a hole through the window and is composited behind everything, so the
+  timeline and toolbar drawn over the preview would be the things that disappeared.
+  **The player is told nothing about the edit.** It plays the file on disk and reports a
+  position; `MediaEditorActivity` steps it over every deleted span and back to the trim start
+  at the end, so pressing play previews the OUTPUT. Putting the skipping inside the player
+  would mean two things decided what the edit is.
+  **`retime` is what makes the shading honest.** `isRemoved` is exact equality, so the cut list
+  is only safe while every cut is one of the current spans, and a split or a trim drag changes
+  what the spans are. Every shape change goes through `ClipPlan.retime`, whose result is by
+  construction a subset of the spans handed in. **Any overlap deletes the span**, not a
+  majority and not a complete cover: all three agree in the ordinary cases and this is the
+  conservative one, the same asymmetry that makes a resume point snap forward. Without it a
+  deletion stays in the plan and vanishes from the screen, which is the one disagreement this
+  feature cannot afford. `clipsim` asserts the invariant rather than any particular mapping.
+  **The scrub is debounced and the marker is not.** `MediaPlayer.seekTo` decodes to get there,
+  so sixty a second makes the picture lag the finger by more than doing nothing would; the
+  playhead follows the touch immediately and the frame catches up 60ms later. While a scrub is
+  in flight the playback ticker is ignored, or it would drag the playhead back to where the
+  player still is.
+  **Two columns on a short screen**, which is the control center's rule in the other
+  orientation: stacked, the bar, transport, timeline, tools and summary come to more than a
+  phone is tall in landscape, and the thing that gives way is the weighted child, which is the
+  picture. An editor whose picture is nothing is not an editor.
+  The entry above still holds for everything underneath: the plan, the executor, the snapping
+  asymmetry and the harnesses are untouched. Only the controls over them changed.
+
+- **Copying what you already captured** (`GalleryExport.publishFolderOnRequest` + two rows on
+  the Recording screen) — the automatic export only ever sees a file at the moment it is made,
+  so everything taken before the setting was turned on, or while it was off, is invisible to
+  every gallery on the phone and has no route out: the launcher's folders are under
+  `Android/data`, which from Android 11 cannot be browsed to at all.
+  **Skipping matters more than copying.** A bulk action is one people press twice, and without
+  a check the second press fills the gallery with a duplicate of everything. Each name is
+  looked for first, through the media store on Android 10 and up and in the public album below
+  it, and already-there is counted apart from copied so the row can say "nothing new" rather
+  than appearing to do nothing. The lookup **errs towards copying** on any failure, because a
+  duplicate is visible and deletable and a refusal is neither.
+  The folder is resolved on the **main thread** before the copy moves off it, because
+  `recordingsDirectory()` and the screenshots path both go through `LauncherProfiles` (§12.7).
+
+- **Saying what it costs** (the onboarding's honesty page + `SettingsRoute.DEMANDS`) — one
+  page in the welcome saying this is capability first and not frame rate first, and four
+  screens of mechanism in Settings for anybody who wants to know why.
+  **Two audiences, two lengths, and that split is the whole design.** Somebody meeting the
+  launcher needs the warning before they form an expectation; somebody chasing a frame rate
+  needs the explanation, and they are not the same person at the same moment. The page in the
+  welcome is four sentences and points at the other one. The other one is reached from
+  **Performance**, above the controls rather than below them, because that is where the person
+  with the problem already is and what it says is which of those rows can help and which
+  cannot, and from **About**, where somebody merely curious looks.
+  **It is written about mechanisms, not numbers.** "One extra full screen copy and one
+  hardware encode per frame" survives a rewrite of the recorder; a percentage does not. Nothing
+  on that page is generated from the code, so it is prose that can go stale, and writing it
+  this way is what keeps the staleness harmless.
+  **The last section is the one that earns the rest.** It says plainly that upstream's
+  optimisation work is all still here, that what gets built on top is features rather than
+  frames, and that this is the wrong trade for some phones. It also says why there is no one
+  tap optimise, which is the performance mode entry above, told to the player rather than to
+  the next person to read this file.
+  It is **prose in settings rows**, not a document: same ground, same search index, no second
+  vocabulary. It gets **no comparison row**, because honesty is not a capability.
+
 - **Taking what is worth taking from upstream** (`scripts/check_renderer_env.py`,
   `check_log_formats.py`, `check_ported_fixes.py`) — 21 commits landed upstream between
   2026-08-27 and 2026-09-22, all by one maintainer, and nothing since. Five were ported, three
@@ -2427,11 +2508,24 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   and a decoder cannot begin anywhere else. The trim end and the near side of a cut are frame
   accurate. Snapping is always forward, so a cut removes at least what was asked for and may
   remove up to two seconds more.
-- **There is no playback in the clip editor**, only a scrubbed still. There is no media3 and no
-  ExoPlayer in this build, and adding one to show a preview would ship a whole player with it
-  (no R8). The frame under the marker is fetched with `OPTION_CLOSEST_SYNC`, which is the cheap
-  option, so between two sync frames the picture shown is the nearest one rather than the exact
-  frame at that microsecond.
+- **Playback is `MediaPlayer`, with everything that implies.** No frame stepping, no speed
+  control, no scrubbing that decodes every frame: seeking is exact only from Android 8, and
+  below it the player lands on the nearest sync frame, which is the same two second grid the
+  trim start snaps to. The scrub is debounced by 60ms, so the picture follows the finger a
+  moment behind.
+- **Playback steps over deleted spans rather than hiding them.** The player is playing the
+  whole file and being seeked past what will not be in the output, so a skip is a seek, and a
+  seek takes as long as it takes. Expect a visible stutter at each cut, more on a slow device
+  and more on a long clip. The saved file has no stutter: nothing is skipped in it, the
+  material is gone.
+- **Nothing in the preview is the output.** It is the source file with parts jumped over; the
+  exported clip is written by `ClipEditor` from the plan. The two agree about which material
+  survives and they are not the same code, which is deliberate (one needs a device, the other
+  is driven by a harness) and does mean the preview cannot prove the export.
+- **There is no undo, only Restore and Reset.** A deleted span can be given back by selecting
+  it and pressing Restore; a split cannot be removed once made, and the way out is Reset.
+  Splits cost nothing in the output, so a stray one is harmless, which is why removing them
+  individually was not worth a second gesture.
 - **A clip whose frames are stored out of order cannot be edited.** Nothing this launcher records
   is, because the recorder's encoder is a realtime surface encoder, but an imported file can be
   and is refused with a reason rather than mangled.
@@ -2456,6 +2550,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   the crop geometry. None of them plays an MP4 or looks at a picture: that a real MediaMuxer
   accepts these timestamps and that the resulting file plays needs a device, and there is none in
   CI.
+- **Copying a whole folder to the gallery cannot be cancelled** and has no progress beyond the
+  line on the row. A folder of forty minute recordings is gigabytes and the copy runs for as
+  long as it runs; it skips what is already in the album, and it skips any file the volume
+  does not have room for, counting it as failed.
+- **The gallery copy rows count, they do not list.** The row says how many were copied, how
+  many were already there and how many failed, and nothing about which. A per-file report
+  would be a screen, and the place to see what arrived is the gallery.
 - **An edit is a copy, so it costs the space twice**, and with the gallery copy on, three times.
   The original is never touched, which is the point, but a forty minute recording trimmed to five
   still leaves the forty on disk until it is deleted by hand.
@@ -2470,6 +2571,13 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   containment check and the sanitiser are read rather than executed. They are short and guarded
   twice for that reason, but §16.25 applies and a future change here would be better placed in
   Java where `javac` and a harness can reach it.
+- **"What this asks of your phone" is prose, not a measurement.** It names mechanisms rather
+  than numbers precisely so it does not go stale, but nothing in the build checks it against
+  the code, and a renderer added or a feature's cost changed will not update it. It is also
+  the one screen in Settings with no settings on it.
+- It cannot tell you **whether your phone will be fast enough**, which is the question being
+  asked. Nothing can: the answer depends on the chip, the driver, the Minecraft version, the
+  mods and the renderer, and the launcher can read two of those five.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2510,7 +2618,8 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 
 **Later**
 6. Shared-element transition from the version card into the version sheet.
-7. Recordings: in-app playback and trimming rather than handing off to an external player.
+7. Playback in the recordings gallery itself, so a clip can be watched without opening the
+   editor. The editor plays one now; the gallery still hands a row to an external player.
 8. Retire `activity_pojav_launcher.xml` chrome entirely once every fragment is Compose.
 
 ---
@@ -2684,7 +2793,12 @@ Before pushing:
   source 8 and drives it: which spans survive a trim and a set of cuts, and what every surviving
   sample's new timestamp is. The one that matters most is `aCutNeverRemovesLessThanAsked`, swept
   rather than sampled, because flipping the snap direction is a one word edit and it is the edit
-  somebody will make.
+  somebody will make. The editor's own cutting model is driven there too:
+  `theTimelineDividesIntoSelectableSpans` for the spans a split produces, and
+  `deletionsFollowTheirSpanWhenTheTimelineChanges` for `retime`, which asserts the invariant
+  the screen rests on (every cut is one of the current spans) rather than any particular
+  mapping. Break that and the plan removes material the screen says is being kept, which is
+  invisible in both halves read alone.
 - **Run `sh scripts/clipeditsim/run.sh`** if `ClipEditor` changed. It stubs `MediaExtractor` and
   `MediaMuxer` and drives the **real** shipped executor, which is half the point: that file is
   ~350 lines of new Java calling twenty Android signatures and CI is otherwise the only compiler

@@ -24,7 +24,9 @@ class OnboardingPage(
 /**
  * Ordered by how much a player would care, which is why the recorder is first: it is the only
  * thing here another launcher cannot simply add, because a screen recorder physically cannot
- * leave the on-screen buttons out of the picture.
+ * leave the on-screen buttons out of the picture. It is no longer what the fork is *about*,
+ * which is what the welcome page now says, but it is still the clearest single answer to "why
+ * this one" and so it keeps the slot.
  *
  * **One page per feature, and a feature has to be one you would not otherwise find.** The controls
  * editor is not here even though it was rewritten, because you meet it the moment you long press a
@@ -72,6 +74,21 @@ fun onboardingPages(): List<OnboardingPage> = listOf(
         titleRes = R.string.onboarding_design_title,
         bodyRes = R.string.onboarding_design_body,
         iconRes = R.drawable.ic_x_sparkle
+    ),
+    // Last of the pages and immediately before the comparison table, which is where it belongs:
+    // everything above it is a claim, and this is the sentence that decides whether the claims
+    // are worth believing. A launcher that lists twenty features and says nothing about what they
+    // cost is an advert, and the table two screens later only works because it loses rows.
+    //
+    // It is deliberately SHORT. The mechanism is four screens of prose and it lives in Settings,
+    // reached from Performance and from About, because somebody meeting the launcher for the
+    // first time needs the warning and somebody chasing a frame rate needs the explanation, and
+    // those are different people at different moments.
+    OnboardingPage(
+        titleRes = R.string.onboarding_honest_title,
+        bodyRes = R.string.onboarding_honest_body,
+        iconRes = R.drawable.ic_x_diagnosis,
+        noteRes = R.string.onboarding_honest_note
     )
 )
 
@@ -174,5 +191,12 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // does not do is let you see which ones support a version before you have picked one, or find
     // that version without scrolling a spinner of seven hundred entries.
     ComparisonRow(R.string.onboarding_row_loaders, Support.PARTIAL, Support.YES),
+    // The other place this fork is behind, and it is here for the same reason the download size
+    // is: a table where one side wins every line is an advert. Upstream rewrote SDL's controller
+    // detection; this build has not taken that, so a mod that initialises SDL's gamepad subsystem
+    // still takes the launcher's own pad emulation away for the session. The fix cannot be
+    // exercised without a controller and a device, and claiming it either way would be worse
+    // than saying so.
+    ComparisonRow(R.string.onboarding_row_controller, Support.YES, Support.PARTIAL),
     ComparisonRow(R.string.onboarding_row_size, Support.YES, Support.PARTIAL)
 )

@@ -36,6 +36,8 @@ public class Harness {
         theInvariantsHoldAcrossASweep();
         aRealisticEditComesOutRight();
         endsSnapToAFrameAndNeverAdmitOne();
+        theTimelineDividesIntoSelectableSpans();
+        deletionsFollowTheirSpanWhenTheTimelineChanges();
 
         System.out.println(sChecks + " checks");
         if (!FAILURES.isEmpty()) {
@@ -753,6 +755,228 @@ public class Harness {
                 "an unsorted frame table changed the answer");
         check(fromShuffled.segments.size() == fromSorted.segments.size(),
                 "an unsorted frame table changed the segment count");
+    }
+
+    /**
+     * Splitting divides the trim into spans, and deleting one is exactly a cut.
+     *
+     * This is the editor's whole cutting model, so the properties worth asserting are the ones
+     * that make it coherent: the spans tile the trim with no gap and no overlap, a split outside
+     * the trim is ignored rather than clamped, the span a time falls in is the one containing it,
+     * and a deleted span round trips through the plan as exactly the material removed.
+     */
+    private static void theTimelineDividesIntoSelectableSpans() {
+        long duration = 60 * SECOND;
+        long[] frames = framesAt(duration, 60);
+        long[] syncs = syncsFrom(frames, 120);
+
+        for (long in = 0; in <= 10 * SECOND; in += 2_300_000L) {
+            for (long out = in + 9 * SECOND; out <= 50 * SECOND; out += 9_700_000L) {
+                long[] splits = new long[]{
+                    in - SECOND,                 // before the trim, must be ignored
+                    in + 2_100_000L,
+                    in + 5_400_000L,
+                    out + SECOND,                // after it, must be ignored
+                };
+                List<Range> spans = ClipPlan.timelineSegments(in, out, splits);
+
+                // They tile the trim exactly.
+                check(!spans.isEmpty(), "a non empty trim produced no spans");
+                check(spans.get(0).startUs == in, "the first span does not start at the trim");
+                check(spans.get(spans.size() - 1).endUs == out,
+                        "the last span does not end at the trim");
+                for (int i = 0; i + 1 < spans.size(); i++) {
+                    check(spans.get(i).endUs == spans.get(i + 1).startUs,
+                            "a gap or an overlap between spans " + i + " and " + (i + 1));
+                    check(spans.get(i).durationUs() > 0L, "span " + i + " is empty");
+                }
+
+                // A split outside the trim changed nothing.
+                check(spans.size() == 3, "expected three spans, got " + spans.size());
+
+                // Every point in the trim lands in exactly one span, and the end lands in the
+                // last one rather than nowhere.
+                for (long at = in; at <= out; at += 311_000L) {
+                    int index = ClipPlan.segmentAt(spans, at);
+                    check(index >= 0, "no span holds " + at);
+                    Range span = spans.get(index);
+                    check(at >= span.startUs && at <= span.endUs,
+                            "segmentAt returned a span that does not hold " + at);
+                }
+                check(ClipPlan.segmentAt(spans, out) == spans.size() - 1,
+                        "the trim's end does not select the last span");
+                check(ClipPlan.segmentAt(spans, in - 1) < 0, "a time before the trim selected one");
+
+                // Deleting the middle span removes exactly that material and nothing else.
+                Range middle = spans.get(1);
+                List<Range> cuts = new ArrayList<Range>();
+                cuts.add(middle);
+                check(ClipPlan.isRemoved(middle, cuts), "a deleted span does not read as removed");
+                check(!ClipPlan.isRemoved(spans.get(0), cuts),
+                        "an untouched span reads as removed");
+
+                Plan plan = ClipPlan.build(duration, syncs, frames, in, out, cuts);
+                if (!plan.isUsable()) continue;
+                for (int f = 0; f < frames.length; f++) {
+                    long frame = frames[f];
+                    boolean inside = frame >= middle.startUs && frame < middle.endUs;
+                    boolean survived = plan.mapToOutput(frame) >= 0L;
+                    if (inside) {
+                        check(!survived, "a frame at " + frame + " inside the deleted span "
+                                + "survived");
+                    }
+                }
+            }
+        }
+
+        // A span that was never deleted is not removed just because a cut overlaps it, which is
+        // what makes undeleting give back exactly what delete took.
+        List<Range> spans = ClipPlan.timelineSegments(0L, 10 * SECOND,
+                new long[]{3 * SECOND, 6 * SECOND});
+        List<Range> overlapping = new ArrayList<Range>();
+        overlapping.add(new Range(2 * SECOND, 7 * SECOND));
+        for (int i = 0; i < spans.size(); i++) {
+            check(!ClipPlan.isRemoved(spans.get(i), overlapping),
+                    "an overlapping cut marked span " + i + " as deleted");
+        }
+
+        // Degenerate trims produce nothing rather than a span of negative length.
+        check(ClipPlan.timelineSegments(5 * SECOND, 5 * SECOND, new long[0]).isEmpty(),
+                "an empty trim produced a span");
+        check(ClipPlan.timelineSegments(9 * SECOND, 2 * SECOND, new long[0]).isEmpty(),
+                "an inverted trim produced a span");
+        check(ClipPlan.timelineSegments(0L, 10 * SECOND, null).size() == 1,
+                "a null split table should leave one span");
+    }
+
+    /**
+     * A deletion survives a change to the timeline's shape, and stays nameable.
+     *
+     * `isRemoved` is exact equality, so the editor's shading only works while every cut is one
+     * of the current spans. `retime` is what keeps that true after a split or a trim drag, and
+     * the property that matters is the INVARIANT rather than any particular mapping: the result
+     * must always be a subset of the spans it was given, or the plan would go on removing
+     * material the screen says is being kept.
+     *
+     * The two concrete movements are checked by name, because they are the ones somebody would
+     * "simplify": splitting inside a deleted span must leave both halves deleted, and pulling a
+     * trim handle through a deleted span must leave the remaining part deleted. Both follow
+     * from overlap being the test, and both break if it is tightened to a complete cover.
+     */
+    private static void deletionsFollowTheirSpanWhenTheTimelineChanges() {
+        // The invariant, swept. Every result is one of the spans handed in, identically.
+        for (long in = 0; in <= 6 * SECOND; in += 1_300_000L) {
+            for (long out = in + 4 * SECOND; out <= 30 * SECOND; out += 3_100_000L) {
+                long[] splits = new long[]{
+                    in + 1_700_000L, in + 3_300_000L, (in + out) / 2, out - 900_000L,
+                };
+                List<Range> spans = ClipPlan.timelineSegments(in, out, splits);
+                for (int pick = 0; pick < spans.size(); pick++) {
+                    List<Range> cuts = new ArrayList<Range>();
+                    cuts.add(spans.get(pick));
+
+                    // Nothing moved: retime is the identity on a cut that is already a span.
+                    List<Range> same = ClipPlan.retime(cuts, spans);
+                    check(same.size() == 1 && same.get(0).startUs == spans.get(pick).startUs
+                            && same.get(0).endUs == spans.get(pick).endUs,
+                            "retime changed a cut that was already a span");
+
+                    // The trim moved. Whatever comes back must be spans of the NEW timeline.
+                    for (long shift = -2 * SECOND; shift <= 2 * SECOND; shift += 700_000L) {
+                        long nextIn = Math.max(0L, in + shift);
+                        if (nextIn >= out) continue;
+                        List<Range> moved = ClipPlan.timelineSegments(nextIn, out, splits);
+                        List<Range> after = ClipPlan.retime(cuts, moved);
+                        for (int i = 0; i < after.size(); i++) {
+                            boolean found = false;
+                            for (int j = 0; j < moved.size(); j++) {
+                                if (after.get(i).startUs == moved.get(j).startUs
+                                        && after.get(i).endUs == moved.get(j).endUs) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            check(found, "retime produced a range that is not one of the spans");
+                            check(ClipPlan.isRemoved(after.get(i), after),
+                                    "a retimed cut does not read as removed");
+                        }
+                        // And the material is still going: a cut cannot evaporate while any of
+                        // it is still inside the trim.
+                        Range cut = cuts.get(0);
+                        boolean stillInside = cut.endUs > nextIn && cut.startUs < out;
+                        check(!stillInside || !after.isEmpty(),
+                                "retime dropped a deletion that is still inside the trim");
+                    }
+                }
+            }
+        }
+
+        // Splitting inside a deleted span leaves both halves deleted.
+        List<Range> before = ClipPlan.timelineSegments(0L, 12 * SECOND, new long[]{4 * SECOND});
+        List<Range> deleted = new ArrayList<Range>();
+        deleted.add(before.get(1));                       // 4s to 12s
+        List<Range> split = ClipPlan.timelineSegments(0L, 12 * SECOND,
+                new long[]{4 * SECOND, 8 * SECOND});
+        List<Range> after = ClipPlan.retime(deleted, split);
+        check(after.size() == 2, "splitting a deleted span left " + after.size()
+                + " deleted halves rather than two");
+        check(ClipPlan.isRemoved(split.get(1), after) && ClipPlan.isRemoved(split.get(2), after),
+                "a half of a split deleted span came back to life");
+        check(!ClipPlan.isRemoved(split.get(0), after), "an untouched span was deleted by a split");
+
+        // Pulling the trim through a deleted span keeps what is left of it deleted.
+        List<Range> wide = ClipPlan.timelineSegments(0L, 12 * SECOND, new long[]{4 * SECOND});
+        List<Range> gone = new ArrayList<Range>();
+        gone.add(wide.get(0));                            // 0s to 4s
+        List<Range> pulled = ClipPlan.timelineSegments(2 * SECOND, 12 * SECOND,
+                new long[]{4 * SECOND});
+        List<Range> kept = ClipPlan.retime(gone, pulled);
+        check(kept.size() == 1 && kept.get(0).startUs == 2 * SECOND
+                && kept.get(0).endUs == 4 * SECOND,
+                "pulling the trim through a deleted span did not keep the rest of it deleted");
+
+        // Pulling the trim PAST it entirely drops it, because there is nothing left to delete.
+        List<Range> past = ClipPlan.timelineSegments(4 * SECOND, 12 * SECOND, new long[0]);
+        check(ClipPlan.retime(gone, past).isEmpty(),
+                "a deletion the trim moved past is still being applied");
+
+        // Touching is not overlapping, which is what keeps the half open convention intact.
+        List<Range> touching = new ArrayList<Range>();
+        touching.add(new Range(0L, 4 * SECOND));
+        List<Range> neighbour = ClipPlan.timelineSegments(4 * SECOND, 12 * SECOND, new long[0]);
+        check(ClipPlan.retime(touching, neighbour).isEmpty(),
+                "a cut that merely touches a span deleted it");
+
+        // Each span appears at most once, however many old cuts it swallowed. Removing a split
+        // between two deleted spans is the case: the merged span overlaps both cuts, and a list
+        // naming it twice would still shade and still export correctly, which is exactly why it
+        // would survive unnoticed until something downstream counted the deletions.
+        List<Range> twoDeleted = ClipPlan.timelineSegments(0L, 12 * SECOND,
+                new long[]{4 * SECOND, 8 * SECOND});
+        List<Range> both = new ArrayList<Range>();
+        both.add(twoDeleted.get(0));
+        both.add(twoDeleted.get(1));
+        List<Range> merged = ClipPlan.timelineSegments(0L, 12 * SECOND, new long[]{8 * SECOND});
+        List<Range> once = ClipPlan.retime(both, merged);
+        check(once.size() == 1, "a merged span was named " + once.size() + " times, not once");
+
+        // A span of no length is never deleted, however a cut straddles it. `timelineSegments`
+        // cannot produce one, so this is the contract for a hand built list rather than a case
+        // the editor reaches, and it is checked because a guard nothing exercises is a guard
+        // somebody removes.
+        List<Range> degenerate = new ArrayList<Range>();
+        degenerate.add(new Range(5 * SECOND, 5 * SECOND));
+        degenerate.add(null);
+        List<Range> straddling = new ArrayList<Range>();
+        straddling.add(new Range(SECOND, 9 * SECOND));
+        check(ClipPlan.retime(straddling, degenerate).isEmpty(),
+                "an empty span was reported as deleted");
+
+        // Nulls and emptiness come back empty rather than throwing.
+        check(ClipPlan.retime(null, before).isEmpty(), "a null cut list did not come back empty");
+        check(ClipPlan.retime(deleted, null).isEmpty(), "a null span list did not come back empty");
+        check(ClipPlan.retime(new ArrayList<Range>(), before).isEmpty(),
+                "an empty cut list did not come back empty");
     }
 
     private static void check(boolean condition, String message) {

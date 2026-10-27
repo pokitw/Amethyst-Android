@@ -46,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,20 +67,29 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.Tools
+import net.kdt.pojavlaunch.media.GalleryExport
+import net.kdt.pojavlaunch.ui.recordings.recordingsDirectory
+import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles
 import net.kdt.pojavlaunch.prefs.HeapAdvice
 import net.kdt.pojavlaunch.ui.home.Avatar
 import net.kdt.pojavlaunch.ui.theme.Amethyst50
 import net.kdt.pojavlaunch.ui.theme.SlotWell
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlin.math.roundToInt
 
 /** Which settings screen is showing. Held by the host so the back key can pop it. */
-enum class SettingsRoute { HOME, SEARCH, PERFORMANCE, CONTROLS, RECORDING, FILES, ABOUT }
+enum class SettingsRoute { HOME, SEARCH, PERFORMANCE, CONTROLS, RECORDING, FILES, ABOUT, DEMANDS }
 
 /** The settings that are not settings: other screens, permissions, one-shot actions. */
 @Immutable
@@ -201,9 +211,11 @@ fun SettingsScreen(
                         },
                         onBack = { onRoute(SettingsRoute.HOME) }
                     )
-                    SettingsRoute.PERFORMANCE -> PerformanceScreen(store, environment, actions) {
-                        onRoute(SettingsRoute.HOME)
-                    }
+                    SettingsRoute.PERFORMANCE -> PerformanceScreen(
+                        store, environment, actions,
+                        onDemands = { onRoute(SettingsRoute.DEMANDS) },
+                        onBack = { onRoute(SettingsRoute.HOME) }
+                    )
                     SettingsRoute.CONTROLS -> ControlsScreen(store, environment, actions) {
                         onRoute(SettingsRoute.HOME)
                     }
@@ -213,9 +225,16 @@ fun SettingsScreen(
                     SettingsRoute.FILES -> GameFilesScreen(store, environment, actions) {
                         onRoute(SettingsRoute.HOME)
                     }
-                    SettingsRoute.ABOUT -> AboutScreen(store, environment, actions) {
-                        onRoute(SettingsRoute.HOME)
-                    }
+                    SettingsRoute.ABOUT -> AboutScreen(
+                        store, environment, actions,
+                        onDemands = { onRoute(SettingsRoute.DEMANDS) },
+                        onBack = { onRoute(SettingsRoute.HOME) }
+                    )
+                    // Back lands on Settings' own home like every other leaf, although this
+                    // one is reached from two places. A leaf that returned to whichever screen
+                    // opened it would be the only screen here with a history, for a page that
+                    // is read once.
+                    SettingsRoute.DEMANDS -> DemandsScreen { onRoute(SettingsRoute.HOME) }
                 }
             }
         }
@@ -682,6 +701,7 @@ private fun PerformanceScreen(
     store: SettingsStore,
     environment: SettingsEnvironment,
     actions: SettingsActions,
+    onDemands: () -> Unit,
     onBack: () -> Unit
 ) {
     val renderers = store.renderers()
@@ -711,6 +731,19 @@ private fun PerformanceScreen(
         stringResource(R.string.settings_performance_subtitle),
         onBack
     ) {
+        // Before the controls rather than after them. Somebody arrives on this screen with a
+        // frame rate problem and a belief that one of these rows will fix it; what the page
+        // behind this row says is which ones can and which ones cannot, and it is worth a
+        // great deal more read first than read as an afterthought.
+        SettingsCard {
+            NavRow(
+                title = stringResource(R.string.settings_demands_row),
+                description = stringResource(R.string.settings_demands_row_description),
+                iconRes = R.drawable.ic_x_diagnosis,
+                onClick = { onDemands() }
+            )
+        }
+
         SectionLabel(stringResource(R.string.settings_section_graphics))
         SettingsCard {
             if (rendererIds.isNotEmpty()) {
@@ -1164,6 +1197,61 @@ private fun ControlsScreen(
 
 // ----------------------------------------------------------------- Recording
 
+/**
+ * Copy everything already in a folder into the phone's gallery.
+ *
+ * The row reports what happened in its own value line rather than through a toast, because the
+ * answer has three parts and the interesting one is usually the middle: pressing it twice should
+ * say nothing new, not quietly double the album.
+ */
+@Composable
+private fun GalleryCopyRow(image: Boolean) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var line by remember { mutableStateOf<String?>(null) }
+    var running by remember { mutableStateOf(false) }
+    val busyText = stringResource(R.string.preference_gallery_copy_running)
+    val noneText = stringResource(R.string.preference_gallery_copy_none)
+    NavRow(
+        title = stringResource(
+            if (image) R.string.preference_gallery_copy_screenshots_title
+            else R.string.preference_gallery_copy_recordings_title
+        ),
+        description = stringResource(R.string.preference_gallery_copy_description),
+        value = line,
+        iconRes = R.drawable.ic_x_files,
+        onClick = onClick@{
+            if (running) return@onClick
+            running = true
+            line = busyText
+            scope.launch {
+                // Resolved here and not inside the IO block: both of these go through
+                // LauncherProfiles, which is unsynchronised static state the launch path also
+                // reads, so it is main thread only (§12.7). Only the copying moves off.
+                val folder = if (image) screenshotsFolder() else recordingsDirectory()
+                val result = withContext(Dispatchers.IO) {
+                    if (folder == null) null
+                    else GalleryExport.publishFolderOnRequest(context, folder, image)
+                }
+                running = false
+                line = if (result == null || (result.copied == 0 && result.failed == 0)) {
+                    noneText
+                } else {
+                    context.getString(
+                        R.string.preference_gallery_copy_result,
+                        result.copied, result.skipped, result.failed
+                    )
+                }
+            }
+        }
+    )
+}
+
+/** Minecraft's own screenshots folder, which is also where the launcher writes its own. */
+private fun screenshotsFolder(): File? = runCatching {
+    File(Tools.getGameDirPath(LauncherProfiles.getCurrentProfile()), "screenshots")
+}.getOrNull()
+
 @Composable
 private fun RecordingScreen(
     store: SettingsStore,
@@ -1361,6 +1449,7 @@ private fun AboutScreen(
     store: SettingsStore,
     environment: SettingsEnvironment,
     actions: SettingsActions,
+    onDemands: () -> Unit,
     onBack: () -> Unit
 ) {
     SettingsScaffold(
@@ -1418,6 +1507,11 @@ private fun AboutScreen(
                 description = stringResource(R.string.settings_replay_welcome_description),
                 onClick = actions.onReplayWelcome
             )
+            NavRow(
+                title = stringResource(R.string.settings_demands_row),
+                description = stringResource(R.string.settings_demands_row_description),
+                onClick = onDemands
+            )
             NavRow(title = stringResource(R.string.mcl_tab_wiki), onClick = actions.onWiki)
             NavRow(title = stringResource(R.string.mcl_button_discord), onClick = actions.onDiscord)
             // Above sharing, because reading it is what somebody wants first and sharing a
@@ -1429,6 +1523,103 @@ private fun AboutScreen(
             )
             NavRow(title = stringResource(R.string.main_share_logs), onClick = actions.onShareLog)
         }
+    }
+}
+
+/**
+ * What the launcher costs, and what is worth changing when it is too slow.
+ *
+ * This exists because the onboarding says one honest sentence about performance and one sentence
+ * is not an explanation. Somebody who wants to know *why* a phone that runs Bedrock at sixty
+ * frames struggles here deserves the actual mechanism, and somebody who just wants it faster
+ * deserves to be told which four settings matter and in what order.
+ *
+ * **It is prose in settings rows rather than a document**, for the reason the rest of Settings is
+ * written out by hand: it sits on the same ground, it is searchable by the same index, and it
+ * cannot drift into a separate style of its own. The three sections are the three questions in
+ * the order they get asked: why is this heavy, what is this feature costing me, and what do I do.
+ *
+ * Nothing here is generated from the code, so it is prose that can go stale. It is deliberately
+ * written about mechanisms rather than numbers for exactly that reason: "one extra full screen
+ * copy and one hardware encode per frame" stays true across a rewrite of the recorder in a way
+ * that a percentage would not.
+ */
+@Composable
+private fun DemandsScreen(onBack: () -> Unit) {
+    SettingsScaffold(
+        stringResource(R.string.settings_dest_demands),
+        stringResource(R.string.settings_demands_subtitle),
+        onBack
+    ) {
+        SectionLabel(stringResource(R.string.settings_section_demands_why))
+        SettingsCard {
+            InfoRow(
+                title = stringResource(R.string.settings_demands_jvm_title),
+                description = stringResource(R.string.settings_demands_jvm_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_gl_title),
+                description = stringResource(R.string.settings_demands_gl_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_driver_title),
+                description = stringResource(R.string.settings_demands_driver_body)
+            )
+        }
+
+        SectionLabel(stringResource(R.string.settings_section_demands_cost))
+        SettingsCard {
+            InfoRow(
+                title = stringResource(R.string.settings_demands_record_cost_title),
+                description = stringResource(R.string.settings_demands_record_cost_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_shot_cost_title),
+                description = stringResource(R.string.settings_demands_shot_cost_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_sensor_cost_title),
+                description = stringResource(R.string.settings_demands_sensor_cost_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_mods_cost_title),
+                description = stringResource(R.string.settings_demands_mods_cost_body)
+            )
+        }
+
+        SectionLabel(stringResource(R.string.settings_section_demands_fix))
+        SettingsCard {
+            InfoRow(
+                title = stringResource(R.string.settings_demands_fix_renderer_title),
+                description = stringResource(R.string.settings_demands_fix_renderer_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_fix_pixels_title),
+                description = stringResource(R.string.settings_demands_fix_pixels_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_fix_sodium_title),
+                description = stringResource(R.string.settings_demands_fix_sodium_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_fix_memory_title),
+                description = stringResource(R.string.settings_demands_fix_memory_body)
+            )
+        }
+
+        SectionLabel(stringResource(R.string.settings_section_demands_honest))
+        SettingsCard {
+            InfoRow(
+                title = stringResource(R.string.settings_demands_honest_title),
+                description = stringResource(R.string.settings_demands_honest_body)
+            )
+            InfoRow(
+                title = stringResource(R.string.settings_demands_noauto_title),
+                description = stringResource(R.string.settings_demands_noauto_body)
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
     }
 }
 

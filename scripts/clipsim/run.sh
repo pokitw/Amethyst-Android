@@ -25,6 +25,16 @@
 #       grid. Anybody assuming both ends snap will make the editor coarser than it needs to be
 #       and this check is what says so.
 #
+# The editor's cutting model, added with the CapCut shaped redesign:
+#
+#   deletionsFollowTheirSpanWhenTheTimelineChanges - the screen shades a span as deleted by exact
+#       equality against the cut list, so that list has to be re-stated in terms of the current
+#       spans every time a split or a trim drag changes what the spans are. The property asserted
+#       is the INVARIANT rather than any particular mapping: retime's result is always a subset of
+#       the spans handed in. Break that and the plan goes on removing material the screen says is
+#       being kept, which is the one disagreement this feature cannot afford. Overlap rather than
+#       a complete cover is the test, and both movements it exists for are checked by name.
+#
 # The second one that matters, added after the first draft shipped:
 #
 #   endsSnapToAFrameAndNeverAdmitOne - a segment END is unconstrained, but it should still land on

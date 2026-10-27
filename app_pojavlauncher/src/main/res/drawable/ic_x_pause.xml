@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Filled, for the same reason as the play glyph beside it. -->
+    <path
+        android:pathData="M7,5L10,5A0.6,0.6 0,0 1,10.6 5.6L10.6,18.4A0.6,0.6 0,0 1,10 19L7,19A0.6,0.6 0,0 1,6.4 18.4L6.4,5.6A0.6,0.6 0,0 1,7 5Z"
+        android:fillColor="#FFFFFF"/>
+    <path
+        android:pathData="M14,5L17,5A0.6,0.6 0,0 1,17.6 5.6L17.6,18.4A0.6,0.6 0,0 1,17 19L14,19A0.6,0.6 0,0 1,13.4 18.4L13.4,5.6A0.6,0.6 0,0 1,14 5Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

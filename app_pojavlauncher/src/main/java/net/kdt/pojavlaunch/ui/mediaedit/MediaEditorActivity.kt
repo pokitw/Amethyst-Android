@@ -101,10 +101,33 @@ class MediaEditorActivity : BaseActivity() {
     private var inUs by mutableStateOf(0L)
     private var outUs by mutableStateOf(0L)
     private var playUs by mutableStateOf(0L)
+
+    /**
+     * Where the timeline is divided, and which of the resulting spans have been deleted.
+     *
+     * Two lists rather than one because they answer different questions: a split is a boundary
+     * the player put there and keeps across everything else they do, while a deletion is a
+     * property of the span between two boundaries. `cuts` is held as a subset of the current
+     * spans, which is the invariant `ClipPlan.isRemoved` rests on, and `ClipPlan.retime` is
+     * what restores it whenever the shape changes.
+     */
+    private val splits = mutableStateListOf<Long>()
     private val cuts = mutableStateListOf<ClipPlan.Range>()
+    private var selected by mutableStateOf(0)
     private val thumbs = mutableStateListOf<Thumb>()
-    private var previewFrame by mutableStateOf<Bitmap?>(null)
-    private var previewJob: Job? = null
+
+    private var playing by mutableStateOf(false)
+    private var tickJob: Job? = null
+    private var seekJob: Job? = null
+
+    // Bound method references rather than lambdas that close over `player` while it is being
+    // constructed. The lambda form does compile, and it reads like a cycle to everybody who
+    // meets it afterwards.
+    private val player = ClipPlayer(
+        onPosition = ::onPlayerPosition,
+        onReady = ::onPlayerReady,
+        onEnded = ::onPlaybackEnded,
+    )
 
     // Image
     private var imageInfo by mutableStateOf<ImageEditor.Info?>(null)
@@ -135,6 +158,24 @@ class MediaEditorActivity : BaseActivity() {
         if (isClip) loadClip() else loadImage()
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Sound coming out of a backgrounded editor is the one playback failure nobody forgives,
+        // and the ticker is a loop that would otherwise go on seeking a player nobody can see.
+        if (playing) {
+            player.pause()
+            playing = false
+            stopTicking()
+        }
+    }
+
+    override fun onDestroy() {
+        stopTicking()
+        seekJob?.cancel()
+        player.dispose()
+        super.onDestroy()
+    }
+
     /**
      * Enable the back callback exactly while leaving would lose something.
      *
@@ -159,9 +200,11 @@ class MediaEditorActivity : BaseActivity() {
         val live = source
         // Remembered against everything it reads. Without this the plan is rebuilt by any
         // recomposition at all, including each of the twelve filmstrip pictures arriving, and
-        // the cut list has to be part of the key by VALUE: it is a snapshot list, so mutating
-        // it leaves its identity unchanged and a key holding the list itself never changes.
+        // the two lists have to be part of the key by VALUE: they are snapshot lists, so
+        // mutating one leaves its identity unchanged and a key holding the list itself never
+        // changes.
         val cutKey = cuts.joinToString(",") { it.startUs.toString() + ":" + it.endUs }
+        val splitKey = splits.joinToString(",")
         val plan = remember(live, inUs, outUs, cutKey) {
             if (live == null) {
                 ClipPlan.trim(0L, LongArray(0), LongArray(0), 0L, 0L)
@@ -169,23 +212,43 @@ class MediaEditorActivity : BaseActivity() {
                 ClipPlan.build(live.durationUs, live.syncUs, live.framesUs, inUs, outUs, cuts)
             }
         }
+        val spans = remember(inUs, outUs, splitKey) {
+            ClipPlan.timelineSegments(inUs, outUs, splits.toLongArray())
+        }
+        val here = selected.coerceIn(0, (spans.size - 1).coerceAtLeast(0))
+        val selectedSpan = spans.getOrNull(here)
+        val selectedRemoved = selectedSpan != null && ClipPlan.isRemoved(selectedSpan, cuts)
         ClipEditScreen(
             title = stringResource(R.string.editor_title_clip),
             durationUs = live?.durationUs ?: 0L,
             syncUs = live?.syncUs ?: LongArray(0),
             thumbs = thumbs,
-            previewFrame = previewFrame,
             aspect = aspectOf(live),
             inUs = inUs,
             outUs = outUs,
             playUs = playUs,
             cuts = cuts,
+            segments = spans,
+            selected = here,
             plan = plan,
+            playing = playing,
             busy = busy,
             canSave = plan.isUsable() && !busy && live != null && hasChanges(),
+            // Not at a boundary, because a split there divides nothing, and inside the trim.
+            canSplit = live != null && playUs > inUs && playUs < outUs &&
+                    spans.none { it.startUs == playUs },
+            // Restoring is always allowed. Deleting is not allowed to empty the output, which
+            // is the one state the exporter refuses and there is no reason to let somebody
+            // arrange it.
+            canDelete = selectedSpan != null && (selectedRemoved || spans.any {
+                it !== selectedSpan && !ClipPlan.isRemoved(it, cuts)
+            }),
+            selectedRemoved = selectedRemoved,
             progress = progress,
             message = message,
             canAddToGallery = pendingGallery != null,
+            onAttach = { view -> view.surfaceTextureListener = player.listener() },
+            onPlayPause = ::togglePlay,
             onAddToGallery = ::addToGallery,
             onIn = { at ->
                 // Clamped against the other handle so the two can never cross, which an
@@ -197,32 +260,215 @@ class MediaEditorActivity : BaseActivity() {
                 // on a drag. Here the bounds cannot invert whatever the other values are.
                 val ceiling = (outUs - 1L).coerceAtLeast(0L)
                 inUs = if (at < 0L) 0L else if (at > ceiling) ceiling else at
-                if (playUs < inUs) playUs = inUs
+                if (playUs < inUs) seekPlayhead(inUs)
+                reshape()
             },
             onOut = { at ->
                 val total = (live?.durationUs ?: 0L).coerceAtLeast(0L)
                 val floor = (inUs + 1L).coerceAtMost(total)
                 outUs = if (at < floor) floor else if (at > total) total else at
-                if (playUs > outUs) playUs = outUs
+                if (playUs > outUs) seekPlayhead(outUs)
+                reshape()
             },
-            onPlayhead = { at ->
-                playUs = at.coerceIn(0L, live?.durationUs ?: 0L)
-                schedulePreview(playUs)
+            onPlayhead = { at -> seekPlayhead(at.coerceIn(0L, live?.durationUs ?: 0L)) },
+            onSelect = { index -> if (index >= 0) selected = index },
+            onSplit = {
+                if (live != null && playUs > inUs && playUs < outUs && !splits.contains(playUs)) {
+                    splits.add(playUs)
+                    splits.sort()
+                    reshape()
+                    // Selection follows to the span that now starts here, which is the one the
+                    // next tap is almost always aimed at.
+                    selected = ClipPlan.segmentAt(
+                        ClipPlan.timelineSegments(inUs, outUs, splits.toLongArray()), playUs
+                    ).coerceAtLeast(0)
+                    message = null
+                }
             },
-            onAddCut = ::addCut,
-            onRemoveCut = { index -> if (index in cuts.indices) cuts.removeAt(index) },
+            onDelete = { toggleDeleted(here) },
             onReset = {
                 val total = live?.durationUs ?: 0L
                 inUs = 0L
                 outUs = total
-                playUs = 0L
+                splits.clear()
                 cuts.clear()
+                selected = 0
                 message = null
-                schedulePreview(0L)
+                seekPlayhead(0L)
             },
             onSave = ::saveClip,
             onBack = ::leave,
         )
+    }
+
+    /**
+     * Restate the deletions against the spans as they now are.
+     *
+     * Called from everything that changes the timeline's shape. Without it `isRemoved`, which
+     * is exact equality, would stop finding a cut the moment its span's bounds moved, and the
+     * shading would say a span was kept while the plan still removed it.
+     */
+    private fun reshape() {
+        val spans = ClipPlan.timelineSegments(inUs, outUs, splits.toLongArray())
+        val next = ClipPlan.retime(cuts, spans)
+        // Written only when it actually differs. This runs on every pointer event of a trim
+        // drag, and clearing and refilling a snapshot list is a change whatever it ends up
+        // holding, so an unconditional write would recompose the whole screen sixty times a
+        // second to arrive at the list it already had.
+        if (!sameRanges(cuts, next)) {
+            cuts.clear()
+            cuts.addAll(next)
+        }
+        val bounded = selected.coerceIn(0, (spans.size - 1).coerceAtLeast(0))
+        if (bounded != selected) selected = bounded
+    }
+
+    private fun sameRanges(a: List<ClipPlan.Range>, b: List<ClipPlan.Range>): Boolean {
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            if (a[i].startUs != b[i].startUs || a[i].endUs != b[i].endUs) return false
+        }
+        return true
+    }
+
+    /* -------------------------------------------------------------- playback */
+
+    /** Delete the selected span, or give it back if it has already gone. */
+    private fun toggleDeleted(index: Int) {
+        val span = ClipPlan.timelineSegments(inUs, outUs, splits.toLongArray())
+            .getOrNull(index) ?: return
+        if (ClipPlan.isRemoved(span, cuts)) {
+            cuts.removeAll { it.startUs == span.startUs && it.endUs == span.endUs }
+        } else {
+            cuts.add(span)
+        }
+        reshape()
+        message = null
+    }
+
+    /**
+     * The player's own duration is deliberately ignored: `ClipEditor.read` walked the track and
+     * is the number every bound here is derived from, and two durations that disagree by a
+     * frame would put the trim handle and the playhead on different clocks.
+     */
+    private fun onPlayerReady(@Suppress("UNUSED_PARAMETER") durationUs: Long) {
+        stopTicking()
+        playing = false
+        // Seeking is what puts a frame on the surface: a prepared MediaPlayer that has never
+        // been started or seeked shows nothing, so without this the editor opens on black and
+        // looks broken until something is touched.
+        player.seekTo(playUs)
+    }
+
+    private fun onPlaybackEnded() {
+        stopTicking()
+        playing = false
+        seekPlayheadNow(inUs)
+    }
+
+    private fun togglePlay() {
+        if (source == null) return
+        if (playing) {
+            player.pause()
+            playing = false
+            stopTicking()
+            return
+        }
+        // Starting from the end, or from inside something deleted, starts from the top of the
+        // selection instead. Pressing play and watching nothing happen is the failure here.
+        if (playUs >= outUs || cutHolding(playUs) != null) seekPlayheadNow(inUs)
+        player.play()
+        playing = true
+        startTicking()
+    }
+
+    private fun startTicking() {
+        stopTicking()
+        tickJob = lifecycleScope.launch {
+            while (playing) {
+                player.pump()
+                // Four times a frame at 60fps is plenty to keep a playhead smooth and is far
+                // cheaper than a per-frame callback; the position is read, not computed.
+                delay(60L)
+            }
+        }
+    }
+
+    private fun stopTicking() {
+        tickJob?.cancel()
+        tickJob = null
+    }
+
+    /**
+     * Keep playback inside the edit.
+     *
+     * This is where the preview becomes a preview of the OUTPUT rather than of the file: the
+     * player plays the whole clip and the editor steps it over everything that will not be in
+     * the saved copy. `ClipPlayer` is told nothing about any of this on purpose, so there is
+     * only ever one thing that decides what the edit is.
+     */
+    private fun onPlayerPosition(atUs: Long) {
+        if (atUs < 0L) return
+        // A scrub in flight owns the playhead. Without this the ticker reads the position the
+        // player still has, a frame behind the finger, and drags it back there.
+        if (seekJob?.isActive == true) return
+        if (atUs >= outUs) {
+            player.pause()
+            playing = false
+            stopTicking()
+            // Rewound rather than left at the end, so the next press of play starts the
+            // selection again instead of doing nothing.
+            seekPlayheadNow(inUs)
+            return
+        }
+        if (atUs < inUs) {
+            playUs = inUs
+            player.seekTo(inUs)
+            return
+        }
+        val cut = cutHolding(atUs)
+        if (cut != null) {
+            val resume = cut.endUs
+            if (resume >= outUs) {
+                player.pause()
+                playing = false
+                stopTicking()
+                seekPlayheadNow(inUs)
+            } else {
+                playUs = resume
+                player.seekTo(resume)
+            }
+            return
+        }
+        playUs = atUs
+    }
+
+    private fun cutHolding(atUs: Long): ClipPlan.Range? =
+        cuts.firstOrNull { atUs >= it.startUs && atUs < it.endUs }
+
+    /**
+     * Move the playhead now and the picture a moment later.
+     *
+     * Debounced because a drag produces a value per frame and `MediaPlayer.seekTo` decodes to
+     * get there; asking for sixty of them a second makes the picture lag the finger by more
+     * than doing nothing would. The marker itself is not debounced, so the gesture stays
+     * instant and only the frame catches up.
+     */
+    private fun seekPlayhead(atUs: Long) {
+        playUs = atUs
+        seekJob?.cancel()
+        seekJob = lifecycleScope.launch {
+            delay(60L)
+            player.seekTo(atUs)
+        }
+    }
+
+    /** Both at once, for the paths that are about to depend on where the player actually is. */
+    private fun seekPlayheadNow(atUs: Long) {
+        seekJob?.cancel()
+        seekJob = null
+        playUs = atUs
+        player.seekTo(atUs)
     }
 
     private fun aspectOf(live: ClipEditor.Source?): Float {
@@ -265,7 +511,7 @@ class MediaEditorActivity : BaseActivity() {
             playUs = 0L
             message = null
             loadFilmstrip(read)
-            schedulePreview(0L)
+            player.open(file)
         }
     }
 
@@ -306,58 +552,6 @@ class MediaEditorActivity : BaseActivity() {
             thumbs.clear()
             thumbs.addAll(frames)
         }
-    }
-
-    /**
-     * Fetch the frame under the position marker, a moment after it stops moving.
-     *
-     * Debounced because a drag produces a value per frame and each fetch opens a decoder. The
-     * previous job is cancelled rather than queued, so a long drag costs one decode.
-     */
-    private fun schedulePreview(atUs: Long) {
-        previewJob?.cancel()
-        previewJob = lifecycleScope.launch {
-            delay(90L)
-            val frame = withContext(Dispatchers.IO) {
-                val retriever = MediaMetadataRetriever()
-                try {
-                    retriever.setDataSource(file.absolutePath)
-                    retriever.getFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                } catch (t: Throwable) {
-                    null
-                } finally {
-                    releaseQuietly(retriever)
-                }
-            }
-            // Scaled down like the filmstrip beside it. A 1080p still per scrub position is
-            // megabytes held live for a picture that is never shown larger than the screen.
-            if (frame != null) previewFrame = scaleDown(frame, 1280)
-        }
-    }
-
-    /**
-     * Add a cut around the position marker.
-     *
-     * Two seconds by default, because that is the interval between the points a clip can resume
-     * at: a shorter one would usually be rounded up to this anyway, and offering a length that
-     * cannot be honoured is worse than offering the one that can. It is clamped inside the
-     * selection and stops at the next cut.
-     */
-    private fun addCut() {
-        if (source == null) return
-        if (!canCutAt(playUs, inUs, outUs, cuts)) return
-        val wanted = 2_000_000L
-        var end = (playUs + wanted).coerceAtMost(outUs)
-        cuts.forEach { existing ->
-            if (existing.startUs in (playUs + 1)..end) end = existing.startUs
-        }
-        if (end <= playUs) return
-        cuts.add(ClipPlan.Range(playUs, end))
-        cuts.sortBy { it.startUs }
-        message = null
-        // The marker deliberately stays where it was: the next thing somebody usually does is
-        // widen the cut they just made, and moving it would take the handle out from under the
-        // thumb that is already there.
     }
 
     private fun saveClip() {
@@ -613,8 +807,16 @@ class MediaEditorActivity : BaseActivity() {
      * a string rather than anything structured: the question is equality and nothing else.
      */
     private fun signature(): String = if (isClip) {
-        "clip|" + inUs + "|" + outUs + "|" +
-                cuts.joinToString(",") { it.startUs.toString() + ":" + it.endUs }
+        // The PLAN rather than the controls that produced it, because two arrangements of
+        // splits and deletions can mean the same output and this question is only ever asked
+        // about the output. Splitting inside a span that is already deleted is the concrete
+        // case: it turns one cut into two, changes nothing about what is written, and on the
+        // controls alone would raise "your changes will be lost" over an edit already saved.
+        val live = source
+        val plan = if (live == null) null
+        else ClipPlan.build(live.durationUs, live.syncUs, live.framesUs, inUs, outUs, cuts)
+        "clip|" + (plan?.segments.orEmpty()
+            .joinToString(",") { it.sourceStartUs.toString() + ":" + it.sourceEndUs })
     } else {
         "image|" + orientation.rotation + "|" + orientation.mirror + "|" + crop
     }

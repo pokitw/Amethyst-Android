@@ -60,6 +60,15 @@ class IndexedSetting(
 
 val SETTINGS_INDEX: List<SettingEntry> = listOf(
     // ---------------------------------------------------------------- Performance
+    // Indexed against PERFORMANCE rather than its own route, because search highlights a row by
+    // title and the row is on that screen. Landing on the row that opens the page is the right
+    // outcome anyway: the words somebody searched are the reason to open it.
+    SettingEntry(
+        R.string.settings_demands_row, SettingsRoute.PERFORMANCE,
+        R.string.settings_demands_row_description, R.string.settings_section_graphics,
+        "slow lag fps frame rate stutter performance low end mid range potato device "
+                + "why heavy requirements optimise optimize speed up", suggested = true
+    ),
     SettingEntry(
         R.string.settings_renderer_title, SettingsRoute.PERFORMANCE,
         R.string.settings_renderer_description, R.string.settings_section_graphics,

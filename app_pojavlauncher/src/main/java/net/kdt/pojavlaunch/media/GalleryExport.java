@@ -5,6 +5,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
@@ -159,6 +160,98 @@ public final class GalleryExport {
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
+    /** What a bulk copy did, so a settings row can report it rather than merely finishing. */
+    public static final class BulkResult {
+        public final int copied;
+        public final int skipped;
+        public final int failed;
+
+        BulkResult(int copied, int skipped, int failed) {
+            this.copied = copied;
+            this.skipped = skipped;
+            this.failed = failed;
+        }
+    }
+
+    /**
+     * Copy a whole folder into the gallery, on request, skipping what is already there.
+     *
+     * The automatic path only ever sees a file at the moment it is created, so anything captured
+     * before the setting was turned on, or while it was off, is invisible to every gallery on
+     * the phone and has no route out: the launcher's own folders are under {@code Android/data},
+     * which from Android 11 cannot be browsed to at all. Editing one file and pressing the
+     * editor's button is a route for one file, and that is not the same as having the ones you
+     * already took.
+     *
+     * <b>Skipping matters more than copying here.</b> A bulk action is one people press twice,
+     * and without a check the second press fills their gallery with a duplicate of everything.
+     * So each name is looked for first, in the media store above Android 10 and in the public
+     * album below it, and already-there is counted separately from copied so the row can say
+     * "nothing new" rather than silently doing nothing.
+     *
+     * Call from a background thread: this is a byte-for-byte copy of every file in the folder.
+     */
+    public static BulkResult publishFolderOnRequest(@NonNull Context context, @NonNull File folder,
+                                                    final boolean image) {
+        File[] files = folder.listFiles();
+        if (files == null) return new BulkResult(0, 0, 0);
+        int copied = 0;
+        int skipped = 0;
+        int failed = 0;
+        for (File file : files) {
+            if (file == null || !file.isFile() || file.length() <= 0L) continue;
+            String name = file.getName().toLowerCase(java.util.Locale.US);
+            boolean wanted = image
+                    ? name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")
+                    : name.endsWith(".mp4");
+            if (!wanted) continue;
+            if (alreadyInGallery(context, file.getName(), image)) {
+                skipped++;
+                continue;
+            }
+            boolean ok = image
+                    ? publishImageOnRequest(context, file)
+                    : publishVideoOnRequest(context, file);
+            if (ok) copied++; else failed++;
+        }
+        return new BulkResult(copied, skipped, failed);
+    }
+
+    /** Whether the album already holds a file of this name. Errs towards copying. */
+    private static boolean alreadyInGallery(@NonNull Context context, @NonNull String name,
+                                            boolean image) {
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                File album = new File(Environment.getExternalStoragePublicDirectory(
+                        image ? Environment.DIRECTORY_PICTURES : Environment.DIRECTORY_MOVIES),
+                        ALBUM);
+                return new File(album, name).exists();
+            }
+            Uri collection = image
+                    ? MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    : MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+            String relative = (image ? Environment.DIRECTORY_PICTURES
+                    : Environment.DIRECTORY_MOVIES) + File.separator + ALBUM + File.separator;
+            Cursor cursor = context.getContentResolver().query(
+                    collection,
+                    new String[]{MediaStore.MediaColumns._ID},
+                    MediaStore.MediaColumns.DISPLAY_NAME + "=? AND "
+                            + MediaStore.MediaColumns.RELATIVE_PATH + "=?",
+                    new String[]{name, relative},
+                    null);
+            if (cursor == null) return false;
+            try {
+                return cursor.getCount() > 0;
+            } finally {
+                cursor.close();
+            }
+        } catch (Throwable t) {
+            // A failed lookup must not stop the copy. The cost of being wrong here is a
+            // duplicate, which is visible and deletable; refusing would be neither.
+            return false;
+        }
+    }
+
     private static boolean publishViaMediaStore(@NonNull Context context, @NonNull File source,
                                                 @NonNull String mime, boolean image)
             throws Exception {

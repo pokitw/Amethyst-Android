@@ -678,14 +678,14 @@
     <string name="onboarding_start">Get started</string>
 
     <string name="onboarding_welcome_title">Amethyst X</string>
-    <string name="onboarding_welcome_body">Minecraft: Java Edition, on your phone. This is a fork of Amethyst with a recorder built into the renderer and most of the launcher redrawn.</string>
+    <string name="onboarding_welcome_body">Minecraft: Java Edition, on your phone. A fork of Amethyst that started with a recorder built into the renderer and grew into a launcher rebuilt screen by screen: controls, mods, skins, logs, your game folder and the whole of Settings.</string>
 
     <string name="onboarding_record_title">Record the game, not your screen</string>
-    <string name="onboarding_record_body">Capture happens inside the graphics pipeline, before anything is drawn on top. Your on-screen buttons, notifications and the status bar never appear in the video, only the game.</string>
+    <string name="onboarding_record_body">Capture happens inside the graphics pipeline, before anything is drawn on top. Your on-screen buttons, notifications and the status bar never appear in the video, only the game. Screenshots work the same way, and both can be trimmed or cropped here and copied into your phone's gallery without leaving the launcher.</string>
     <string name="onboarding_record_note">Not available on the Zink renderer, and a clip stops before 4 GB, which is around 40 minutes at 1080p60.</string>
 
     <string name="onboarding_design_title">Rebuilt, screen by screen</string>
-    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker, the control editor and the in-game menu were redrawn from scratch, designed around what you actually do and built to work one-handed. Settings has a search, so you never have to remember which screen a setting was on.</string>
+    <string name="onboarding_design_body">Home, settings, sign-in, profiles, the version picker, the control editor and the in-game menu were redrawn from scratch, designed around what you actually do and built to work one-handed. Along the way the launcher picked up a mod browser, a loader installer, a skin editor, a log reader and a clip editor. Settings has a search, so you never have to remember which screen a setting was on.</string>
 
     <string name="onboarding_crash_title">Crashes explained in English</string>
     <string name="onboarding_crash_body">When the game dies, the log gets read for you and the cause is named in plain words: a missing mod dependency, not enough memory, the wrong Java version. It quotes the line it concluded from.</string>
@@ -702,8 +702,13 @@
     <string name="onboarding_files_body">Worlds, mods, resource packs, shaders and screenshots on one screen. One button takes any file and works out for itself where it belongs, and a mod can be switched off without deleting it.</string>
     <string name="onboarding_files_note">This is your game folder, not a store. Nothing on this screen downloads anything.</string>
 
+    <string name="onboarding_honest_title">Capability first, not frame rate first</string>
+    <string name="onboarding_honest_body">This is desktop Minecraft running on a real Java virtual machine, with every graphics call translated to something your phone understands. That is expensive before a single feature is added, and the features here are added on top of it rather than instead of it. On a low or mid range phone some of this will run well, some will run badly, and some may not run at all.</string>
+    <string name="onboarding_honest_note">Settings has a page explaining exactly what costs what, and which settings are worth changing on a slow device.</string>
+
     <string name="onboarding_compare_title">Amethyst, and Amethyst X</string>
     <string name="onboarding_compare_body">What this fork adds, and the two places it is behind.</string>
+    <string name="onboarding_row_controller">Controller stays working after a mod loads SDL</string>
     <string name="onboarding_compare_them">Amethyst</string>
     <string name="onboarding_compare_us">X</string>
     <string name="onboarding_compare_yes">Included</string>
@@ -1098,6 +1103,45 @@
     <string name="settings_section_app">APP</string>
     <string name="settings_section_permissions">PERMISSIONS</string>
     <string name="settings_section_help">HELP</string>
+
+    <string name="settings_dest_demands">What this asks of your phone</string>
+    <string name="settings_demands_row">What this asks of your phone</string>
+    <string name="settings_demands_row_description">Why the launcher is heavy, what each feature costs, and what is worth changing on a slow device.</string>
+    <string name="settings_demands_subtitle">Why it costs what it costs</string>
+
+    <string name="settings_section_demands_why">WHY IT IS HEAVY</string>
+    <string name="settings_demands_jvm_title">It runs the real game, not a port</string>
+    <string name="settings_demands_jvm_body">Minecraft: Java Edition is desktop software. The launcher starts an actual Java virtual machine on your phone and runs the real game inside it, mods and all. Nothing has been rewritten for mobile, so the memory it wants and the time it takes to start are the desktop game's, on hardware with a fraction of the power.</string>
+    <string name="settings_demands_gl_title">Every graphics call is translated</string>
+    <string name="settings_demands_gl_body">The game speaks desktop OpenGL and your phone speaks OpenGL ES or Vulkan, so a translation layer sits between them: gl4es, MobileGlues, or Zink running OpenGL on top of Vulkan. That layer is most of your frame rate, and which one is fastest is different on almost every chip. Trying another renderer is the single biggest change you can make.</string>
+    <string name="settings_demands_driver_title">Your driver decides what is possible</string>
+    <string name="settings_demands_driver_body">Shader packs need OpenGL 3.3, and whether a renderer can reach it depends on features your GPU driver either has or does not. On Adreno with the bundled Turnip driver it can. On many others it cannot, and no setting in here changes that. The launcher checks before you launch and says which case you are in rather than letting the game crash.</string>
+
+    <string name="settings_section_demands_cost">WHAT EACH FEATURE COSTS</string>
+    <string name="settings_demands_record_cost_title">Recording</string>
+    <string name="settings_demands_record_cost_body">One extra full screen copy and one hardware video encode per frame, for as long as it is running. Far cheaper than a screen recorder, which re-encodes your whole display, but not free: expect to lose some frames per second while it is on.</string>
+    <string name="settings_demands_shot_cost_title">Screenshots</string>
+    <string name="settings_demands_shot_cost_body">One stalled frame, every time you take one. The launcher waits for the GPU to finish and reads the whole picture back, which is a visible hitch and then nothing until the next shot.</string>
+    <string name="settings_demands_sensor_cost_title">Gyro aiming</string>
+    <string name="settings_demands_sensor_cost_body">A sensor read 200 times a second, plus the arithmetic on each one. Small, but it is work the game was not doing before, and on a weak device every background cost comes out of the same budget.</string>
+    <string name="settings_demands_mods_cost_title">Mods</string>
+    <string name="settings_demands_mods_cost_body">Usually the real answer. A mod loader plus thirty mods changes the game's own cost far more than anything the launcher does, and a single badly behaved mod can halve your frame rate on its own.</string>
+
+    <string name="settings_section_demands_fix">WHAT ACTUALLY HELPS</string>
+    <string name="settings_demands_fix_renderer_title">Change the renderer first</string>
+    <string name="settings_demands_fix_renderer_body">It is one setting and it can double or halve your frame rate. There is no way to know which is best for your phone except to try them, and the right answer is often not the newest one.</string>
+    <string name="settings_demands_fix_pixels_title">Render fewer pixels</string>
+    <string name="settings_demands_fix_pixels_body">The resolution scaler is the bluntest control there is, and the reachable game area is the same saving with a different purpose: 80% of each axis is 64% of the pixels. Lowering the game's own render distance is the other half of the same idea.</string>
+    <string name="settings_demands_fix_sodium_title">Run Sodium where you can</string>
+    <string name="settings_demands_fix_sodium_body">On a renderer that reaches OpenGL 3.3 it is the largest single gain available, because it rewrites how the game draws the world. The launcher tells you before launching whether your setup can take it.</string>
+    <string name="settings_demands_fix_memory_title">Give it enough memory, not all of it</string>
+    <string name="settings_demands_fix_memory_body">Too little and the game stalls collecting garbage. Too much and Android kills it, or kills everything else and then it. The launcher warns before downloading anything if the number you picked will not fit.</string>
+
+    <string name="settings_section_demands_honest">THE HONEST PART</string>
+    <string name="settings_demands_honest_title">This fork spends its effort on capability</string>
+    <string name="settings_demands_honest_body">Upstream's optimisation work is all still here, and nothing has been removed to make room. But what gets built on top of it is features, not frames, and some of those features make the game slower while they are switched on. That is a deliberate trade and it is the wrong trade for some phones.</string>
+    <string name="settings_demands_noauto_title">Why there is no one tap optimise</string>
+    <string name="settings_demands_noauto_body">There was one, and it was removed. To be worth anything it had to write into Minecraft's own options file and install mods nobody had chosen, which meant it also had to own a backup, an undo and a model of your device, and every one of those could be wrong in a way you would only find out about later. Four or five settings changed deliberately beat one switch that changes twenty behind your back.</string>
     <string name="settings_replay_welcome_title">Show the welcome again</string>
     <string name="settings_replay_welcome_description">The tour of what this launcher does, and what it does not</string>
     <string name="settings_advanced">Advanced</string>
@@ -1387,20 +1431,17 @@
     <string name="editor_original_kept">Your original is never changed. Saving writes a new file beside it.</string>
 
     <!-- Clip editor -->
-    <string name="clip_cuts">Cuts</string>
-    <string name="clip_add_cut">Remove this part</string>
-    <string name="clip_cut_row">Cut %1$s to %2$s</string>
-    <string name="clip_cut_remove">Remove cut</string>
-    <string name="clip_no_cuts">Drag the two handles to choose what to keep. To drop something out of the middle, move the position marker and use Remove this part.</string>
     <string name="clip_length">New length %1$s, from %2$s</string>
     <string name="clip_start_snapped">Start moved to %1$s, the nearest point the video can begin from</string>
-    <string name="clip_grid_hint">A clip can only start on one of the pictures in the strip. The end can go anywhere.</string>
+    <string name="clip_split">Split</string>
+    <string name="clip_delete">Delete</string>
+    <string name="clip_restore">Restore</string>
+    <string name="clip_grid_hint">Tap the timeline to move the playhead, then Split. Select a part and Delete it. A clip can only start on one of the pictures in the strip, so the start of a kept part moves forward to the nearest one.</string>
     <string name="clip_extra_removed">%1$s more was removed than you asked for, to reach a point the video can start from</string>
     <string name="clip_nothing_left">Nothing is left to save</string>
     <string name="clip_selection_empty">Choose a part of the clip to keep</string>
     <string name="clip_no_sync">This clip has no point the video can start from</string>
     <string name="clip_out_of_order">This clip stores its frames out of order, so it cannot be edited without losing quality</string>
-    <string name="clip_lossless">Nothing is re-encoded, so a saved clip is exactly as sharp as the original.</string>
 
     <!-- Screenshot editor -->
     <string name="image_rotate_left">Turn left</string>
@@ -1418,4 +1459,10 @@
     <string name="content_place_empty">No folders in here. It can still go in this one.</string>
     <string name="content_place_here">Put it here</string>
     <string name="content_placed">Put %1$s in %2$s</string>
+    <string name="preference_gallery_copy_recordings_title">Copy recordings to gallery</string>
+    <string name="preference_gallery_copy_screenshots_title">Copy screenshots to gallery</string>
+    <string name="preference_gallery_copy_description">Copies what you already have. Anything taken before the switch above was turned on is only in the game folder, which nothing else on the phone can open.</string>
+    <string name="preference_gallery_copy_running">Copying</string>
+    <string name="preference_gallery_copy_none">Nothing new to copy</string>
+    <string name="preference_gallery_copy_result">%1$d copied, %2$d already there, %3$d failed</string>
 </resources>
