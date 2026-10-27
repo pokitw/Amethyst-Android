@@ -1402,7 +1402,6 @@
     <string name="clip_lossless">Nothing is re-encoded, so a saved clip is exactly as sharp as the original.</string>
 
     <!-- Screenshot editor -->
-    <string name="image_crop">Crop</string>
     <string name="image_rotate_left">Turn left</string>
     <string name="image_rotate_right">Turn right</string>
     <string name="image_mirror">Flip</string>

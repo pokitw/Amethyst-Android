@@ -82,8 +82,17 @@ class RecordingsActivity : BaseActivity() {
     private fun reload() {
         lifecycleScope.launch {
             val found = withContext(Dispatchers.IO) { loadRecordings(this@RecordingsActivity) }
+            // Carried across, because metadataRead stops a second read of the same file and a
+            // fresh scan has neither the duration nor the picture in it. Without this, every
+            // resume, which is every return from playing, sharing or editing a clip, emptied
+            // the whole gallery of both for the life of the activity.
+            val known = recordings.associate { it.key to (it.durationMs to it.thumbnail) }
             recordings.clear()
-            recordings.addAll(found)
+            recordings.addAll(found.map { recording ->
+                val carried = known[recording.key]
+                if (carried == null) recording
+                else recording.copy(durationMs = carried.first, thumbnail = carried.second)
+            })
             // Rows appear straight away; the parts that need the file opened arrive after.
             found.forEach { readMetadataFor(it) }
         }

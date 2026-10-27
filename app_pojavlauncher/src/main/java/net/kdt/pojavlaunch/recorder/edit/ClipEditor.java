@@ -150,8 +150,10 @@ public final class ClipEditor {
      * <p>Called off the main thread.
      */
     public static Source read(@NonNull File file) throws IOException {
-        MediaExtractor extractor = new MediaExtractor();
+        // The stream first: if opening the file throws, an extractor constructed before it has
+        // already allocated its native object and nothing will ever release it.
         FileInputStream stream = new FileInputStream(file);
+        MediaExtractor extractor = new MediaExtractor();
         try {
             extractor.setDataSource(stream.getFD());
             int videoTrack = findTrack(extractor, "video/");
@@ -229,8 +231,8 @@ public final class ClipEditor {
             throw new IOException("could not clear " + partial.getName());
         }
 
-        MediaExtractor extractor = new MediaExtractor();
         FileInputStream input = new FileInputStream(file);
+        MediaExtractor extractor = new MediaExtractor();
         MediaMuxer muxer = null;
         boolean finished = false;
         try {
@@ -324,7 +326,18 @@ public final class ClipEditor {
 
         if (!partial.renameTo(destination)) {
             // A rename can fail across a storage boundary even when both paths are writable.
-            copyFile(partial, destination);
+            // Guarded, because a copy that dies half way leaves a short file under the final
+            // name, and a short .mp4 is one both galleries list as a finished clip. The whole
+            // point of the .part file is that an interrupted export leaves nothing that looks
+            // complete, and an unguarded fallback here gives that away at the last step.
+            try {
+                copyFile(partial, destination);
+            } catch (IOException e) {
+                if (destination.exists() && !destination.delete()) {
+                    Log.w(TAG, "left a truncated export at " + destination.getName());
+                }
+                throw e;
+            }
             if (!partial.delete()) Log.w(TAG, "could not remove " + partial.getName());
         }
         carrySidecar(file, destination);

@@ -104,6 +104,7 @@ fun ImageEditScreen(
     busy: Boolean,
     message: String?,
     dirty: Boolean,
+    canSave: Boolean,
     canAddToGallery: Boolean,
     onAddToGallery: () -> Unit,
     onCrop: (CropFraction?) -> Unit,
@@ -123,7 +124,7 @@ fun ImageEditScreen(
     ) {
         EditorBar(
             title = title,
-            saveEnabled = dirty && !busy && preview != null,
+            saveEnabled = canSave,
             busy = busy,
             onSave = onSave,
             onBack = onBack,
@@ -274,7 +275,16 @@ private fun CropCanvas(
                                 if (settled == null || !settled.isUsable()) onCrop(null)
                                 else onCrop(settled)
                             },
-                            onDragCancel = { corner = null },
+                            onDragCancel = {
+                                // Settled the same way a finished drag is. Left alone, a drag
+                                // the system takes away mid-gesture strands whatever sliver had
+                                // been drawn so far, which enables Save on a crop the exporter
+                                // will refuse.
+                                corner = null
+                                val settled = live.value?.normalised()
+                                if (settled == null || !settled.isUsable()) onCrop(null)
+                                else onCrop(settled)
+                            },
                             onDrag = { change, _ ->
                                 change.consume()
                                 val w = size.width.toFloat().coerceAtLeast(1f)

@@ -139,7 +139,11 @@ class MediaEditorActivity : BaseActivity() {
      * lose traps Back on this screen, which is the half of this pattern that is easy to omit.
      */
     private fun syncBackCallback() {
-        unsavedBack.isEnabled = hasChanges() && !busy
+        // Enabled WHILE BUSY as well, which is the opposite of what it first said. The callback
+        // is what makes the system back do nothing during an export; disabling it there handed
+        // back to the default, which finishes the activity and takes the export's reporting
+        // with it. The guard inside handleOnBackPressed was unreachable.
+        unsavedBack.isEnabled = busy || hasChanges()
     }
 
     /* -------------------------------------------------------------- clip */
@@ -175,6 +179,7 @@ class MediaEditorActivity : BaseActivity() {
             cuts = cuts,
             plan = plan,
             busy = busy,
+            canSave = plan.isUsable() && !busy && live != null && hasChanges(),
             progress = progress,
             message = message,
             canAddToGallery = pendingGallery != null,
@@ -238,6 +243,7 @@ class MediaEditorActivity : BaseActivity() {
                 message = getString(R.string.editor_unreadable)
                 return@launch
             }
+            message = null
             if (!read.isUsable) {
                 // Said here rather than at save time: there is no point letting somebody arrange
                 // an edit that cannot be carried out. The reason is disambiguated because the
@@ -320,7 +326,9 @@ class MediaEditorActivity : BaseActivity() {
                     releaseQuietly(retriever)
                 }
             }
-            if (frame != null) previewFrame = frame
+            // Scaled down like the filmstrip beside it. A 1080p still per scrub position is
+            // megabytes held live for a picture that is never shown larger than the screen.
+            if (frame != null) previewFrame = scaleDown(frame, 1280)
         }
     }
 
@@ -391,6 +399,21 @@ class MediaEditorActivity : BaseActivity() {
     private fun ImageHost() {
         SideEffect { syncBackCallback() }
         val info = imageInfo
+        // Worked out here rather than from `dirty` alone, because a crop can be non null and
+        // still be something ImageEdit refuses, and a turn can come back to where it started.
+        // isNoOp is what tells the second case apart; it had no caller before this.
+        val savePlan = if (info != null && info.isUsable) {
+            ImageEdit.plan(
+                info.width, info.height, orientation,
+                cropToRect(
+                    crop,
+                    ImageEdit.displayedWidth(info.width, info.height, orientation),
+                    ImageEdit.displayedHeight(info.width, info.height, orientation),
+                ),
+            )
+        } else {
+            null
+        }
         ImageEditScreen(
             title = stringResource(R.string.editor_title_image),
             preview = preview,
@@ -401,6 +424,8 @@ class MediaEditorActivity : BaseActivity() {
             busy = busy,
             message = message,
             dirty = crop != null || !orientation.isIdentity,
+            canSave = !busy && preview != null && savePlan != null && savePlan.isUsable
+                    && !savePlan.isNoOp(info?.width ?: 0, info?.height ?: 0),
             canAddToGallery = pendingGallery != null,
             onAddToGallery = ::addToGallery,
             onCrop = { crop = it },
@@ -525,14 +550,14 @@ class MediaEditorActivity : BaseActivity() {
         val file = pendingGallery ?: return
         pendingGallery = null
         if (isClip) {
-            GalleryExport.publishVideoLater(this, file)
+            GalleryExport.publishVideoOnRequestLater(this, file)
             message = getString(R.string.editor_gallery_copying)
             toast(message!!)
             return
         }
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {
-                GalleryExport.publishImage(this@MediaEditorActivity, file)
+                GalleryExport.publishImageOnRequest(this@MediaEditorActivity, file)
             }
             message = getString(
                 if (ok) R.string.editor_gallery_done else R.string.editor_gallery_failed

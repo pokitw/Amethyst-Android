@@ -10,8 +10,11 @@ import java.util.List;
  * Which parts of a recording survive an edit, and where each lands in the output.
  *
  * This is the whole of the decision making for trimming and cutting a clip. The Android side
- * ({@code ClipEditor}) does nothing but walk a {@code MediaExtractor}, ask {@link #mapToOutput}
- * what each sample's new timestamp is, and hand it to a {@code MediaMuxer}. All of the arithmetic
+ * ({@code ClipEditor}) does nothing but walk a {@code MediaExtractor}, add each surviving
+ * sample's segment offset to its timestamp, and hand it to a {@code MediaMuxer}. It takes that
+ * offset from the {@link Segment} it is already iterating rather than calling
+ * {@link Plan#mapToOutput}, because the latter answers -1 for "no segment holds this" and a
+ * negative output time is indistinguishable from that sentinel. All of the arithmetic
  * is here, and none of it is there, because <b>a wrong plan is a corrupt or wrong length video
  * that compiles perfectly</b> and there is no device in this project's CI to notice. Plain Java
  * with no Android imports so {@code scripts/clipsim} compiles this exact file and drives it

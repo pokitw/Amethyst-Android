@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -94,6 +95,7 @@ fun ClipEditScreen(
     cuts: List<ClipPlan.Range>,
     plan: ClipPlan.Plan,
     busy: Boolean,
+    canSave: Boolean,
     progress: Float,
     message: String?,
     canAddToGallery: Boolean,
@@ -115,7 +117,7 @@ fun ClipEditScreen(
     ) {
         EditorBar(
             title = title,
-            saveEnabled = plan.isUsable() && !busy,
+            saveEnabled = canSave,
             busy = busy,
             onSave = onSave,
             onBack = onBack,
@@ -238,9 +240,14 @@ private fun Timeline(
                         val total = live.value[3].coerceAtLeast(1L)
                         val w = size.width.toFloat().coerceAtLeast(1f)
                         fun px(us: Long) = us.toFloat() / total * w
+                        // END first, deliberately. minByOrNull keeps the FIRST minimum, so when
+                        // the two edges sit on the same pixel this hands back the end, which is
+                        // the one that can be dragged away from the other. Picking the start
+                        // there traps the selection: it cannot move right past the end, and the
+                        // only way out was a reset that discards every cut.
                         val candidates = listOf(
-                            Grab.START to px(live.value[0]),
                             Grab.END to px(live.value[1]),
+                            Grab.START to px(live.value[0]),
                             Grab.PLAYHEAD to px(live.value[2]),
                         )
                         val nearest = candidates.minByOrNull { kotlin.math.abs(it.second - at.x) }
@@ -267,6 +274,15 @@ private fun Timeline(
                         }
                     },
                 )
+            }
+            // A separate recogniser, because detectDragGestures only wakes once a touch has
+            // passed the slop: a plain tap reached none of the code above, so the marker did
+            // not move and the comment there described something that did not happen.
+            .pointerInput(Unit) {
+                detectTapGestures { at ->
+                    val total = live.value[3].coerceAtLeast(1L)
+                    onPlayhead(usAt(at.x, size.width.toFloat().coerceAtLeast(1f), total))
+                }
             }
     ) {
         Canvas(Modifier.fillMaxSize()) {
@@ -390,7 +406,10 @@ private fun PlanSummary(
     syncUs: LongArray,
     inUs: Long,
 ) {
-    val problem = when (plan.problem) {
+    // Only once there is a clip. Before that the plan is empty by construction and would print
+    // "this clip has no point the video can start from" underneath the real reason, which is in
+    // the message: two contradictory sentences, one of them invented.
+    val problem = if (durationUs <= 0L) null else when (plan.problem) {
         ClipPlan.Problem.EMPTY_SELECTION -> stringResource(R.string.clip_selection_empty)
         ClipPlan.Problem.NOTHING_LEFT -> stringResource(R.string.clip_nothing_left)
         ClipPlan.Problem.NO_SYNC_FRAMES -> stringResource(R.string.clip_no_sync)
@@ -428,7 +447,9 @@ private fun PlanSummary(
         // How much more than was asked for came out. Said only when there is some, because a
         // forward snap can take up to two seconds of wanted footage with it and finding that
         // out by watching the result is the kind of surprise this screen exists to prevent.
-        if (plan.extraRemovedUs > 0L) {
+        // A whole second, not a microsecond: the label is rendered at second granularity, so
+        // anything smaller prints "0:00 more was removed than you asked for".
+        if (plan.extraRemovedUs >= 1_000_000L) {
             Text(
                 stringResource(R.string.clip_extra_removed, formatUs(plan.extraRemovedUs)),
                 style = MaterialTheme.typography.bodySmall,

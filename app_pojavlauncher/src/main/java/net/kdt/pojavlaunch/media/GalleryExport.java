@@ -81,7 +81,21 @@ public final class GalleryExport {
     public static boolean publishImage(@NonNull Context context, @NonNull File source) {
         String mime = source.getName().toLowerCase(java.util.Locale.US).endsWith(".png")
                 ? "image/png" : "image/jpeg";
-        return publish(context, source, mime, true);
+        return publish(context, source, mime, true, false);
+    }
+
+    /**
+     * Copy a picture into the gallery because the player asked for this one, setting or not.
+     *
+     * The preference answers "copy everything I capture", which is a standing instruction and
+     * the right thing to gate the automatic path on. A button is the opposite: somebody looking
+     * at one file and asking for it. Reading the preference here would make that button refuse
+     * in exactly the case it exists for, which is what it did.
+     */
+    public static boolean publishImageOnRequest(@NonNull Context context, @NonNull File source) {
+        String mime = source.getName().toLowerCase(java.util.Locale.US).endsWith(".png")
+                ? "image/png" : "image/jpeg";
+        return publish(context, source, mime, true, true);
     }
 
     /**
@@ -89,13 +103,31 @@ public final class GalleryExport {
      * gigabytes, and this is a byte-for-byte copy of it.
      */
     public static boolean publishVideo(@NonNull Context context, @NonNull File source) {
-        return publish(context, source, "video/mp4", false);
+        return publish(context, source, "video/mp4", false, false);
+    }
+
+    /** As {@link #publishImageOnRequest}, for a clip. Call from a background thread. */
+    public static boolean publishVideoOnRequest(@NonNull Context context, @NonNull File source) {
+        return publish(context, source, "video/mp4", false, true);
+    }
+
+    /** {@link #publishVideoOnRequest} on a thread of its own, since a clip can be gigabytes. */
+    public static void publishVideoOnRequestLater(@NonNull final Context context,
+                                                  @Nullable final File file) {
+        if (file == null) return;
+        final Context application = context.getApplicationContext();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                publishVideoOnRequest(application, file);
+            }
+        }, "GalleryExport").start();
     }
 
     private static boolean publish(@NonNull Context context, @NonNull File source,
-                                   @NonNull String mime, boolean image) {
+                                   @NonNull String mime, boolean image, boolean onRequest) {
         if (!source.isFile() || source.length() <= 0L) return false;
-        if (!isEnabled(context)) return false;
+        if (!onRequest && !isEnabled(context)) return false;
         if (!hasRoomFor(source)) {
             Log.w(TAG, "Not enough free space to copy " + source.getName() + " to the gallery");
             return false;
