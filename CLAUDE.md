@@ -2035,6 +2035,24 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     writing a check for anything that counts.
 
 
+32. **"Can not extract resource from ParsedResource" means a bare apostrophe, and the message
+    names nothing.** Six of them failed a build at once. aapt prints an object hash per
+    offender and no string name, no line and no hint about what is wrong, so the only thing
+    the log tells you is how many there are; the way the six were found was by counting them
+    and then counting the strings in the diff that held a `'`.
+    The cause is the part that generalises. Those strings were written by a Python script
+    through a heredoc, and `\'` inside a Python string literal **is** `'` — the outer
+    language consumed the escape, so what reached the XML was a bare apostrophe that
+    `xml.dom.minidom` parses perfectly happily, because it is well formed XML and an invalid
+    Android resource. **When one language's source is written by another language's string
+    literal, every escape belongs to the outer one**, and the only thing worth checking is the
+    file that landed, never the script that wrote it. That is 16.26's trap on the other axis:
+    there a harness inherited Python's arithmetic, here a resource inherited Python's escaping.
+    `scripts/check_strings.py` now reads the file that landed. It fails on the apostrophe,
+    which is an aapt error, and only warns on several non-positional format conversions in one
+    string, which is an aapt warning that thirteen inherited strings already carry: a check
+    that is red before anybody touches anything is a check nobody runs.
+
 31. **A control offered only when a setting is off cannot call code that the same setting gates.**
     "Add to gallery" appeared exactly when the automatic export preference was off, and
     `GalleryExport.publish` returns false early when that preference is off, so the button could
@@ -2686,6 +2704,11 @@ Before pushing:
   check re-implemented the algorithm in Python and passed while six of eight mutations to the
   shipped code went unnoticed. It reads the log4j configs out of assets for the format, and the
   mutations it is known to catch are listed at the top of `run.sh` so a weakening of it shows.
+- **Run `python3 scripts/check_strings.py`** if `values/strings.xml` changed, and especially if
+  anything wrote it through a script. A bare apostrophe is an aapt compile error whose message
+  names no string and no line (§16.32), so this is the difference between finding six of them
+  in a second and finding them by counting hashes in a CI log. It warns rather than failing on
+  non-positional format conversions, because thirteen inherited strings have them.
 - **Run `python3 scripts/check_settings_calls.py`** if anything in `ui/settings/SettingsComponents.kt`
   changed its parameters. It reproduces Kotlin's "No value passed for parameter" against every
   call site of every shared row, which is the one way an optional parameter added in the middle

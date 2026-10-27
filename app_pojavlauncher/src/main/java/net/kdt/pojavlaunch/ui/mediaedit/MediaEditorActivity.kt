@@ -234,6 +234,8 @@ class MediaEditorActivity : BaseActivity() {
             playing = playing,
             busy = busy,
             canSave = plan.isUsable() && !busy && live != null && hasChanges(),
+            pristine = live != null && inUs == 0L && outUs == live.durationUs &&
+                    splits.isEmpty() && cuts.isEmpty(),
             // Not at a boundary, because a split there divides nothing, and inside the trim.
             canSplit = live != null && playUs > inUs && playUs < outUs &&
                     spans.none { it.startUs == playUs },

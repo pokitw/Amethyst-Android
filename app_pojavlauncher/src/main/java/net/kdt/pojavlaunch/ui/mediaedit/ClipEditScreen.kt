@@ -119,6 +119,8 @@ fun ClipEditScreen(
     playing: Boolean,
     busy: Boolean,
     canSave: Boolean,
+    /** Nothing has been trimmed, split or deleted yet, so the how-to is still worth showing. */
+    pristine: Boolean,
     canSplit: Boolean,
     canDelete: Boolean,
     selectedRemoved: Boolean,
@@ -171,6 +173,11 @@ fun ClipEditScreen(
                 atUs = plan.mapToOutput(playUs).coerceAtLeast(0L),
                 totalUs = plan.outputDurationUs.takeIf { it > 0L } ?: durationUs,
                 enabled = durationUs > 0L && !busy,
+                part = if (segments.size > 1) {
+                    stringResource(R.string.clip_part_of, selected + 1, segments.size)
+                } else {
+                    null
+                },
                 onPlayPause = onPlayPause,
             )
             Timeline(
@@ -207,7 +214,7 @@ fun ClipEditScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (busy) ProgressTrack(progress)
-                Summary(plan, durationUs, syncUs, inUs)
+                Summary(plan, durationUs, syncUs, inUs, pristine)
                 if (message != null) {
                     Text(
                         message,
@@ -266,6 +273,7 @@ private fun Transport(
     atUs: Long,
     totalUs: Long,
     enabled: Boolean,
+    part: String?,
     onPlayPause: () -> Unit,
 ) {
     Row(
@@ -301,7 +309,18 @@ private fun Transport(
                 modifier = Modifier.size(22.dp),
             )
         }
-        Box(Modifier.weight(1f))
+        // The third the spacer used to hold. Which part the tools are about to act on is the
+        // one fact the timeline says only through a 2.5dp ring, and it is the fact somebody is
+        // checking before they press Delete.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            if (part != null) {
+                Text(
+                    part,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
 
@@ -346,7 +365,11 @@ private fun Timeline(
     val accent = MaterialTheme.colorScheme.primary
     val well = MaterialTheme.colorScheme.surfaceContainerHighest
     val scrim = MaterialTheme.colorScheme.background.copy(alpha = 0.72f)
-    val cutColour = MaterialTheme.colorScheme.error.copy(alpha = 0.34f)
+    // A deleted span is covered, not tinted. A wash of the error colour over a filmstrip of
+    // grass and sky reads as a slightly different clip rather than as absent, which is the one
+    // thing this band has to say; drawn over a picture, only taking the picture away says it.
+    val cutScrim = MaterialTheme.colorScheme.background.copy(alpha = 0.82f)
+    val cutEdge = MaterialTheme.colorScheme.error
     val tickColour = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
     val head = MaterialTheme.colorScheme.onSurface
 
@@ -433,7 +456,11 @@ private fun Timeline(
             cuts.forEach { cut ->
                 val l = x(cut.startUs)
                 val r = x(cut.endUs)
-                if (r > l) drawRect(cutColour, Offset(l, 0f), Size(r - l, h))
+                if (r > l) {
+                    drawRect(cutScrim, Offset(l, 0f), Size(r - l, h))
+                    val rule = 2f * density
+                    drawRect(cutEdge, Offset(l, (h - rule) / 2f), Size(r - l, rule))
+                }
             }
 
             // Split boundaries, drawn as the gaps a cut editor shows between clips.
@@ -587,6 +614,7 @@ private fun Summary(
     durationUs: Long,
     syncUs: LongArray,
     inUs: Long,
+    pristine: Boolean,
 ) {
     // Only once there is a clip. Before that the plan is empty by construction and would print
     // "this clip has no point the video can start from" underneath the real reason.
@@ -633,11 +661,17 @@ private fun Summary(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(
-            stringResource(R.string.clip_grid_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // Only until the first edit. It is three lines of how-to, which is exactly what is
+        // wanted on arrival and is clutter under a toolbar for the rest of the session; the
+        // moment somebody has split or trimmed anything they have already read it or worked
+        // it out, and the line below is the one that stays worth saying.
+        if (pristine) {
+            Text(
+                stringResource(R.string.clip_grid_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Text(
             stringResource(R.string.editor_original_kept),
             style = MaterialTheme.typography.bodySmall,
