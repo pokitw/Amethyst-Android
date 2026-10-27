@@ -1548,6 +1548,14 @@ re-litigated. The reasoning lives in the commit that made the change.
   would quietly throw away both the quality and the alpha somebody had; the format setting is
   about what a new capture is written as, which is a different question. Only a JPEG's quality
   comes from preferences, there being no other number to use.
+  **The gallery copy follows the existing setting, and there is a button for when it does not.**
+  An edit is published exactly as a capture is, so anyone who leaves the export preference on
+  gets the same behaviour from both and the message says so. The button exists for the case the
+  setting cannot cover: somebody who keeps the automatic copy off, because it doubles the space
+  every capture takes, but wants this one edit where a chat app can find it. It is shown only
+  while there is something to copy, so it is never a control that does nothing, and a picture
+  that fails to copy offers it again, since below Android 10 the cause is a storage permission
+  nothing asks for at runtime.
   **Neither editor ever writes to the original**, which is why both pick a free `_edit` name
   beside it, and the clip is written to a `.part` file and renamed only once every sample is in
   it. `loadRecordings` filters on `.mp4`, so a half written export is invisible to the gallery

@@ -84,6 +84,15 @@ class MediaEditorActivity : BaseActivity() {
     private var message by mutableStateOf<String?>(null)
     private var confirmLeave by mutableStateOf(false)
 
+    /**
+     * The file the last save produced, while it is still not in the gallery.
+     *
+     * Null once there is nothing to offer: before a save, and after the copy has been made
+     * either by the preference or by the button. That is what makes the button appear exactly
+     * when it can do something.
+     */
+    private var pendingGallery by mutableStateOf<File?>(null)
+
     // Clip
     private var source by mutableStateOf<ClipEditor.Source?>(null)
     private var inUs by mutableStateOf(0L)
@@ -168,6 +177,8 @@ class MediaEditorActivity : BaseActivity() {
             busy = busy,
             progress = progress,
             message = message,
+            canAddToGallery = pendingGallery != null,
+            onAddToGallery = ::addToGallery,
             onIn = { at ->
                 // Clamped against the other handle so the two can never cross, which an
                 // ordinary drag would otherwise do and turn the selection inside out.
@@ -362,6 +373,7 @@ class MediaEditorActivity : BaseActivity() {
                 onSuccess = { out ->
                     val toGallery = GalleryExport.isEnabled(this@MediaEditorActivity)
                     if (toGallery) GalleryExport.publishVideoLater(this@MediaEditorActivity, out)
+                    pendingGallery = if (toGallery) null else out
                     message = getString(
                         if (toGallery) R.string.editor_saved_gallery else R.string.editor_saved,
                         out.name,
@@ -389,6 +401,8 @@ class MediaEditorActivity : BaseActivity() {
             busy = busy,
             message = message,
             dirty = crop != null || !orientation.isIdentity,
+            canAddToGallery = pendingGallery != null,
+            onAddToGallery = ::addToGallery,
             onCrop = { crop = it },
             onRotateLeft = { applyOrientation(orientation.rotatedLeft()) },
             onRotateRight = { applyOrientation(orientation.rotatedRight()) },
@@ -477,21 +491,56 @@ class MediaEditorActivity : BaseActivity() {
             result.fold(
                 onSuccess = { out ->
                     val toGallery = GalleryExport.isEnabled(this@MediaEditorActivity)
-                    if (toGallery) {
+                    val copied = toGallery && withContext(Dispatchers.IO) {
                         // publishImage is synchronous and small; a screenshot is megabytes, not
                         // gigabytes, so it does not need the recorder's deferred path.
-                        withContext(Dispatchers.IO) {
-                            GalleryExport.publishImage(this@MediaEditorActivity, out)
-                        }
+                        GalleryExport.publishImage(this@MediaEditorActivity, out)
                     }
+                    pendingGallery = if (copied) null else out
                     message = getString(
-                        if (toGallery) R.string.editor_saved_gallery else R.string.editor_saved,
+                        if (copied) R.string.editor_saved_gallery else R.string.editor_saved,
                         out.name,
                     )
                     toast(message!!)
                 },
                 onFailure = { t -> fail(t) },
             )
+        }
+    }
+
+    /**
+     * Put the saved copy in the phone's gallery, on request.
+     *
+     * The setting already does this for anyone who leaves it on, so this exists for the case it
+     * cannot cover: somebody who keeps the automatic copy off, because it doubles the space
+     * every capture takes, but wants this one edit where a chat app can find it. Offered only
+     * while there is something to copy, so it is never a button that does nothing.
+     *
+     * A clip goes through the deferred path on its own thread, because it can be gigabytes and
+     * must not be what stands between the player and the rest of the app. A picture is copied
+     * here and reports whether it worked, which below Android 10 it may not: that needs a
+     * storage permission nothing asks for at runtime.
+     */
+    private fun addToGallery() {
+        val file = pendingGallery ?: return
+        pendingGallery = null
+        if (isClip) {
+            GalleryExport.publishVideoLater(this, file)
+            message = getString(R.string.editor_gallery_copying)
+            toast(message!!)
+            return
+        }
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                GalleryExport.publishImage(this@MediaEditorActivity, file)
+            }
+            message = getString(
+                if (ok) R.string.editor_gallery_done else R.string.editor_gallery_failed
+            )
+            toast(message!!)
+            // Offered again on a failure, since trying once more is free and the cause can be a
+            // permission the player can grant.
+            if (!ok) pendingGallery = file
         }
     }
 

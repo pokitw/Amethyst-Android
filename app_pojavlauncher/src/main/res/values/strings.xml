@@ -1378,6 +1378,10 @@
     <string name="editor_discard_body">The changes you have made will be lost. The original is untouched either way.</string>
     <string name="editor_discard_confirm">Leave</string>
     <string name="editor_keep_editing">Keep editing</string>
+    <string name="editor_add_to_gallery">Add to gallery</string>
+    <string name="editor_gallery_copying">Copying it to your gallery</string>
+    <string name="editor_gallery_done">Added to your gallery</string>
+    <string name="editor_gallery_failed">Could not add it to your gallery</string>
     <string name="editor_reset">Reset</string>
     <string name="editor_original_kept">Your original is never changed. Saving writes a new file beside it.</string>
 

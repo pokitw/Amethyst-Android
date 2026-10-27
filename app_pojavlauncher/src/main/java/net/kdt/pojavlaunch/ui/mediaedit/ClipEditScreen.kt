@@ -94,6 +94,8 @@ fun ClipEditScreen(
     busy: Boolean,
     progress: Float,
     message: String?,
+    canAddToGallery: Boolean,
+    onAddToGallery: () -> Unit,
     onIn: (Long) -> Unit,
     onOut: (Long) -> Unit,
     onPlayhead: (Long) -> Unit,
@@ -170,6 +172,15 @@ fun ClipEditScreen(
             if (!busy) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuietButton(stringResource(R.string.editor_reset), onReset)
+                    // Offered only when the saved copy did not already go there, which is the
+                    // setting's job. A button that repeated what had just happened by itself
+                    // would be a second way to do one thing.
+                    if (canAddToGallery) {
+                        QuietButton(
+                            stringResource(R.string.editor_add_to_gallery),
+                            onAddToGallery,
+                        )
+                    }
                 }
             }
         }

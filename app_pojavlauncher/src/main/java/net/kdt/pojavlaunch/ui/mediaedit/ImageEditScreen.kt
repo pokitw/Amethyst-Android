@@ -104,6 +104,8 @@ fun ImageEditScreen(
     busy: Boolean,
     message: String?,
     dirty: Boolean,
+    canAddToGallery: Boolean,
+    onAddToGallery: () -> Unit,
     onCrop: (CropFraction?) -> Unit,
     onRotateLeft: () -> Unit,
     onRotateRight: () -> Unit,
@@ -189,6 +191,12 @@ fun ImageEditScreen(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (dirty) QuietButton(stringResource(R.string.editor_reset), onReset)
+                    if (canAddToGallery) {
+                        QuietButton(
+                            stringResource(R.string.editor_add_to_gallery),
+                            onAddToGallery,
+                        )
+                    }
                     QuietButton(stringResource(R.string.content_screenshot_open), onOpenElsewhere)
                 }
             }
