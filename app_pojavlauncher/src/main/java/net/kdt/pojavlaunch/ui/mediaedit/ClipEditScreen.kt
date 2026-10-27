@@ -200,9 +200,11 @@ private fun Timeline(
 ) {
     val live = rememberUpdatedState(longArrayOf(inUs, outUs, playUs, durationUs))
     var grab by remember { mutableStateOf<Grab?>(null) }
-    val density = LocalDensity.current
-    val slopPx = with(density) { GRAB_SLOP.toPx() }
-    val minTickPx = with(density) { MIN_TICK_SPACING.toPx() }
+    // Deliberately no `val density` here. DrawScope exposes its own `density` as a Float, and a
+    // local of that name would shadow it inside the Canvas below, where `10f * density` would
+    // then be Float times Density and fail to compile.
+    val slopPx = with(LocalDensity.current) { GRAB_SLOP.toPx() }
+    val minTickPx = with(LocalDensity.current) { MIN_TICK_SPACING.toPx() }
 
     val accent = MaterialTheme.colorScheme.primary
     val wellColour = MaterialTheme.colorScheme.surfaceContainerHighest
