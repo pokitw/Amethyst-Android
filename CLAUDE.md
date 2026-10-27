@@ -960,6 +960,22 @@ re-litigated. The reasoning lives in the commit that made the change.
   pack, one with `level.dat` a world, which gets unpacked. The categories are a **filter over one
   list**, which is what lets search cross them. Rows are deliberately the same shape whatever they
   hold; only mods carry a switch, because only a mod can be turned off in place.
+  **What it cannot identify, it asks about rather than refusing.** The deciding covers mods,
+  packs, worlds and screenshots, and everything else used to be a toast. That refusal was close
+  to a dead end: a config file, a datapack, an options.txt somebody was sent, a jar for a loader
+  this does not model, none of them could get into the game folder by any other route either,
+  because from Android 11 `Android/data` cannot be browsed to at all. So the refusal opens a
+  folder picker rooted at the game directory, a plain walk one folder at a time, with the
+  destination and the name the file will be given both shown before anything is written. The
+  name is shown because it is not obvious: a folder already holding that name gets the copy
+  beside it rather than over it.
+  **The destination is guarded twice, and the two guards answer different questions.** Up is
+  hidden at the root, which is about what the player can reach. The copy re-checks by canonical
+  path and that the resolved file is a direct child, which is about what a symlink inside the
+  game folder could point at. And the display name is treated as a stranger's string, because it
+  comes from whichever provider served the document and reaches `File(folder, name)` directly:
+  "../x" resolves outside the chosen folder and ".." resolves to its parent. The dialog's preview
+  runs through the same sanitiser, so the name it promises is the name that gets written.
   Three things that must not be undone: **the four mod metadata formats are tried most-specific
   first** (a Quilt jar also ships `fabric.mod.json`, a NeoForge jar also ships `mods.toml`, so the
   obvious order misreports both); **a world's folder name is not its name**, so `level.dat` is
@@ -1937,6 +1953,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     one that asserted the *end state* rather than the rate, which is worth remembering when
     writing a check for anything that counts.
 
+
+31. **A control offered only when a setting is off cannot call code that the same setting gates.**
+    "Add to gallery" appeared exactly when the automatic export preference was off, and
+    `GalleryExport.publish` returns false early when that preference is off, so the button could
+    never once have worked. Both halves are individually reasonable and the contradiction lives
+    only in their composition, which is why reading either file alone finds nothing: the
+    preference means "copy everything I capture", which is the right thing to gate an automatic
+    path on and the wrong thing to consult when somebody is looking at one file and asking for
+    it. The general form: **when a new entry point reuses an existing action, check what that
+    action's preconditions are, not just its signature** - and when the precondition is the very
+    condition that made the entry point appear, the feature is dead on arrival with nothing in
+    the build able to see it. Found by an adversarial review told to look for behaviour rather
+    than compile errors; no harness could have, because the gate is a preference read at runtime.
+
 ---
 
 ## 17. Known limitations
@@ -2429,6 +2459,17 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - **An edit is a copy, so it costs the space twice**, and with the gallery copy on, three times.
   The original is never touched, which is the point, but a forty minute recording trimmed to five
   still leaves the forty on disk until it is deleted by hand.
+- The folder picker for an unidentified file **only copies**. It does not create folders, rename,
+  move or delete, and it cannot leave the game directory. It is the escape hatch for getting a
+  file in, not a file manager, and anything beyond copying is a second feature with its own
+  confirmations to design.
+- It **takes the provider's name or falls back to "import"**, with separators cut and the two
+  directory names refused. A document whose provider reports no name at all lands as `import`,
+  and a second one as `import (2)`, which is ugly and is the honest result of being told nothing.
+- Nothing about the copy is **verified by a harness**: `ContentModel.kt` is Kotlin, so the
+  containment check and the sanitiser are read rather than executed. They are short and guarded
+  twice for that reason, but §16.25 applies and a future change here would be better placed in
+  Java where `javac` and a harness can reach it.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
