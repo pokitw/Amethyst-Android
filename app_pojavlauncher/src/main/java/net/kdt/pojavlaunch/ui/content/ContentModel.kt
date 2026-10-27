@@ -598,7 +598,25 @@ private fun copy(input: InputStream, output: java.io.OutputStream) {
  * name: the copy lands beside it as "thing (2).jar" rather than over it.
  */
 fun importedNameFor(context: Context, uri: Uri, folder: File): String =
-    uniqueFile(folder, queryDisplayName(context, uri) ?: "import").name
+    uniqueFile(folder, safeName(queryDisplayName(context, uri))).name
+
+/**
+ * A file name that cannot be anything but a file name.
+ *
+ * The display name comes from whichever provider served the document, so it is a stranger's
+ * string: `File(folder, name)` with "../x" in it resolves outside the folder the player chose,
+ * and with ".." in it resolves to the parent directory. Separators of both kinds are cut and the
+ * two directory names are refused outright, which leaves a plain name or the fallback.
+ *
+ * Shared with {@link #importedNameFor} on purpose. The dialog shows the name before the copy
+ * happens, and a dialog that promised one name while the writer used another would be worse
+ * than showing nothing.
+ */
+private fun safeName(raw: String?): String {
+    val trimmed = (raw ?: "").substringAfterLast('/').substringAfterLast('\\').trim()
+    if (trimmed.isEmpty() || trimmed == "." || trimmed == "..") return "import"
+    return trimmed
+}
 
 /** The folders inside one, for the picker to walk. Hidden ones are left out. */
 fun subFolders(folder: File): List<File> =
@@ -626,7 +644,10 @@ fun copyIntoFolder(context: Context, gameDir: File, uri: Uri, folder: File): Imp
             return ImportResult.Failed
         }
         if (!target.isDirectory) return ImportResult.Failed
-        val destination = uniqueFile(target, queryDisplayName(context, uri) ?: "import")
+        val destination = uniqueFile(target, safeName(queryDisplayName(context, uri)))
+        // Belt and braces after the name has been cleaned: the only thing that may be written
+        // is a direct child of the folder that was chosen.
+        if (destination.canonicalFile.parentFile != target) return ImportResult.Failed
         context.contentResolver.openInputStream(uri).use { input ->
             if (input == null) return ImportResult.Failed
             destination.outputStream().use { output -> input.copyTo(output) }
