@@ -97,6 +97,12 @@ class ComparisonRow(
 fun comparisonRows(): List<ComparisonRow> = listOf(
     ComparisonRow(R.string.onboarding_row_play, Support.YES, Support.YES),
     ComparisonRow(R.string.onboarding_row_record, Support.NO, Support.YES),
+    // "No" for upstream, which is the strongest mark the table hands out and is earned here the
+    // way auto-walk earned it: this is not the same capability presented better, it is one that
+    // has no equivalent at all. Upstream writes clips and screenshots into a folder under
+    // Android/data and that is the end of its involvement, so trimming one means finding a file
+    // the system file manager cannot browse to and taking it to another app.
+    ComparisonRow(R.string.onboarding_row_editor, Support.NO, Support.YES),
     // Upstream has gyro aiming; what it does not have is one that moves smoothly. "Part" is the
     // honest mark for a thing that exists and steps, and the footnote says what it is measured
     // against — marking it absent would be the kind of overclaim that makes a table worthless.

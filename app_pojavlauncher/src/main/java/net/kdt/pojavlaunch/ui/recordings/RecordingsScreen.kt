@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -75,6 +76,7 @@ fun RecordingsScreen(
     onVersionFilterChange: (String?) -> Unit,
     onPlay: (Recording) -> Unit,
     onShare: (Recording) -> Unit,
+    onEdit: (Recording) -> Unit,
     onDelete: (Recording) -> Unit,
     onBack: () -> Unit
 ) {
@@ -156,6 +158,7 @@ fun RecordingsScreen(
             onDismiss = { actionsFor = null },
             onPlay = { actionsFor = null; onPlay(recording) },
             onShare = { actionsFor = null; onShare(recording) },
+            onEdit = { actionsFor = null; onEdit(recording) },
             onDelete = { actionsFor = null; pendingDeletion = recording }
         )
     }
@@ -344,6 +347,7 @@ private fun ActionsDialog(
     onDismiss: () -> Unit,
     onPlay: () -> Unit,
     onShare: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     AlertDialog(
@@ -353,6 +357,7 @@ private fun ActionsDialog(
             Column {
                 DialogAction(Icons.Filled.PlayArrow, R.string.recordings_action_play, onPlay)
                 DialogAction(Icons.Filled.Share, R.string.recordings_action_share, onShare)
+                DialogAction(Icons.Filled.Edit, R.string.recordings_edit, onEdit)
                 DialogAction(
                     Icons.Filled.Delete, R.string.recordings_action_delete, onDelete,
                     tint = MaterialTheme.colorScheme.error

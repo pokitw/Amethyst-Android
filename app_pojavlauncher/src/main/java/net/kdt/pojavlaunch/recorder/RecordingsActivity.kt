@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.BaseActivity
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.Tools
+import net.kdt.pojavlaunch.ui.mediaedit.MediaEditorActivity
 import net.kdt.pojavlaunch.ui.recordings.Recording
 import net.kdt.pojavlaunch.ui.recordings.RecordingSort
 import net.kdt.pojavlaunch.ui.recordings.RecordingsScreen
@@ -65,6 +66,7 @@ class RecordingsActivity : BaseActivity() {
                     onVersionFilterChange = { versionFilter = it },
                     onPlay = { open(it.file, share = false) },
                     onShare = { open(it.file, share = true) },
+                    onEdit = ::edit,
                     onDelete = ::delete,
                     onBack = ::finish
                 )
@@ -105,6 +107,21 @@ class RecordingsActivity : BaseActivity() {
     private fun open(file: File, share: Boolean) {
         try {
             Tools.openPath(this, file, share)
+        } catch (t: Throwable) {
+            Toast.makeText(this, R.string.recordings_open_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * Open the clip in the editor.
+     *
+     * Nothing is reloaded here: the editor writes a new file beside the original and `onResume`
+     * already re-reads the folder on the way back, which is also how a clip recorded while the
+     * gallery was open appears.
+     */
+    private fun edit(recording: Recording) {
+        try {
+            startActivity(MediaEditorActivity.editClip(this, recording.file))
         } catch (t: Throwable) {
             Toast.makeText(this, R.string.recordings_open_failed, Toast.LENGTH_LONG).show()
         }

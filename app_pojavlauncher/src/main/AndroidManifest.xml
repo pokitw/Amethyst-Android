@@ -180,6 +180,19 @@
             android:process=":launcher"/>
 
         <!--
+            The clip and screenshot editor. An activity rather than a route inside either
+            gallery, which is the opposite of the mod browser's project page and for a reason:
+            this one screen is reached from two different activities, and it finishes by writing
+            a new file that whichever one launched it picks up on its own resume. A route would
+            mean hosting it twice.
+        -->
+        <activity
+            android:name=".ui.mediaedit.MediaEditorActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:label="@string/editor_title_clip"
+            android:process=":launcher"/>
+
+        <!--
             The Modrinth browser. Launcher process like Game files, which it installs into and is
             reached from; it has nothing to do with the game process.
         -->

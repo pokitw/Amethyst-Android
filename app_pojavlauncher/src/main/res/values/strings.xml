@@ -1362,4 +1362,50 @@
     <string name="loader_install_run_jar">Run an installer jar instead</string>
     <string name="profile_type_loaders">Any mod loader</string>
     <string name="profile_type_loaders_blurb">Pick a Minecraft version and see every loader that supports it, with the build it will install.</string>
+    <string name="onboarding_row_editor">Trim clips and crop screenshots in the app</string>
+
+    <!-- Clip and screenshot editor -->
+    <string name="editor_title_clip">Edit clip</string>
+    <string name="editor_title_image">Edit screenshot</string>
+    <string name="editor_reading">Reading the clip</string>
+    <string name="editor_unreadable">This file could not be opened</string>
+    <string name="editor_save">Save a copy</string>
+    <string name="editor_saving">Saving</string>
+    <string name="editor_saved">Saved as %1$s</string>
+    <string name="editor_saved_gallery">Saved as %1$s and added to your gallery</string>
+    <string name="editor_save_failed">Could not save: %1$s</string>
+    <string name="editor_discard_title">Leave without saving?</string>
+    <string name="editor_discard_body">The changes you have made will be lost. The original is untouched either way.</string>
+    <string name="editor_discard_confirm">Leave</string>
+    <string name="editor_keep_editing">Keep editing</string>
+    <string name="editor_reset">Reset</string>
+    <string name="editor_original_kept">Your original is never changed. Saving writes a new file beside it.</string>
+
+    <!-- Clip editor -->
+    <string name="clip_cuts">Cuts</string>
+    <string name="clip_add_cut">Remove this part</string>
+    <string name="clip_cut_row">Cut %1$s to %2$s</string>
+    <string name="clip_cut_remove">Remove cut</string>
+    <string name="clip_no_cuts">Drag the two handles to choose what to keep. To drop something out of the middle, move the position marker and use Remove this part.</string>
+    <string name="clip_length">New length %1$s, from %2$s</string>
+    <string name="clip_start_snapped">Start moved to %1$s, the nearest point the video can begin from</string>
+    <string name="clip_grid_hint">A clip can only start on one of the pictures in the strip. The end can go anywhere.</string>
+    <string name="clip_extra_removed">%1$s more was removed than you asked for, to reach a point the video can start from</string>
+    <string name="clip_nothing_left">Nothing is left to save</string>
+    <string name="clip_selection_empty">Choose a part of the clip to keep</string>
+    <string name="clip_no_sync">This clip has no point the video can start from</string>
+    <string name="clip_out_of_order">This clip stores its frames out of order, so it cannot be edited without losing quality</string>
+    <string name="clip_lossless">Nothing is re-encoded, so a saved clip is exactly as sharp as the original.</string>
+
+    <!-- Screenshot editor -->
+    <string name="image_crop">Crop</string>
+    <string name="image_rotate_left">Turn left</string>
+    <string name="image_rotate_right">Turn right</string>
+    <string name="image_mirror">Flip</string>
+    <string name="image_crop_reset">Whole picture</string>
+    <string name="image_size">%1$d by %2$d</string>
+    <string name="image_crop_hint">Drag inside the picture to choose a part of it.</string>
+    <string name="image_too_large">This picture is too large to edit on this device</string>
+    <string name="content_screenshot_open">Open elsewhere</string>
+    <string name="recordings_edit">Edit</string>
 </resources>

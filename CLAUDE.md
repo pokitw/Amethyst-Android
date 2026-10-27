@@ -403,6 +403,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Onboarding | **Compose** | `ui/onboarding/`, `OnboardingActivity.kt`; runs once, before the launcher is built |
 | Launcher home | **Compose** | `ui/home/`, hosted by `MainMenuFragment.kt` |
 | Recordings gallery | **Compose** | `ui/recordings/`, `RecordingsActivity.kt` |
+| Clip editor · screenshot editor | **Compose** | `ui/mediaedit/`, `MediaEditorActivity.kt`; reached from both galleries |
 | Game files (worlds, mods, packs, shaders, screenshots) | **Compose** | `ui/content/`, `ContentActivity.kt` |
 | Profile / account pickers on home | **Compose** | `ModalBottomSheet` in `ui/home/HomeSheets.kt` |
 | Settings | **Compose** | `ui/settings/`, hosted by `SettingsFragment.kt` |
@@ -1478,6 +1479,92 @@ re-litigated. The reasoning lives in the commit that made the change.
   not do is check the renderer first, stay silent when it is already right, or offer the renderer
   that would fix it.
 
+- **Editing a clip and a screenshot** (`recorder/edit/` + `screenshot/edit/` + `ui/mediaedit/`)
+  — trim a recording, drop parts out of its middle, crop and turn a screenshot, and save a copy
+  the gallery can see. Everything the launcher captures previously left it to be edited: both
+  live under `Android/data`, which from Android 11 cannot be browsed to at all, so the launcher
+  is again the only thing that can offer them (the same argument the skin editor and the log
+  viewer are built on).
+  **The clip edit is a stream copy, and that one decision shapes the whole feature.** Samples are
+  copied from one MP4 into another without being decoded, so an edit is as fast as the storage,
+  cannot lose a frame of quality, and needs no transcode pipeline and no media3 dependency this
+  app could not afford to ship whole. The price is a single rule, and the rule is narrower than
+  it looks: **only a segment's first video sample has to be a sync frame**, because nothing needs
+  to decode past a segment's end. So the trim END and the near side of every cut are frame
+  accurate, and only the points where playback RESUMES sit on the two second grid. Anybody
+  assuming both ends snap will make the editor needlessly coarse, which is why `clipsim` asserts
+  the asymmetry rather than merely the behaviour.
+  **A resume point snaps forward, never back**, so a cut always removes at least what was asked
+  for. Somebody cutting out a death, a mistake or a face on a shared screen is asking for that
+  material to be gone, and a cut that quietly left 1.9 seconds of it in would be the one failure
+  this must not have. Losing a little extra footage is a disappointment; failing to remove what
+  you were told to remove is a breach.
+  **A segment's end still snaps, to a frame rather than to a sync frame**, and this is the piece
+  nobody would find by looking. A declared segment that ends between two frames makes the frame
+  at the join display for a fraction of its time, once per cut. Snapping the end forward to the
+  next frame costs nothing and cannot change which frames survive, because the span is half open
+  so a frame sitting exactly on the new end is still excluded. That it cannot overrun the next
+  segment rests on every sync frame also being a frame, which `build` establishes by **unioning**
+  the two tables rather than trusting a file to nest them.
+  **The decisions are plain Java and the execution is not, deliberately** (§16.25). `ClipPlan`
+  and `ImageEdit` have no Android imports and are driven by harnesses; `ClipEditor` and
+  `ImageEditor` hold only the calls that need a device. A wrong plan is a corrupt video that
+  compiles perfectly, and there is no phone in CI.
+  **`MediaMuxer` fails in three ways that are all worse than an exception**, and all three are
+  reachable from an arithmetic slip: a timestamp that goes backwards within a track **hangs the
+  thread** rather than throwing (`minSdk` is 21, below where the platform started tolerating it),
+  a negative timestamp truncates the track silently and then hangs the next write to it, and a
+  segment that starts off a sync frame is not refused at all, the writer just eats the leading
+  frames and puts the video up to a GOP behind the sound. Each is checked before the call that
+  would trigger it, and `clipeditsim`'s stub throws where the real one would block, so a guard
+  that stopped working is a failed check rather than a frozen phone.
+  **The sample flags are translated, not cast.** `SAMPLE_FLAG_SYNC` is 1 and so is
+  `BUFFER_FLAG_KEY_FRAME`, which makes `info.flags = extractor.getSampleFlags()` look obviously
+  right; but `SAMPLE_FLAG_ENCRYPTED` is 2 and so is `BUFFER_FLAG_CODEC_CONFIG`, and
+  `SAMPLE_FLAG_PARTIAL_FRAME` is 4 and so is `BUFFER_FLAG_END_OF_STREAM`.
+  **B frames are detected and refused rather than mangled.** A stream copy can reorder spans of
+  samples, not samples, and MediaMuxer discards the original decode timeline and rebuilds it from
+  the presentation one, so a reordered source would not be lossless in the timing even where it
+  was accepted. The walk that collects the sync frames already reads every timestamp, so noticing
+  costs nothing.
+  **The filmstrip is drawn at sync frames, and that is the UI's whole answer to the constraint.**
+  `getFrameAtTime` with `OPTION_CLOSEST_SYNC` returns exactly the frames a clip is allowed to
+  start from, and it is the cheap option, so the pictures on the strip are the pictures the start
+  handle can land on. The grid is furniture rather than a sentence. Ticks are drawn only while
+  they are far enough apart to carry information, because at forty minutes there are twelve
+  hundred of them and a solid grey line says less than nothing.
+  **The screenshot preview is produced by the exporter's own code.** Turning the picture with a
+  `graphicsLayer` rotation would be cheaper and would mean the preview and the saved file came
+  from two different pieces of arithmetic, which can disagree in exactly the ways that are
+  invisible in source: a flip that comes out vertical at ninety degrees, a crop taken from the
+  wrong corner. The preview bitmap goes through the same `ImageEdit.plan` and `ImageEditor.apply`
+  the export uses, so **what is on screen is the output**. Same rule as `ControlTextureDrawable`
+  drawing its own previews.
+  **The crop is held as fractions of the displayed image**, because `preview()` is downsampled
+  and `export()` works in full resolution source pixels. A plan built against a half size preview
+  and applied to a full size bitmap crops the wrong half of the picture and looks entirely
+  plausible doing it.
+  **The format is the source's, not the capture preference's.** Saving an edited PNG as a JPEG
+  would quietly throw away both the quality and the alpha somebody had; the format setting is
+  about what a new capture is written as, which is a different question. Only a JPEG's quality
+  comes from preferences, there being no other number to use.
+  **Neither editor ever writes to the original**, which is why both pick a free `_edit` name
+  beside it, and the clip is written to a `.part` file and renamed only once every sample is in
+  it. `loadRecordings` filters on `.mp4`, so a half written export is invisible to the gallery
+  rather than merely incomplete in it.
+  **It is an activity, not a route**, which is the opposite of the mod browser's project page and
+  for a reason: this one screen is reached from two different activities, and it finishes by
+  writing a new file that whichever one launched it picks up on its own resume. A route would
+  mean hosting it twice.
+  **Tapping a screenshot now opens it here**, because there was no viewer before: a tap built a
+  document URI and handed it to a chooser, so the way to look at a picture the launcher had just
+  written was to leave the launcher. The editor is the viewer, and it offers the old behaviour as
+  a link rather than taking it away.
+  It gets a **comparison row** marked `No` for upstream, the strongest mark the table hands out,
+  on auto-walk's reasoning: this is not the same capability presented better, it is one upstream
+  has no equivalent of at all. It gets **no onboarding page**, on the precedent of slide to
+  repeat and the sequence runner: you meet it on the thing you wanted to edit.
+
 - **Taking what is worth taking from upstream** (`scripts/check_renderer_env.py`,
   `check_log_formats.py`, `check_ported_fixes.py`) — 21 commits landed upstream between
   2026-08-27 and 2026-09-22, all by one maintainer, and nothing since. Five were ported, three
@@ -2273,6 +2360,43 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - The ported fixes are **verified structurally, not run**. `check_renderer_env.py` reads
   `JREUtils` as source, `check_ported_fixes.py` reads the manifest and one Java file as text, and
   `check_log_formats.py` counts conversions. None of them starts a game.
+- **A clip can only start where the video can start.** The trim start and the far side of every
+  cut land on the next sync frame, roughly every two seconds, because the edit is a stream copy
+  and a decoder cannot begin anywhere else. The trim end and the near side of a cut are frame
+  accurate. Snapping is always forward, so a cut removes at least what was asked for and may
+  remove up to two seconds more.
+- **There is no playback in the clip editor**, only a scrubbed still. There is no media3 and no
+  ExoPlayer in this build, and adding one to show a preview would ship a whole player with it
+  (no R8). The frame under the marker is fetched with `OPTION_CLOSEST_SYNC`, which is the cheap
+  option, so between two sync frames the picture shown is the nearest one rather than the exact
+  frame at that microsecond.
+- **A clip whose frames are stored out of order cannot be edited.** Nothing this launcher records
+  is, because the recorder's encoder is a realtime surface encoder, but an imported file can be
+  and is refused with a reason rather than mangled.
+- **Nothing is re-encoded, so nothing can be added.** No fades, no titles, no music, no speed
+  change, no joining two clips. Those all mean a transcode, which means a pipeline and minutes of
+  encoding on a phone. This cuts and trims, instantly and losslessly, and stops there.
+- **A very short selection can hold no sound.** One AAC frame is 21ms at 48kHz, so a selection
+  shorter than that has video and no audio, which MediaMuxer refuses. It is reported rather than
+  risked.
+- **The screenshot editor turns in quarter turns only**, and that is deliberate rather than
+  missing: at a multiple of 90 degrees with an optional flip the transform is a permutation of
+  the pixels, so the output is exact, there is no config promotion and no antialiasing. Free
+  rotation would resample the picture and produce transparent corners on a bitmap the platform
+  still flags opaque.
+- **The crop is drawn, not typed.** There are no aspect ratio presets and no numeric fields; a
+  crop is a rectangle dragged on the picture, with corners that can be taken hold of afterwards.
+- **An edited picture is decoded whole to be saved.** The preview is downsampled, the export is
+  not, because the plan's coordinates are source pixels. On a very large imported image that can
+  run out of memory, which is reported rather than crashed.
+- **Both editors are verified by simulation, not on hardware.** `clipsim` drives the planner,
+  `clipeditsim` drives the real executor against a stubbed platform, `imageeditsim` brute forces
+  the crop geometry. None of them plays an MP4 or looks at a picture: that a real MediaMuxer
+  accepts these timestamps and that the resulting file plays needs a device, and there is none in
+  CI.
+- **An edit is a copy, so it costs the space twice**, and with the gallery copy on, three times.
+  The original is never touched, which is the point, but a forty minute recording trimmed to five
+  still leaves the forty on disk until it is deleted by hand.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2331,7 +2455,10 @@ Before pushing:
   Ignore the noise from `android.R.*` and the `sdp`/`ssp` libraries; only new names matter.
 - Parse every file under `res/` as XML.
 - Render new vector drawables to SVG and screenshot them with
-  `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell --screenshot`.
+  the bundled headless Chromium. **Find it rather than hardcoding it**: the path carries a
+  build number that moves under you (it was `chromium_headless_shell-1194/chrome-linux/`
+  and is now `chromium_headless_shell-1243/chrome-headless-shell-linux64/`), so
+  `find /opt/pw-browsers -name 'chrome-headless-shell' -o -name headless_shell` first.
   A contact sheet of the whole family catches shapes that are merely upside down.
 - Check balanced braces in new Kotlin and Java files.
 - **Run `python3 scripts/check_layouts.py`** if any shipped layout changed. `${...}`
@@ -2480,6 +2607,21 @@ Before pushing:
   an Android view class. The one that matters is placement, because upstream's own copy of the
   Game Mode declaration sits under `<manifest>` where `<meta-data>` is not valid and the platform
   does not look, so "we match upstream" is the wrong thing to assert.
+- **Run `sh scripts/clipsim/run.sh`** if `ClipPlan` changed. It compiles the shipped planner at
+  source 8 and drives it: which spans survive a trim and a set of cuts, and what every surviving
+  sample's new timestamp is. The one that matters most is `aCutNeverRemovesLessThanAsked`, swept
+  rather than sampled, because flipping the snap direction is a one word edit and it is the edit
+  somebody will make.
+- **Run `sh scripts/clipeditsim/run.sh`** if `ClipEditor` changed. It stubs `MediaExtractor` and
+  `MediaMuxer` and drives the **real** shipped executor, which is half the point: that file is
+  ~350 lines of new Java calling twenty Android signatures and CI is otherwise the only compiler
+  (§16.6). The stubs model the platform's refusals rather than only its successes (§16.16), and
+  one of them throws `WouldHaveHung` where the real muxer **blocks forever**, so a guard that
+  stopped working shows up as a failed check instead of a frozen phone.
+- **Run `sh scripts/imageeditsim/run.sh`** if the screenshot crop or orientation maths changed.
+  It brute forces every pixel of several images through `mapPoint`/`unmapPoint` and back, which
+  is the only honest check for a transform whose failures (a mirrored limb, a crop from the wrong
+  corner) are invisible in source and obvious in a picture.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

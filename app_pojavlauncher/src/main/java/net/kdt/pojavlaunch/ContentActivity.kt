@@ -32,6 +32,7 @@ import net.kdt.pojavlaunch.ui.content.readThumbnail
 import net.kdt.pojavlaunch.ui.content.scanContent
 import net.kdt.pojavlaunch.ui.content.setContentEnabled
 import net.kdt.pojavlaunch.ui.content.summarise
+import net.kdt.pojavlaunch.ui.mediaedit.MediaEditorActivity
 import net.kdt.pojavlaunch.ui.mods.ModTarget
 import net.kdt.pojavlaunch.ui.mods.currentModTarget
 import net.kdt.pojavlaunch.ui.home.currentGameDirectory
@@ -113,7 +114,7 @@ class ContentActivity : BaseActivity() {
     // would mean every visible row rebuilding each time a thumbnail lands, while scrolling.
     private val toggleItem: (ContentItem, Boolean) -> Unit = { item, on -> toggle(item, on) }
     private val deleteItem: (ContentItem) -> Unit = { item -> delete(item) }
-    private val openItem: (ContentItem) -> Unit = { item -> openPath(item.file) }
+    private val openItem: (ContentItem) -> Unit = { item -> open(item) }
     private val needThumbnail: (ContentItem) -> Unit = { item -> loadThumbnail(item) }
 
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -490,6 +491,27 @@ class ContentActivity : BaseActivity() {
             this, items.filterNot { key(it) == key(item) }, modTarget, rendererId, gpu
         )
         updateStorageLine()
+    }
+
+    /**
+     * Open an item, in the launcher where the launcher has something to show.
+     *
+     * A screenshot opens in the editor, which is also the only viewer this app has ever had for
+     * one: tapping a screenshot used to build a document URI and hand it to a chooser, so the
+     * way to look at a picture the launcher had just written was to leave the launcher. Anything
+     * else still goes out to whatever the device opens it with, because there is nothing better
+     * to offer for a jar or a world folder.
+     *
+     * A failure to start the editor falls back to the old behaviour rather than reporting
+     * nothing, so the worst case is what used to happen anyway.
+     */
+    private fun open(item: ContentItem) {
+        if (item.kind == ContentKind.SCREENSHOT) {
+            runCatching { startActivity(MediaEditorActivity.editImage(this, item.file)) }
+                .onFailure { openPath(item.file) }
+            return
+        }
+        openPath(item.file)
     }
 
     /** Hand a file to whatever the device opens it with, through the launcher's own provider. */
