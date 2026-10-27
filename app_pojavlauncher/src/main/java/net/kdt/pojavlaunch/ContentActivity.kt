@@ -23,6 +23,9 @@ import net.kdt.pojavlaunch.ui.content.ContentKind
 import net.kdt.pojavlaunch.ui.content.ContentScreen
 import net.kdt.pojavlaunch.ui.content.ContentSection
 import net.kdt.pojavlaunch.ui.content.ContentState
+import net.kdt.pojavlaunch.ui.content.importedNameFor
+import net.kdt.pojavlaunch.ui.content.copyIntoFolder
+import net.kdt.pojavlaunch.ui.content.FolderPickerDialog
 import net.kdt.pojavlaunch.ui.content.ImportResult
 import net.kdt.pojavlaunch.ui.content.deleteContent
 import net.kdt.pojavlaunch.ui.content.describe
@@ -117,6 +120,14 @@ class ContentActivity : BaseActivity() {
     private val openItem: (ContentItem) -> Unit = { item -> open(item) }
     private val needThumbnail: (ContentItem) -> Unit = { item -> loadThumbnail(item) }
 
+    /**
+     * A file the launcher could not identify, waiting for the player to say where it goes.
+     *
+     * Held rather than dropped, because the alternative was a toast and a second trip through
+     * the picker, and from Android 11 there is no second route into the game folder at all.
+     */
+    private var unplaced by mutableStateOf<Pair<Uri, String>?>(null)
+
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importFile(uri)
     }
@@ -167,6 +178,17 @@ class ContentActivity : BaseActivity() {
                     onFindMissingMod = ::browseFor,
                     onBack = ::finish
                 )
+                unplaced?.let { (uri, name) ->
+                    FolderPickerDialog(
+                        fileName = name,
+                        gameDir = gameDir,
+                        onDismiss = { unplaced = null },
+                        onConfirm = { folder ->
+                            unplaced = null
+                            placeInto(uri, folder)
+                        },
+                    )
+                }
             }
         }
     }
@@ -390,8 +412,30 @@ class ContentActivity : BaseActivity() {
                     )
                     reload()
                 }
-                ImportResult.Unrecognised -> toast(getString(R.string.content_add_unknown))
+                // Asked rather than refused. The launcher works out where a mod, a pack, a
+                // world or a screenshot goes by looking inside it; everything else used to be a
+                // toast, which on Android 11 and up meant the file could never get in at all.
+                ImportResult.Unrecognised ->
+                    unplaced = uri to importedNameFor(this@ContentActivity, uri, gameDir)
+                is ImportResult.Copied ->
+                    toast(getString(R.string.content_placed, result.name, result.folder))
                 ImportResult.Failed -> toast(getString(R.string.content_add_failed))
+            }
+        }
+    }
+
+    /** Copy an unidentified file into the folder the player chose. */
+    private fun placeInto(uri: Uri, folder: File) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                copyIntoFolder(this@ContentActivity, gameDir, uri, folder)
+            }
+            when (result) {
+                is ImportResult.Copied -> {
+                    toast(getString(R.string.content_placed, result.name, result.folder))
+                    reload()
+                }
+                else -> toast(getString(R.string.content_add_failed))
             }
         }
     }

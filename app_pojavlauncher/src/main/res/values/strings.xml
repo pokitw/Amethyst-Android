@@ -1412,4 +1412,10 @@
     <string name="image_too_large">This picture is too large to edit on this device</string>
     <string name="content_screenshot_open">Open elsewhere</string>
     <string name="recordings_edit">Edit</string>
+    <string name="content_place_title">Where should this go?</string>
+    <string name="content_place_body">The launcher could not tell what %1$s is. Choose a folder to put it in.</string>
+    <string name="content_place_up">Back up a folder</string>
+    <string name="content_place_empty">No folders in here. It can still go in this one.</string>
+    <string name="content_place_here">Put it here</string>
+    <string name="content_placed">Put %1$s in %2$s</string>
 </resources>

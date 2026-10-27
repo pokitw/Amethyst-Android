@@ -416,6 +416,8 @@ sealed class ImportResult {
     data class Added(val kind: ContentKind, val name: String) : ImportResult()
     /** Readable, but nothing in it says what it is meant to be. */
     object Unrecognised : ImportResult()
+    /** Placed by hand, in a folder the player picked. */
+    data class Copied(val name: String, val folder: String) : ImportResult()
     object Failed : ImportResult()
 }
 
@@ -586,6 +588,62 @@ private fun copy(input: InputStream, output: java.io.OutputStream) {
         if (read <= 0) break
         output.write(buffer, 0, read)
     }
+}
+
+/**
+ * The name a file would be given, for a dialog to show before anything is written.
+ *
+ * Public because the folder picker tells the player where the file is going AND what it will be
+ * called, and the second half is not obvious when the first one already holds a file of that
+ * name: the copy lands beside it as "thing (2).jar" rather than over it.
+ */
+fun importedNameFor(context: Context, uri: Uri, folder: File): String =
+    uniqueFile(folder, queryDisplayName(context, uri) ?: "import").name
+
+/** The folders inside one, for the picker to walk. Hidden ones are left out. */
+fun subFolders(folder: File): List<File> =
+    (folder.listFiles() ?: emptyArray())
+        .filter { it.isDirectory && !it.name.startsWith(".") }
+        .sortedBy { it.name.lowercase(Locale.getDefault()) }
+
+/**
+ * Copy a file the launcher could not identify into a folder the player chose.
+ *
+ * The escape hatch for everything the add button cannot place by looking inside it: a config
+ * file, a datapack, an options.txt somebody was sent, a jar for a loader this does not model.
+ * Refusing those outright meant the only way in was a file manager, and from Android 11 the game
+ * folder cannot be browsed to at all, so "unrecognised" was effectively "impossible".
+ *
+ * <b>It never overwrites and never leaves the game folder.</b> The destination is checked to be
+ * inside it by canonical path, because the picker walks real directories and a symlink inside
+ * the game folder is the one way a chosen path could point outside it.
+ */
+fun copyIntoFolder(context: Context, gameDir: File, uri: Uri, folder: File): ImportResult {
+    return try {
+        val root = gameDir.canonicalFile
+        val target = folder.canonicalFile
+        if (target != root && !target.path.startsWith(root.path + File.separator)) {
+            return ImportResult.Failed
+        }
+        if (!target.isDirectory) return ImportResult.Failed
+        val destination = uniqueFile(target, queryDisplayName(context, uri) ?: "import")
+        context.contentResolver.openInputStream(uri).use { input ->
+            if (input == null) return ImportResult.Failed
+            destination.outputStream().use { output -> input.copyTo(output) }
+        }
+        ImportResult.Copied(destination.name, relativeLabel(root, target))
+    } catch (t: Throwable) {
+        ImportResult.Failed
+    }
+}
+
+/** Where a folder is, said the way a player would read it, rooted at the game folder. */
+fun relativeLabel(gameDir: File, folder: File): String {
+    val root = runCatching { gameDir.canonicalFile }.getOrDefault(gameDir)
+    val here = runCatching { folder.canonicalFile }.getOrDefault(folder)
+    if (here == root) return ".minecraft"
+    val path = here.path.removePrefix(root.path).trimStart(File.separatorChar)
+    return if (path.isEmpty()) ".minecraft" else ".minecraft/" + path
 }
 
 private fun ensureExtension(name: String, extension: String): String =
