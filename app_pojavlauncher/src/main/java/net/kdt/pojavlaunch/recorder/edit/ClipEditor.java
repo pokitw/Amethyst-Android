@@ -69,6 +69,21 @@ public final class ClipEditor {
     private static final int VIDEO_FALLBACK_BYTES = 1835008;   // 1.75 MB
     private static final int AUDIO_FALLBACK_BYTES = 262144;    // 256 KB
 
+    /**
+     * How much the fraction must advance before the caller is told again.
+     *
+     * The copy loop reaches this once per sample, and a forty minute clip holds a quarter of a
+     * million of them across its two tracks. A caller that hops to the main thread to move a
+     * progress bar would therefore post a quarter of a million runnables during one export,
+     * which is not a slow progress bar, it is an unusable app. Throttling here rather than in
+     * each caller is the right place: the spam originates here, and a caller cannot throttle
+     * what it is not told about cheaply.
+     *
+     * 0.5% is about two hundred updates over a whole export, which is smoother than any bar
+     * needs and nothing next to the work being done.
+     */
+    private static final float PROGRESS_STEP = 0.005f;
+
     private ClipEditor() {}
 
     /** Called on the worker thread as the copy proceeds. */
@@ -268,13 +283,14 @@ public final class ClipEditor {
             // way when the video is done rather than reaching 100% and then sitting there.
             long totalUs = Math.max(1L, plan.outputDurationUs) * added;
             long doneUs = 0L;
+            Progress sink = throttled(progress);
             // One track at a time. MediaMuxer only requires timestamps to increase within a
             // track, not across them, so this is simpler than interleaving and produces the same
             // file.
             for (int track = 0; track < trackCount; track++) {
                 if (outputIndex[track] < 0) continue;
                 long written = copyTrack(extractor, muxer, track, outputIndex[track],
-                        bufferSize[track], isVideo[track], plan, progress, doneUs, totalUs);
+                        bufferSize[track], isVideo[track], plan, sink, doneUs, totalUs);
                 if (written == 0L) {
                     // stop() throws when a track received nothing, and the message it throws is
                     // not one anybody could act on. This can only happen for a selection shorter
@@ -284,6 +300,11 @@ public final class ClipEditor {
                 }
                 doneUs += Math.max(1L, plan.outputDurationUs);
             }
+            // Said explicitly, because the running figure can never reach it: a track's last
+            // sample sits at a timestamp BEFORE the segment's end (that is what makes it the
+            // last one), so the fraction tops out a frame short and a bar would stop at 99%
+            // and sit there through the mux. The work really is done here.
+            if (sink != null) sink.onProgress(1f);
             muxer.stop();
             finished = true;
         } finally {
@@ -308,6 +329,26 @@ public final class ClipEditor {
         }
         carrySidecar(file, destination);
         return destination;
+    }
+
+    /**
+     * Wrap a caller's progress so it hears about meaningful movement and not about every sample.
+     *
+     * Completion is always passed on whatever the step says, so a caller can rely on seeing 1.
+     */
+    @Nullable
+    private static Progress throttled(@Nullable final Progress sink) {
+        if (sink == null) return null;
+        return new Progress() {
+            private float mLast = -1f;
+
+            @Override
+            public void onProgress(float fraction) {
+                if (fraction < 1f && fraction - mLast < PROGRESS_STEP) return;
+                mLast = fraction;
+                sink.onProgress(fraction);
+            }
+        };
     }
 
     /** Copy one track's planned samples. Returns how many samples it wrote. */

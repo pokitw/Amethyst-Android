@@ -51,6 +51,7 @@ public final class Harness {
         rotationIsCarriedAcrossAndGuarded();
         theExecutorsOwnGuardsFire();
         anUndeclaredBufferIsStillBigEnough();
+        progressIsReportedSparselyAndInOrder();
 
         System.out.println(sChecks + " checks");
         if (!FAILURES.isEmpty()) {
@@ -763,6 +764,50 @@ public final class Harness {
                     + e.getMessage());
         }
         check(MediaMuxer.LAST.stopped, "the export did not finish");
+    }
+
+    /**
+     * Progress moves forward, reaches 1, and does not arrive once per sample.
+     *
+     * The copy loop reaches the callback for every sample it writes, and a forty minute clip
+     * holds a quarter of a million of them across its two tracks. A caller that hops to the main
+     * thread to move a bar would post a runnable for each, which is not a slow bar but an
+     * unusable app, so the executor throttles. That is invisible from the outside unless
+     * something counts, which is what this does.
+     */
+    private static void progressIsReportedSparselyAndInOrder() throws Exception {
+        long duration = 120 * SECOND;
+        install(videoTrack(duration, 60, 200_000), audioTrack(duration));
+        File file = freshFile("progress.mp4");
+        ClipEditor.Source source = ClipEditor.read(file);
+        ClipPlan.Plan plan = ClipPlan.trim(source.durationUs, source.syncUs, source.framesUs,
+                0L, 110 * SECOND);
+
+        final int[] calls = new int[]{0};
+        final float[] last = new float[]{-1f};
+        final boolean[] wentBackwards = new boolean[]{false};
+        final boolean[] outOfRange = new boolean[]{false};
+        install(videoTrack(duration, 60, 200_000), audioTrack(duration));
+        ClipEditor.export(file, source, plan, new ClipEditor.Progress() {
+            @Override
+            public void onProgress(float fraction) {
+                calls[0]++;
+                if (fraction < last[0]) wentBackwards[0] = true;
+                if (fraction < 0f || fraction > 1f) outOfRange[0] = true;
+                last[0] = fraction;
+            }
+        });
+
+        // Samples actually written, which is what an unthrottled callback would report.
+        int samples = MediaMuxer.LAST.written.size();
+        check(samples > 8000, "the fixture is too small to prove anything: " + samples);
+        check(calls[0] > 0, "progress was never reported at all");
+        check(calls[0] <= 420,
+                "progress was reported " + calls[0] + " times for " + samples + " samples, so a "
+                        + "caller posting to the main thread would flood it");
+        check(!wentBackwards[0], "progress went backwards");
+        check(!outOfRange[0], "progress left the 0 to 1 range");
+        check(last[0] == 1f, "progress never reached 1, so a bar would stop short of the end");
     }
 
     /* ------------------------------------------------------------------ plumbing */

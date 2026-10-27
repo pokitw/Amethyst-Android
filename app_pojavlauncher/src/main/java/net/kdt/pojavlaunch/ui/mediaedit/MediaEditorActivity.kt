@@ -100,6 +100,7 @@ class MediaEditorActivity : BaseActivity() {
     private var preview by mutableStateOf<Bitmap?>(null)
     private var orientation by mutableStateOf(ImageEdit.Orientation.identity())
     private var crop by mutableStateOf<CropFraction?>(null)
+    private var orientJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -435,7 +436,11 @@ class MediaEditorActivity : BaseActivity() {
         val base = basePreview ?: return
         orientation = next
         crop = null
-        lifecycleScope.launch {
+        // Cancelled rather than queued: two quick taps on rotate start two turns of a bitmap,
+        // and whichever finishes last wins, which is not necessarily the one that was asked for
+        // last. The orientation itself is already correct above; this only re-renders it.
+        orientJob?.cancel()
+        orientJob = lifecycleScope.launch {
             val turned = withContext(Dispatchers.IO) {
                 try {
                     val plan = ImageEdit.plan(base.width, base.height, next, null)
