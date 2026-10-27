@@ -145,7 +145,7 @@ class MediaEditorActivity : BaseActivity() {
         // recomposition at all, including each of the twelve filmstrip pictures arriving, and
         // the cut list has to be part of the key by VALUE: it is a snapshot list, so mutating
         // it leaves its identity unchanged and a key holding the list itself never changes.
-        val cutKey = cuts.joinToString(",") { "${'$'}{it.startUs}:${'$'}{it.endUs}" }
+        val cutKey = cuts.joinToString(",") { it.startUs.toString() + ":" + it.endUs }
         val plan = remember(live, inUs, outUs, cutKey) {
             if (live == null) {
                 ClipPlan.trim(0L, LongArray(0), LongArray(0), 0L, 0L)
