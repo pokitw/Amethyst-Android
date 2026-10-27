@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -569,6 +571,9 @@ internal fun AccentButton(
             .then(
                 if (enabled) Modifier.clickableRow(onClick) else Modifier
             )
+            // 48dp floor: the padding alone leaves this about 35dp tall, which is under the
+            // handbook's minimum for anything tappable.
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -595,6 +600,8 @@ internal fun QuietButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(MaterialTheme.shapes.small)
             .clickableRow(onClick)
+            .heightIn(min = 48.dp)
+            .wrapContentHeight(Alignment.CenterVertically)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     )
 }
