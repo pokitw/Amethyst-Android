@@ -93,6 +93,9 @@ class MediaEditorActivity : BaseActivity() {
      */
     private var pendingGallery by mutableStateOf<File?>(null)
 
+    /** The edit as it was when it was last written, so back can tell saved work from unsaved. */
+    private var savedSignature by mutableStateOf<String?>(null)
+
     // Clip
     private var source by mutableStateOf<ClipEditor.Source?>(null)
     private var inUs by mutableStateOf(0L)
@@ -360,7 +363,13 @@ class MediaEditorActivity : BaseActivity() {
     private fun saveClip() {
         val live = source ?: return
         val plan = ClipPlan.build(live.durationUs, live.syncUs, live.framesUs, inUs, outUs, cuts)
-        if (!plan.isUsable()) return
+        if (!plan.isUsable()) {
+            // Reachable only from a hand-built state now that the button is gated, but a Save
+            // that does nothing and says nothing is the one outcome a button must never have.
+            message = getString(R.string.editor_nothing_to_save)
+            toast(message!!)
+            return
+        }
         busy = true
         progress = 0f
         message = null
@@ -381,6 +390,7 @@ class MediaEditorActivity : BaseActivity() {
                 onSuccess = { out ->
                     val toGallery = GalleryExport.isEnabled(this@MediaEditorActivity)
                     if (toGallery) GalleryExport.publishVideoLater(this@MediaEditorActivity, out)
+                    savedSignature = signature()
                     pendingGallery = if (toGallery) null else out
                     message = getString(
                         if (toGallery) R.string.editor_saved_gallery else R.string.editor_saved,
@@ -501,7 +511,11 @@ class MediaEditorActivity : BaseActivity() {
             info.width, info.height, orientation,
             cropToRect(crop, shownWidth, shownHeight),
         )
-        if (!plan.isUsable) return
+        if (!plan.isUsable) {
+            message = getString(R.string.editor_nothing_to_save)
+            toast(message!!)
+            return
+        }
         busy = true
         message = null
         lifecycleScope.launch {
@@ -521,6 +535,7 @@ class MediaEditorActivity : BaseActivity() {
                         // gigabytes, so it does not need the recorder's deferred path.
                         GalleryExport.publishImage(this@MediaEditorActivity, out)
                     }
+                    savedSignature = signature()
                     pendingGallery = if (copied) null else out
                     message = getString(
                         if (copied) R.string.editor_saved_gallery else R.string.editor_saved,
@@ -591,11 +606,37 @@ class MediaEditorActivity : BaseActivity() {
         )
     }
 
-    private fun hasChanges(): Boolean = if (isClip) {
-        val live = source
-        live != null && (inUs != 0L || outUs != live.durationUs || cuts.isNotEmpty())
+    /**
+     * What the current edit is, as one comparable value.
+     *
+     * Used only to tell an edit that has been written from one that has not, which is why it is
+     * a string rather than anything structured: the question is equality and nothing else.
+     */
+    private fun signature(): String = if (isClip) {
+        "clip|" + inUs + "|" + outUs + "|" +
+                cuts.joinToString(",") { it.startUs.toString() + ":" + it.endUs }
     } else {
-        crop != null || !orientation.isIdentity
+        "image|" + orientation.rotation + "|" + orientation.mirror + "|" + crop
+    }
+
+    /**
+     * Whether leaving now would lose something.
+     *
+     * Two conditions, and the second is the one that was missing. An edit has to exist, and it
+     * has to differ from the one that was last written: without the latch, saving and then
+     * pressing back raised "the changes you have made will be lost" over an edit that had just
+     * been written to disk, which is a false sentence shown at the exact moment somebody did the
+     * right thing. A dialog that cries wolf is one people learn to dismiss unread, and this one
+     * is also shown when it is true.
+     */
+    private fun hasChanges(): Boolean {
+        val edited = if (isClip) {
+            val live = source
+            live != null && (inUs != 0L || outUs != live.durationUs || cuts.isNotEmpty())
+        } else {
+            crop != null || !orientation.isIdentity
+        }
+        return edited && signature() != savedSignature
     }
 
     private fun leave() {

@@ -1382,6 +1382,7 @@
     <string name="editor_gallery_copying">Copying it to your gallery</string>
     <string name="editor_gallery_done">Added to your gallery</string>
     <string name="editor_gallery_failed">Could not add it to your gallery</string>
+    <string name="editor_nothing_to_save">There is nothing to save yet</string>
     <string name="editor_reset">Reset</string>
     <string name="editor_original_kept">Your original is never changed. Saving writes a new file beside it.</string>
 
