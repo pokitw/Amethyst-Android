@@ -1905,6 +1905,30 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     division, integer overflow, string comparison and date handling. **When a check is a
     translation, the operators are part of what was translated**, and the ones whose edge cases
     differ silently are the ones to look up rather than assume.
+
+29. **A local `val` shadows an implicit receiver's member of the same name.** `DrawScope` exposes
+    `density` as a `Float`, and the timeline composable had `val density = LocalDensity.current`
+    a few lines above its `Canvas`. Inside the draw lambda `10f * density` therefore resolved to
+    `Float * Density` and failed, while the declaration itself looked entirely ordinary. Kotlin
+    resolves a local ahead of a receiver's member, so the error appears only where the value is
+    used and names a `times` overload rather than the shadowing. The general form is 16.24's the
+    other way round: there, a call reached *past* the innermost receiver to an outer scope; here
+    a local hid a receiver's member. Both are invisible at the line that causes them. When a
+    composable computes something from `LocalDensity.current` and also draws, convert at the call
+    (`with(LocalDensity.current) { X.toPx() }`) and keep no `density` local at all.
+
+30. **A callback on a per-item loop is a main-thread flood in disguise.** `ClipEditor` reported
+    progress for every sample it copied, which is a quarter of a million times across the two
+    tracks of a forty minute clip, and the activity hopped to the main thread on each one to move
+    a bar. Nothing about either half looks wrong: the executor reports what it knows when it
+    knows it, and the caller does the normal thing with it. The cost only exists where they meet.
+    **Throttle at the source**, because a caller cannot cheaply discard what it has already been
+    handed on the main thread. And once throttled, **completion has to be said explicitly**: the
+    running figure could never reach 1, since the last sample's timestamp is by definition before
+    the end of the span, so the bar stopped at 99% and sat there. The check that found it was the
+    one that asserted the *end state* rather than the rate, which is worth remembering when
+    writing a check for anything that counts.
+
 ---
 
 ## 17. Known limitations
@@ -2617,7 +2641,10 @@ Before pushing:
   ~350 lines of new Java calling twenty Android signatures and CI is otherwise the only compiler
   (§16.6). The stubs model the platform's refusals rather than only its successes (§16.16), and
   one of them throws `WouldHaveHung` where the real muxer **blocks forever**, so a guard that
-  stopped working shows up as a failed check instead of a frozen phone.
+  stopped working shows up as a failed check instead of a frozen phone. It also counts the
+  progress callbacks against the samples written, because reporting per sample is a main thread
+  flood that looks like ordinary code at both ends (§16.30), and asserts the fraction reaches 1,
+  which is the assertion that found it stopping short.
 - **Run `sh scripts/imageeditsim/run.sh`** if the screenshot crop or orientation maths changed.
   It brute forces every pixel of several images through `mapPoint`/`unmapPoint` and back, which
   is the only honest check for a transform whose failures (a mirrored limb, a crop from the wrong
