@@ -854,6 +854,11 @@
     <string name="mods_browse_no_profile">There is no profile to install into.</string>
     <string name="mods_browse_no_version">No version of this mod fits this profile.</string>
     <string name="mods_browse_install_failed">That mod could not be downloaded.</string>
+    <string name="mods_browse_downloading">Downloading %1$s</string>
+    <plurals name="mods_browse_download_with_done">
+        <item quantity="one">%1$s · %2$d file added</item>
+        <item quantity="other">%1$s · %2$d files added</item>
+    </plurals>
     <string name="mods_browse_no_folder">Could not create the mods folder for this profile.</string>
     <string name="content_add_title">Add to this profile</string>
     <string name="content_add_hint">What you pick decides where it goes.</string>
@@ -877,12 +882,17 @@
     <string name="content_storage">Storage</string>
     <string name="content_storage_line">%1$s used · %2$s free</string>
     <string name="content_show">Show</string>
+    <string name="content_sort">Sort by</string>
+    <string name="content_sort_recent">Newest first</string>
+    <string name="content_sort_name">Name</string>
+    <string name="content_sort_largest">Largest first</string>
     <string name="content_hold_hint">Tap a mod to turn it on or off, tap a world to manage it. Hold any row to delete it.</string>
     <string name="content_loading">Reading the folder</string>
     <string name="content_open_folder">Open the folder in a file manager</string>
     <string name="content_settings_description">Worlds, mods, resource packs, shaders and screenshots</string>
     <string name="content_settings_count">%1$d items</string>
 
+    <string name="content_mod_duplicate">Another copy of this mod is also on</string>
     <string name="content_mod_wrong_version">Not made for %1$s</string>
     <string name="content_mod_wrong_loader">Not a %1$s mod</string>
     <plurals name="content_mod_missing">
@@ -894,7 +904,7 @@
         <item quantity="other">%1$d mods will not load</item>
     </plurals>
     <string name="content_mod_problems_action">Turn them off</string>
-    <string name="content_mod_problems_hint">Turning one off keeps the file, so you can put it back.</string>
+    <string name="content_mod_problems_hint">Turning one off keeps the file, so you can put it back. Where there are two copies of the same mod, the newest is kept on.</string>
     <plurals name="content_mod_turned_off">
         <item quantity="one">%1$d mod turned off</item>
         <item quantity="other">%1$d mods turned off</item>
@@ -1510,6 +1520,16 @@
     <string name="world_save_failed">That change could not be saved, so the world is unchanged.</string>
     <string name="world_renamed">Renamed to %1$s</string>
     <string name="world_manage">Manage</string>
+
+    <string name="content_import_title">Add this file</string>
+    <string name="content_import_body">%1$s will be saved to %2$s.</string>
+    <string name="content_import_unpack">%1$s will be unpacked into your worlds.</string>
+    <string name="content_import_place">Add it</string>
+    <string name="content_import_unpack_action">Unpack it</string>
+    <string name="content_import_choose">Choose a folder</string>
+    <string name="content_import_duplicate">You already have %1$s. Two copies of one mod stop the game starting, so replacing it is usually what you want.</string>
+    <string name="content_import_replace">Replace</string>
+    <string name="content_import_keep_both">Keep both</string>
 
     <string name="content_place_title">Choose a folder</string>
     <string name="content_place_body">Pick where %1$s should be saved.</string>

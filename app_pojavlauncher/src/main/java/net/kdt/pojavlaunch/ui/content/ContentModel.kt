@@ -164,6 +164,9 @@ fun contentFolder(gameDir: File, kind: ContentKind): File = File(gameDir, kind.f
  * hundred jars is not. This is what the screen draws first, so it draws immediately.
  */
 fun scanContent(gameDir: File, kind: ContentKind): List<ContentItem> {
+    // Unsorted on the way out: a world's real timestamp and a mod's real size only arrive in the
+    // slow pass, so ordering here would be ordering on placeholders and the list would visibly
+    // reshuffle underneath a thumb. The screen sorts what it is about to draw.
     val folder = contentFolder(gameDir, kind)
     val entries = folder.listFiles() ?: return emptyList()
     val items = ArrayList<ContentItem>(entries.size)
@@ -176,13 +179,27 @@ fun scanContent(gameDir: File, kind: ContentKind): List<ContentItem> {
         }
         if (item != null) items.add(item)
     }
-    return items.sortedWith(ordering(kind))
+    return items
 }
 
-/** Newest first where recency is the point, alphabetical where it is not. */
-private fun ordering(kind: ContentKind): Comparator<ContentItem> = when (kind) {
-    ContentKind.WORLD, ContentKind.SCREENSHOT -> compareByDescending { it.modifiedMs }
-    else -> compareBy({ !it.enabled }, { it.title.lowercase(Locale.getDefault()) })
+/**
+ * How a list is ordered, chosen by the player and remembered.
+ *
+ * [RECENT] is the default for everything, and for mods it is the one that was missing: a jar's
+ * timestamp is the moment it was written, so "newest first" is literally "what I installed
+ * last", which is what somebody is looking for when they have just added four mods and want to
+ * see whether they landed. The old default buried them alphabetically among two hundred others.
+ */
+enum class ContentSort { RECENT, NAME, LARGEST }
+
+fun orderingFor(sort: ContentSort): Comparator<ContentItem> = when (sort) {
+    // Ties broken by name, so a folder of files copied in one go by a restore, which all carry
+    // the same timestamp to the second, does not shuffle between two reads of the same folder.
+    ContentSort.RECENT -> compareByDescending<ContentItem> { it.modifiedMs }
+        .thenBy { it.title.lowercase(Locale.getDefault()) }
+    ContentSort.NAME -> compareBy { it.title.lowercase(Locale.getDefault()) }
+    ContentSort.LARGEST -> compareByDescending<ContentItem> { it.sizeBytes }
+        .thenBy { it.title.lowercase(Locale.getDefault()) }
 }
 
 private fun scanWorld(entry: File): ContentItem? {
@@ -422,53 +439,199 @@ sealed class ImportResult {
 }
 
 /**
- * Put a file where it belongs, working out where that is by looking inside it.
+ * A file that has been read and identified, staged in the cache, not yet placed anywhere.
  *
- * This is the whole point of one screen rather than five. Nobody thinks "I would like to place a
- * file in the resourcepacks directory"; they think "add this". So there is one button, and the
- * decision it used to ask for is made by opening the file: a jar is a mod, a zip with a
- * `pack.mcmeta` is a resource pack, one with a `shaders` folder is a shader pack, one with a
- * `level.dat` is a world and gets extracted.
+ * Importing used to be one call that decided and copied in the same breath, which is the right
+ * shape only if the decision is always right and never worth questioning. It is neither: the
+ * launcher guesses from what is inside the file, that guess is occasionally wrong, and the two
+ * things a player most wants to be asked about, "this is going in mods, is that what you meant"
+ * and "you already have this mod", both happen after the deciding and before the writing. So the
+ * deciding stops there and hands back this.
  *
- * Names never collide silently. A second copy becomes "(2)", because two versions of the same mod
- * is a mistake worth seeing rather than one quietly winning.
+ * The staged copy lives in the cache because a `content://` stream is not seekable and reading a
+ * zip's central directory means seeking to its end. Whoever makes a plan owns deleting it.
  */
-fun importContent(context: Context, gameDir: File, uri: Uri): ImportResult {
-    val displayName = queryDisplayName(context, uri) ?: "import"
+class ImportPlan(
+    val staged: File,
+    val displayName: String,
+    /** Where it belongs, or null when nothing inside it says. */
+    val kind: ContentKind?,
+    /** The name it would land under, with any collision already resolved. */
+    val landingName: String,
+    /** Set when this is a world archive, which is unpacked into a folder rather than copied. */
+    val unpacks: Boolean = false,
+    /** An installed mod declaring the same id, by the name a player would recognise. */
+    val duplicateOf: String? = null,
+    /** The jar that duplicate lives in, so the import can offer to replace it. */
+    val duplicateFile: File? = null,
+    /** The prefix inside a world archive that the world's own files sit under. */
+    internal val worldPrefix: String = ""
+)
+
+/**
+ * Read a file, work out what it is, and stop.
+ *
+ * Nothing is written to the game folder here. Call [commitImport] to put it where it belongs, or
+ * [commitImportInto] to put it in a folder the player chose, or [discardImport] to throw it away.
+ *
+ * @return null when the file could not even be copied out of the provider
+ */
+fun planImport(context: Context, gameDir: File, uri: Uri): ImportPlan? {
+    val displayName = safeName(queryDisplayName(context, uri))
     val staged: File
     try {
-        // Copied out first: a content:// stream is not seekable, and deciding what a zip is means
-        // reading its central directory, which is at the end.
         staged = File.createTempFile("amethyst-import", null, context.cacheDir)
         context.contentResolver.openInputStream(uri).use { input ->
-            if (input == null) return ImportResult.Failed
+            if (input == null) return null
             staged.outputStream().use { output -> input.copyTo(output) }
         }
     } catch (t: Throwable) {
-        return ImportResult.Failed
+        return null
     }
 
-    try {
-        val lower = displayName.lowercase(Locale.getDefault())
-        return when {
-            lower.endsWith(".jar") ->
-                place(staged, gameDir, ContentKind.MOD, displayName)
+    val lower = displayName.lowercase(Locale.getDefault())
+    return try {
+        when {
+            lower.endsWith(".jar") -> modPlan(staged, gameDir, displayName)
             lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") ->
-                place(staged, gameDir, ContentKind.SCREENSHOT, displayName)
-            else -> importArchive(staged, gameDir, displayName)
+                plainPlan(staged, gameDir, ContentKind.SCREENSHOT, displayName)
+            else -> archivePlan(staged, gameDir, displayName)
         }
-    } finally {
-        staged.delete()
+    } catch (t: Throwable) {
+        ImportPlan(staged, displayName, null, displayName)
     }
 }
 
-private fun importArchive(staged: File, gameDir: File, displayName: String): ImportResult {
-    val shape = inspectArchive(staged) ?: return ImportResult.Unrecognised
+/**
+ * Put the file in the folder the launcher decided on.
+ *
+ * @param replaceDuplicate delete the jar named by [ImportPlan.duplicateFile] first, which is
+ *        what "update this mod" means: two copies of one mod id is a loader that refuses to
+ *        start, so adding the new one beside the old one is the thing to avoid rather than the
+ *        default. Nothing is deleted unless this is asked for.
+ */
+fun commitImport(plan: ImportPlan, gameDir: File, replaceDuplicate: Boolean = false): ImportResult {
+    val kind = plan.kind ?: return ImportResult.Unrecognised
+    if (replaceDuplicate) plan.duplicateFile?.delete()
+    return if (plan.unpacks) {
+        extractWorld(plan.staged, gameDir, plan.worldPrefix, plan.displayName)
+    } else {
+        // Resolved again rather than reusing landingName: a dialog can sit open for as long as
+        // somebody leaves it, and the folder may have gained that name in the meantime. The
+        // name shown was the truth when it was shown, and this is the truth when it is written.
+        place(plan.staged, gameDir, kind, plan.displayName)
+    }
+}
+
+/**
+ * Put the file in a folder the player picked, wherever the launcher thought it belonged.
+ *
+ * Offered for everything and not only for what could not be identified, which is the half that
+ * was missing: the guess is right nearly always and "nearly" is the problem, and a datapack, a
+ * config or a jar for a loader this does not model has nowhere else to go at all.
+ *
+ * <b>It never overwrites and never leaves the game folder.</b> The destination is checked to be
+ * inside it by canonical path, because the picker walks real directories and a symlink inside
+ * the game folder is the one way a chosen path could point outside it.
+ */
+fun commitImportInto(plan: ImportPlan, gameDir: File, folder: File): ImportResult {
+    return try {
+        val root = gameDir.canonicalFile
+        val target = folder.canonicalFile
+        if (target != root && !target.path.startsWith(root.path + File.separator)) {
+            return ImportResult.Failed
+        }
+        if (!target.isDirectory) return ImportResult.Failed
+        val destination = uniqueFile(target, plan.displayName)
+        // Belt and braces after the name has been cleaned: the only thing that may be written
+        // is a direct child of the folder that was chosen.
+        if (destination.canonicalFile.parentFile != target) return ImportResult.Failed
+        plan.staged.inputStream().use { input ->
+            destination.outputStream().use { output -> input.copyTo(output) }
+        }
+        ImportResult.Copied(destination.name, relativeLabel(root, target))
+    } catch (t: Throwable) {
+        ImportResult.Failed
+    }
+}
+
+/** Throw away a plan nobody acted on. Safe to call twice. */
+fun discardImport(plan: ImportPlan) {
+    runCatching { plan.staged.delete() }
+}
+
+private fun plainPlan(
+    staged: File, gameDir: File, kind: ContentKind, displayName: String
+): ImportPlan = ImportPlan(
+    staged = staged,
+    displayName = displayName,
+    kind = kind,
+    landingName = uniqueFile(contentFolder(gameDir, kind), displayName).name
+)
+
+/**
+ * A jar, plus whether the profile already has the mod it declares.
+ *
+ * Matched on the declared id rather than the file name, exactly as the folder's own duplicate
+ * check is: "sodium-0.6.jar" beside "sodium-0.5.jar" is the case this exists for and no amount
+ * of comparing names tells it apart from "reeses-sodium-options.jar". A jar whose metadata will
+ * not parse simply has no duplicate, which is the safe direction.
+ */
+private fun modPlan(staged: File, gameDir: File, displayName: String): ImportPlan {
+    val folder = contentFolder(gameDir, ContentKind.MOD)
+    val incoming = runCatching { readModMetadata(staged)?.requirements?.modId }.getOrNull()
+    var duplicateOf: String? = null
+    var duplicateFile: File? = null
+    if (!incoming.isNullOrEmpty()) {
+        val existing = folder.listFiles()
+        if (existing != null) for (candidate in existing) {
+            if (!candidate.isFile) continue
+            val name = candidate.name.lowercase(Locale.getDefault())
+            // A .disabled jar is not in the game, so it is not a clash, and offering to replace
+            // one would be deleting a file somebody deliberately set aside.
+            if (!name.endsWith(".jar")) continue
+            val meta = runCatching { readModMetadata(candidate) }.getOrNull() ?: continue
+            if (meta.requirements?.modId == incoming) {
+                duplicateOf = meta.name ?: candidate.name.removeSuffix(".jar")
+                duplicateFile = candidate
+                break
+            }
+        }
+    }
+    return ImportPlan(
+        staged = staged,
+        displayName = displayName,
+        kind = ContentKind.MOD,
+        landingName = uniqueFile(folder, displayName).name,
+        duplicateOf = duplicateOf,
+        duplicateFile = duplicateFile
+    )
+}
+
+private fun archivePlan(staged: File, gameDir: File, displayName: String): ImportPlan {
+    val shape = inspectArchive(staged)
+        ?: return ImportPlan(staged, displayName, null, displayName)
     return when (shape) {
-        is ArchiveShape.Pack ->
-            place(staged, gameDir, shape.kind, ensureExtension(displayName, ".zip"))
-        is ArchiveShape.World ->
-            extractWorld(staged, gameDir, shape.prefix, displayName)
+        is ArchiveShape.Pack -> {
+            val name = ensureExtension(displayName, ".zip")
+            ImportPlan(
+                staged = staged,
+                displayName = name,
+                kind = shape.kind,
+                landingName = uniqueFile(contentFolder(gameDir, shape.kind), name).name
+            )
+        }
+        is ArchiveShape.World -> {
+            val folderName = displayName.removeSuffix(".zip").ifBlank { "World" }
+            ImportPlan(
+                staged = staged,
+                displayName = displayName,
+                kind = ContentKind.WORLD,
+                landingName = uniqueFile(contentFolder(gameDir, ContentKind.WORLD), folderName).name,
+                unpacks = true,
+                worldPrefix = shape.prefix
+            )
+        }
     }
 }
 
@@ -591,16 +754,6 @@ private fun copy(input: InputStream, output: java.io.OutputStream) {
 }
 
 /**
- * The name a file would be given, for a dialog to show before anything is written.
- *
- * Public because the folder picker tells the player where the file is going AND what it will be
- * called, and the second half is not obvious when the first one already holds a file of that
- * name: the copy lands beside it as "thing (2).jar" rather than over it.
- */
-fun importedNameFor(context: Context, uri: Uri, folder: File): String =
-    uniqueFile(folder, safeName(queryDisplayName(context, uri))).name
-
-/**
  * A file name that cannot be anything but a file name.
  *
  * The display name comes from whichever provider served the document, so it is a stranger's
@@ -608,9 +761,9 @@ fun importedNameFor(context: Context, uri: Uri, folder: File): String =
  * and with ".." in it resolves to the parent directory. Separators of both kinds are cut and the
  * two directory names are refused outright, which leaves a plain name or the fallback.
  *
- * Shared with {@link #importedNameFor} on purpose. The dialog shows the name before the copy
- * happens, and a dialog that promised one name while the writer used another would be worse
- * than showing nothing.
+ * Applied once, in planImport, and the cleaned name is what every later step uses: the dialog
+ * shows it, the collision check resolves against it and the writer writes it. A name cleaned
+ * twice in two places is a name two places can disagree about.
  */
 private fun safeName(raw: String?): String {
     val trimmed = (raw ?: "").substringAfterLast('/').substringAfterLast('\\').trim()
@@ -623,40 +776,6 @@ fun subFolders(folder: File): List<File> =
     (folder.listFiles() ?: emptyArray())
         .filter { it.isDirectory && !it.name.startsWith(".") }
         .sortedBy { it.name.lowercase(Locale.getDefault()) }
-
-/**
- * Copy a file the launcher could not identify into a folder the player chose.
- *
- * The escape hatch for everything the add button cannot place by looking inside it: a config
- * file, a datapack, an options.txt somebody was sent, a jar for a loader this does not model.
- * Refusing those outright meant the only way in was a file manager, and from Android 11 the game
- * folder cannot be browsed to at all, so "unrecognised" was effectively "impossible".
- *
- * <b>It never overwrites and never leaves the game folder.</b> The destination is checked to be
- * inside it by canonical path, because the picker walks real directories and a symlink inside
- * the game folder is the one way a chosen path could point outside it.
- */
-fun copyIntoFolder(context: Context, gameDir: File, uri: Uri, folder: File): ImportResult {
-    return try {
-        val root = gameDir.canonicalFile
-        val target = folder.canonicalFile
-        if (target != root && !target.path.startsWith(root.path + File.separator)) {
-            return ImportResult.Failed
-        }
-        if (!target.isDirectory) return ImportResult.Failed
-        val destination = uniqueFile(target, safeName(queryDisplayName(context, uri)))
-        // Belt and braces after the name has been cleaned: the only thing that may be written
-        // is a direct child of the folder that was chosen.
-        if (destination.canonicalFile.parentFile != target) return ImportResult.Failed
-        context.contentResolver.openInputStream(uri).use { input ->
-            if (input == null) return ImportResult.Failed
-            destination.outputStream().use { output -> input.copyTo(output) }
-        }
-        ImportResult.Copied(destination.name, relativeLabel(root, target))
-    } catch (t: Throwable) {
-        ImportResult.Failed
-    }
-}
 
 /** Where a folder is, said the way a player would read it, rooted at the game folder. */
 fun relativeLabel(gameDir: File, folder: File): String {

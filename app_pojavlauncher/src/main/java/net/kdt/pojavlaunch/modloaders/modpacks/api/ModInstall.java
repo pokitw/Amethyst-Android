@@ -5,6 +5,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.utils.DownloadUtils;
 
 import java.io.File;
@@ -55,6 +56,36 @@ public final class ModInstall {
 
     private ModInstall() {}
 
+    /**
+     * Where a download has got to, for a screen that wants to say more than "working".
+     *
+     * Reported per file rather than for the install as a whole, because the whole is not known
+     * until it is over: dependencies are discovered as the graph is walked, so a bar across
+     * "everything" would have to lie about its own denominator. What can be said honestly is
+     * which file is coming down, how far through it is, and how many have landed so far.
+     *
+     * Called on the installing thread, not the main one.
+     */
+    public interface Progress {
+        /**
+         * @param name  the file being fetched
+         * @param done  bytes written so far
+         * @param total the file's size, or -1 where the server did not say
+         * @param completed how many files have finished before this one
+         */
+        void onProgress(@NonNull String name, long done, long total, int completed);
+    }
+
+    /**
+     * How much has to change before another report goes out.
+     *
+     * The monitored download calls back per 64KB buffer, which for a large modpack dependency
+     * is thousands of times, and every one of those becomes a hop to the main thread at the
+     * other end. Throttling at the source is the only place it can be done cheaply: a caller
+     * cannot discard what it has already been handed on the main thread (16.30).
+     */
+    private static final long PROGRESS_STEP_BYTES = 128 * 1024;
+
     /** What happened, in the terms the screen has to report. */
     public static final class Result {
         /** File names actually written, in install order. */
@@ -94,6 +125,14 @@ public final class ModInstall {
     @NonNull
     public static Result install(@NonNull File folder, @NonNull ModrinthMods.File file,
                                  @Nullable String mcVersion, @Nullable String loaderId) {
+        return install(folder, file, mcVersion, loaderId, null);
+    }
+
+    /** As above, reporting progress as it goes. */
+    @NonNull
+    public static Result install(@NonNull File folder, @NonNull ModrinthMods.File file,
+                                 @Nullable String mcVersion, @Nullable String loaderId,
+                                 @Nullable Progress progress) {
         Result result = new Result();
         if (!folder.exists() && !folder.mkdirs()) {
             // A flag rather than a message: what the player is shown is a translated string the
@@ -107,7 +146,7 @@ public final class ModInstall {
         if (file.projectId != null && !file.projectId.isEmpty()) seen.add(file.projectId);
 
         try {
-            download(folder, file);
+            download(folder, file, progress, 0);
             result.installed.add(file.fileName);
         } catch (IOException e) {
             Log.w(TAG, "Could not download " + file.fileName, e);
@@ -138,7 +177,7 @@ public final class ModInstall {
                         continue;
                     }
                     try {
-                        download(folder, resolved);
+                        download(folder, resolved, progress, result.installed.size());
                         result.installed.add(resolved.fileName);
                         next.add(resolved);
                     } catch (IOException e) {
@@ -198,7 +237,8 @@ public final class ModInstall {
      * left truncated by an older version of this code has the right name and the wrong contents,
      * and a name-only check would leave it there forever.
      */
-    private static void download(@NonNull File folder, @NonNull ModrinthMods.File file)
+    private static void download(@NonNull File folder, @NonNull ModrinthMods.File file,
+                                 @Nullable final Progress progress, final int completed)
             throws IOException {
         File target = new File(folder, safeName(file.fileName));
         if (target.isFile() && verify(target, file)) return;
@@ -207,7 +247,29 @@ public final class ModInstall {
         //noinspection ResultOfMethodCallIgnored
         partial.delete();
         try {
-            DownloadUtils.downloadFile(file.url, partial);
+            if (progress == null) {
+                DownloadUtils.downloadFile(file.url, partial);
+            } else {
+                final String name = file.fileName;
+                // Said once before a byte arrives, so the screen names the file immediately
+                // rather than staying blank until the first buffer lands. On a slow connection
+                // that gap is the whole of what a progress indicator is for.
+                progress.onProgress(name, 0L, file.size, completed);
+                final long[] lastReported = {0L};
+                DownloadUtils.downloadFileMonitored(file.url, partial, null,
+                        new Tools.DownloaderFeedback() {
+                            @Override
+                            public void updateProgress(int curr, int max) {
+                                long done = curr & 0xFFFFFFFFL;
+                                if (done - lastReported[0] < PROGRESS_STEP_BYTES && done < max) {
+                                    return;
+                                }
+                                lastReported[0] = done;
+                                progress.onProgress(name, done, max > 0 ? max : file.size,
+                                        completed);
+                            }
+                        });
+            }
             if (!verify(partial, file)) {
                 throw new IOException("Downloaded " + file.fileName + " did not verify");
             }

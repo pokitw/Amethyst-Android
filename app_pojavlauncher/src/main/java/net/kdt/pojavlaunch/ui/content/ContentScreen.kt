@@ -89,6 +89,7 @@ class ContentState(
     val profileLabel: String?,
     val storageLine: String,
     val filterLabel: String,
+    val sortLabel: String,
     val searching: Boolean,
     val filtered: Boolean,
     /** How many enabled mods the launcher believes will not load. Zero for everybody else. */
@@ -127,6 +128,7 @@ fun ContentScreen(
     query: String,
     onQuery: (String) -> Unit,
     onFilter: (String) -> Unit,
+    onSort: (String) -> Unit,
     onAdd: () -> Unit,
     onBrowseMods: () -> Unit,
     onToggle: (ContentItem, Boolean) -> Unit,
@@ -173,6 +175,16 @@ fun ContentScreen(
                             values = FILTER_VALUES,
                             selected = state.filterLabel,
                             onSelect = onFilter
+                        )
+                        // Beside Show rather than above the list as a second control. They are
+                        // the same question asked twice, which of these am I looking at and in
+                        // what order, and both belong in the card that already answers it.
+                        ChoiceRow(
+                            title = stringResource(R.string.content_sort),
+                            names = sortNames(),
+                            values = SORT_VALUES,
+                            selected = state.sortLabel,
+                            onSelect = onSort
                         )
                     }
                     // The gesture that is not obvious, named once, the way every sheet in the app
@@ -329,6 +341,15 @@ val FILTER_VALUES: List<String> =
 private fun filterNames(): List<String> =
     listOf(stringResource(R.string.content_kind_all)) +
             ContentKind.values().map { stringResource(it.titleRes) }
+
+val SORT_VALUES: List<String> = ContentSort.values().map { it.name }
+
+@Composable
+private fun sortNames(): List<String> = listOf(
+    stringResource(R.string.content_sort_recent),
+    stringResource(R.string.content_sort_name),
+    stringResource(R.string.content_sort_largest)
+)
 
 /**
  * The corner a row wears so that a run of them reads as one card.

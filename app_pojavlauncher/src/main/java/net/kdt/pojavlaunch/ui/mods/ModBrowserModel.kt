@@ -48,6 +48,34 @@ data class ProjectPage(
     val gallery: Map<String, ImageBitmap> = emptyMap()
 )
 
+/**
+ * What a download has got to, for the band above the list.
+ *
+ * The install button carries an 18dp spinner, which says "something is happening" and nothing
+ * else: not which file, not how big it is, not that a mod with eight dependencies is going to
+ * take a while, and not that anything is happening at all once the list has been scrolled past
+ * the row that was tapped. On a phone connection that is most of the install.
+ *
+ * [totalBytes] is -1 where the server did not say, and the band shows an indeterminate bar
+ * rather than inventing a denominator. [completed] counts files that have finished, which is
+ * the only honest measure of a dependency walk: the total is not known until the walk ends.
+ */
+@Immutable
+data class DownloadStatus(
+    val title: String,
+    val fileName: String,
+    val doneBytes: Long,
+    val totalBytes: Long,
+    val completed: Int
+) {
+    val fraction: Float?
+        get() = if (totalBytes > 0L) {
+            (doneBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+        } else {
+            null
+        }
+}
+
 /** Everything the browser draws. */
 @Immutable
 data class ModBrowserState(
@@ -63,6 +91,8 @@ data class ModBrowserState(
     val targetKnown: Boolean = false,
     val query: String = "",
     val rows: List<ModRow> = emptyList(),
+    /** The download in flight, if any. One at a time, so one band. */
+    val download: DownloadStatus? = null,
     val loading: Boolean = false,
     /** Appending a page rather than replacing the list, so the spinner goes at the bottom. */
     val loadingMore: Boolean = false,

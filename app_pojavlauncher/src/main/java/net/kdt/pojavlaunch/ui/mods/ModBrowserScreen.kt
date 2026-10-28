@@ -8,21 +8,27 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -32,6 +38,7 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -127,6 +134,17 @@ fun ModBrowserScreen(
                 }
             }
 
+            // Above everything but the search box, and outside the list, so it stays put while
+            // the results are scrolled. A spinner inside the row that was tapped is invisible
+            // the moment that row leaves the screen, which during a dependency walk is most of
+            // the time somebody spends waiting.
+            state.download?.let { download ->
+                item(key = "downloading") {
+                    DownloadBand(download)
+                    Spacer(Modifier.height(14.dp))
+                }
+            }
+
             if (state.targetKnown && !state.target.canRunMods) {
                 item(key = "vanilla") {
                     Notice(stringResource(R.string.mods_browse_no_loader))
@@ -207,6 +225,81 @@ fun ModBrowserScreen(
  * and the profile it is filtering to belongs in the accent line where every other current value in
  * the launcher goes.
  */
+/**
+ * What is coming down, how far through it is, and what has landed already.
+ *
+ * Determinate where the server gave a size and indeterminate where it did not, rather than a
+ * bar that fills to a number nobody knows: a progress bar whose denominator is invented is
+ * worse than none, because it is believed.
+ */
+@Composable
+private fun DownloadBand(download: DownloadStatus) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(colors.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Text(
+            stringResource(R.string.mods_browse_downloading, download.title),
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        val fraction = download.fraction
+        if (fraction != null) {
+            // Animated so the bar slides between the throttled reports rather than stepping in
+            // 128KB jumps, which at speed reads as a bar that is broken.
+            val width by animateFloatAsState(
+                targetValue = fraction,
+                animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+                label = "downloadFraction"
+            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(colors.surfaceContainerHighest)
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(width)
+                        .fillMaxHeight()
+                        .background(colors.primary)
+                )
+            }
+        } else {
+            LinearProgressIndicator(
+                color = colors.primary,
+                trackColor = colors.surfaceContainerHighest,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+            )
+        }
+        Text(
+            if (download.completed > 0) {
+                pluralStringResource(
+                    R.plurals.mods_browse_download_with_done,
+                    download.completed, download.fileName, download.completed
+                )
+            } else {
+                download.fileName
+            },
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 @Composable
 private fun RefineCard(
     state: ModBrowserState,

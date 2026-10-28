@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.modloaders.modpacks.api.ModInstall
 import net.kdt.pojavlaunch.modloaders.modpacks.api.ModrinthMods
 import net.kdt.pojavlaunch.modloaders.modpacks.imagecache.ModIconCache
+import net.kdt.pojavlaunch.ui.mods.DownloadStatus
 import net.kdt.pojavlaunch.ui.mods.InstallState
 import net.kdt.pojavlaunch.ui.mods.ModBrowserScreen
 import net.kdt.pojavlaunch.ui.mods.ModBrowserState
@@ -288,6 +289,27 @@ class ModBrowserActivity : BaseActivity() {
      * One tap does the whole thing on purpose. The version table on a mod page is the step this
      * screen exists to remove, and re-presenting it as a dialog would be putting it back.
      */
+    /**
+     * Turn ModInstall's reports into the band above the list.
+     *
+     * Posted to the main thread because the install runs on the IO dispatcher and this writes
+     * snapshot state. Already throttled at the source, so a download is a few dozen posts
+     * rather than one per 64KB buffer (16.30).
+     */
+    private fun reporter(title: String): ModInstall.Progress =
+        ModInstall.Progress { name, done, total, completed ->
+            runOnUiThread {
+                state = state.copy(
+                    download = DownloadStatus(title, name, done, total, completed)
+                )
+            }
+        }
+
+    /** Take the band down, whatever the install did. Called on every exit from one. */
+    private fun clearDownload() {
+        state = state.copy(download = null)
+    }
+
     private fun install(row: ModRow) {
         // The button under this is always tappable, so the refusals happen here, in words on the
         // row. A tap on a mod the profile cannot run, or on one already present, must answer.
@@ -326,11 +348,12 @@ class ModBrowserActivity : BaseActivity() {
                     val files = ModrinthMods.versions(row.hit.projectId, mcVersion, loader)
                     reachedIndex = ModrinthMods.lastFailure() == ModrinthMods.Failure.NONE
                     val best = ModrinthMods.best(files) ?: return@runCatching null
-                    ModInstall.install(folder, best, mcVersion, loader)
+                    ModInstall.install(folder, best, mcVersion, loader, reporter(row.hit.title))
                 }.onFailure {
                     Log.w("ModBrowser", "Install of ${row.hit.title} threw", it)
                 }.getOrNull()
             }
+            clearDownload()
             when {
                 outcome == null -> update(row) {
                     it.copy(state = InstallState.FAILED, note = getString(
@@ -470,10 +493,14 @@ class ModBrowserActivity : BaseActivity() {
         }
         val mcVersion = state.effectiveVersion
         val loader = state.effectiveLoader
+        val pageTitle = state.page?.hit?.title.orEmpty()
         lifecycleScope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                runCatching { ModInstall.install(folder, version, mcVersion, loader) }.getOrNull()
+                runCatching {
+                    ModInstall.install(folder, version, mcVersion, loader, reporter(pageTitle))
+                }.getOrNull()
             }
+            clearDownload()
             updatePage(projectId) { current ->
                 val note: String
                 val isError: Boolean

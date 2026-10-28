@@ -60,11 +60,13 @@ private fun applyGraph(
     // "jei". Built from the rows themselves, so a mod that has not been read yet falls back to its
     // filename rather than disappearing from the sentence.
     val titles = mods.associate { it.id to it.title }
+    val duplicated = duplicateModIds(mods)
 
     return items.map { item ->
         if (item.kind != ContentKind.MOD) return@map item
         val result = results[item.id] ?: return@map item
-        val warning = describeProblem(context, result, target, titles)
+        val duplicate = item.enabled && item.requirements?.modId?.let { duplicated.contains(it) } == true
+        val warning = describeProblem(context, result, target, titles, duplicate)
         val neededBy = result.requiredBy.map { titles[it] ?: it }
         if (item.warning == warning && item.neededBy == neededBy && item.missing == result.missing) {
             item
@@ -125,7 +127,8 @@ private fun describeProblem(
     context: Context,
     result: ModGraph.Result,
     target: ModTarget?,
-    titles: Map<String, String>
+    titles: Map<String, String>,
+    duplicate: Boolean
 ): String? = when {
     result.compat == ModGraph.Compat.WRONG_LOADER ->
         context.getString(R.string.content_mod_wrong_loader, target?.loaderName.orEmpty())
@@ -133,12 +136,75 @@ private fun describeProblem(
     result.compat == ModGraph.Compat.WRONG_VERSION ->
         context.getString(R.string.content_mod_wrong_version, target?.mcVersion.orEmpty())
 
+    // Above a missing dependency, below the two that say the mod cannot run here at all. A
+    // second copy is the more fundamental problem of the two that are left: the loader refuses
+    // to start at all rather than loading without something, so the game does not even reach
+    // the point where a dependency could be missed.
+    duplicate -> context.getString(R.string.content_mod_duplicate)
+
     result.missing.isNotEmpty() -> context.resources.getQuantityString(
         R.plurals.content_mod_missing, result.missing.size,
         result.missing.size, result.missing.joinToString(", ") { titles[it] ?: it }
     )
 
     else -> null
+}
+
+/**
+ * Mod ids that more than one ENABLED jar claims.
+ *
+ * <b>This is the one failure in the folder that stops the game starting rather than stopping a
+ * mod loading.</b> Every loader refuses outright on a duplicate id, naming an id the player has
+ * never seen, and the usual cause is the most ordinary thing anybody does: updating a mod by
+ * adding the new jar without taking the old one out. Both files look right, both have sensible
+ * names, and nothing anywhere says they are the same mod.
+ *
+ * <b>Matched on the declared id, never on the file name.</b> A name is a guess: "sodium-0.5.jar"
+ * and "sodium-0.6.jar" are the same mod and "reeses-sodium-options.jar" is not, and no amount of
+ * stemming tells those apart reliably. The id is what the loader itself compares, so this agrees
+ * with the thing that will do the refusing. The cost is that a jar whose metadata would not
+ * parse is not checked, which is the safe direction: it is exactly {@code UNKNOWN never
+ * CONFLICTS} again.
+ *
+ * Disabled jars are left out for the same reason the rest of the graph leaves them out: a
+ * .disabled file is not in the game, so two of them are not a clash.
+ */
+fun duplicateModIds(items: List<ContentItem>): Set<String> = items
+    .asSequence()
+    .filter { it.kind == ContentKind.MOD && it.enabled }
+    .mapNotNull { it.requirements?.modId?.takeIf(String::isNotEmpty) }
+    .groupingBy { it }
+    .eachCount()
+    .filterValues { it > 1 }
+    .keys
+
+/**
+ * The jars to switch off so that one copy of each duplicated mod is left.
+ *
+ * <b>Newest wins</b>, by the file's own timestamp, which is when it was written and therefore
+ * when it was installed. Somebody with two copies of a mod almost always added the second one on
+ * purpose and forgot the first, so keeping the newest is keeping the one they meant; and it is
+ * the same definition of "newest" the list's own default sort uses, so what survives is the row
+ * that was at the top.
+ */
+fun olderDuplicateMods(items: List<ContentItem>): List<ContentItem> {
+    val duplicated = duplicateModIds(items)
+    if (duplicated.isEmpty()) return emptyList()
+    return items
+        .filter {
+            it.kind == ContentKind.MOD && it.enabled &&
+                    it.requirements?.modId?.let(duplicated::contains) == true
+        }
+        .groupBy { it.requirements!!.modId }
+        .values
+        .flatMap { group ->
+            // Ties on the timestamp broken by name, so the choice is the same on both of two
+            // jars copied in the same second rather than whichever the filesystem listed first.
+            val sorted = group.sortedWith(
+                compareByDescending<ContentItem> { it.modifiedMs }.thenBy { it.file.name }
+            )
+            sorted.drop(1)
+        }
 }
 
 /**

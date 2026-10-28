@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -65,6 +66,7 @@ sealed class WorldAction {
  * deleting last, in the error colour, behind a confirmation, the way every destructive action in
  * this launcher is placed.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorldSheet(
     details: WorldDetails,

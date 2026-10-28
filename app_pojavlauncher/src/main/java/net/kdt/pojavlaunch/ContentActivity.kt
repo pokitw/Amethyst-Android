@@ -18,18 +18,25 @@ import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.ui.content.ContentItem
 import net.kdt.pojavlaunch.ui.content.applyModCompat
 import net.kdt.pojavlaunch.ui.content.countModProblems
+import net.kdt.pojavlaunch.ui.content.olderDuplicateMods
+import net.kdt.pojavlaunch.ui.content.ContentSort
+import net.kdt.pojavlaunch.ui.content.orderingFor
 import net.kdt.pojavlaunch.ui.content.firstMissingMod
 import net.kdt.pojavlaunch.ui.content.ContentKind
 import net.kdt.pojavlaunch.ui.content.ContentScreen
 import net.kdt.pojavlaunch.ui.content.ContentSection
 import net.kdt.pojavlaunch.ui.content.ContentState
-import net.kdt.pojavlaunch.ui.content.importedNameFor
-import net.kdt.pojavlaunch.ui.content.copyIntoFolder
 import net.kdt.pojavlaunch.ui.content.FolderPickerDialog
 import net.kdt.pojavlaunch.ui.content.ImportResult
 import net.kdt.pojavlaunch.ui.content.deleteContent
 import net.kdt.pojavlaunch.ui.content.describe
-import net.kdt.pojavlaunch.ui.content.importContent
+import net.kdt.pojavlaunch.ui.content.ImportChoice
+import net.kdt.pojavlaunch.ui.content.ImportChoiceDialog
+import net.kdt.pojavlaunch.ui.content.ImportPlan
+import net.kdt.pojavlaunch.ui.content.commitImport
+import net.kdt.pojavlaunch.ui.content.commitImportInto
+import net.kdt.pojavlaunch.ui.content.discardImport
+import net.kdt.pojavlaunch.ui.content.planImport
 import net.kdt.pojavlaunch.ui.content.measure
 import net.kdt.pojavlaunch.ui.content.readThumbnail
 import net.kdt.pojavlaunch.ui.content.scanContent
@@ -138,7 +145,16 @@ class ContentActivity : BaseActivity() {
      * Held rather than dropped, because the alternative was a toast and a second trip through
      * the picker, and from Android 11 there is no second route into the game folder at all.
      */
-    private var unplaced by mutableStateOf<Pair<Uri, String>?>(null)
+    /**
+     * A file that has been read and identified but not placed.
+     *
+     * Held across a dialog, which is why it is a plan and not a Uri: the staged copy is what
+     * every outcome writes from, so the provider is read once however long the dialog sits
+     * open and whatever is eventually chosen.
+     */
+    private var pendingPlan by mutableStateOf<ImportPlan?>(null)
+    /** Whether the plan above is waiting on the folder picker rather than on the choice. */
+    private var choosingFolder by mutableStateOf(false)
 
     /** The world whose manage sheet is open, with everything its level.dat said. */
     private var managing by mutableStateOf<WorldDetails?>(null)
@@ -175,6 +191,7 @@ class ContentActivity : BaseActivity() {
                         profileLabel = profileLabel,
                         storageLine = storageLine,
                         filterLabel = filter?.name ?: "all",
+                        sortLabel = sort.name,
                         searching = lowered.isNotEmpty(),
                         filtered = filter != null,
                         modProblems = countModProblems(items),
@@ -204,16 +221,17 @@ class ContentActivity : BaseActivity() {
                         onDismiss = { managing = null }
                     )
                 }
-                unplaced?.let { (uri, name) ->
-                    FolderPickerDialog(
-                        fileName = name,
-                        gameDir = gameDir,
-                        onDismiss = { unplaced = null },
-                        onConfirm = { folder ->
-                            unplaced = null
-                            placeInto(uri, folder)
-                        },
-                    )
+                pendingPlan?.let { plan ->
+                    if (choosingFolder) {
+                        FolderPickerDialog(
+                            fileName = plan.landingName,
+                            gameDir = gameDir,
+                            onDismiss = { finishImport(plan) },
+                            onConfirm = { folder -> placeInto(plan, folder) },
+                        )
+                    } else {
+                        ImportChoiceDialog(plan) { choice -> onImportChoice(plan, choice) }
+                    }
                 }
             }
         }
@@ -227,6 +245,9 @@ class ContentActivity : BaseActivity() {
     override fun onDestroy() {
         super.onDestroy()
         detailJob?.cancel()
+        // The staged copy lives in the cache, so the system would clear it eventually; doing it
+        // here means a file somebody chose and then backed out of is gone when they expect.
+        pendingPlan?.let { discardImport(it) }
     }
 
     private fun buildSections(lowered: String): List<ContentSection> {
@@ -422,47 +443,89 @@ class ContentActivity : BaseActivity() {
             .onFailure { toast(getString(R.string.content_add_failed)) }
     }
 
+    /**
+     * Read the file, then ask.
+     *
+     * Reading and placing used to be one step, so the launcher's guess about where a file
+     * belonged was also the act of putting it there. The guess is still made here and is still
+     * right nearly always; what changed is that it is shown before it is acted on, which is
+     * also the only place a duplicate mod can be mentioned before it becomes two jars the
+     * loader refuses to start on.
+     */
     private fun importFile(uri: Uri) {
         lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                importContent(this@ContentActivity, gameDir, uri)
+            val plan = withContext(Dispatchers.IO) {
+                planImport(this@ContentActivity, gameDir, uri)
             }
-            when (result) {
-                is ImportResult.Added -> {
-                    toast(
-                        getString(
-                            R.string.content_added,
-                            result.name,
-                            getString(result.kind.titleRes)
-                        )
-                    )
-                    reload()
-                }
-                // Asked rather than refused. The launcher works out where a mod, a pack, a
-                // world or a screenshot goes by looking inside it; everything else used to be a
-                // toast, which on Android 11 and up meant the file could never get in at all.
-                ImportResult.Unrecognised ->
-                    unplaced = uri to importedNameFor(this@ContentActivity, uri, gameDir)
-                is ImportResult.Copied ->
-                    toast(getString(R.string.content_placed, result.name, result.folder))
-                ImportResult.Failed -> toast(getString(R.string.content_add_failed))
+            if (plan == null) {
+                toast(getString(R.string.content_add_failed))
+                return@launch
             }
+            // Nothing to confirm about a file the launcher could not identify: there is no
+            // suggestion to accept, so it goes straight to the picker it would have offered.
+            choosingFolder = plan.kind == null
+            pendingPlan = plan
         }
     }
 
-    /** Copy an unidentified file into the folder the player chose. */
-    private fun placeInto(uri: Uri, folder: File) {
+    private fun onImportChoice(plan: ImportPlan, choice: ImportChoice) {
+        when (choice) {
+            ImportChoice.Place -> commitPlan(plan, replace = false)
+            ImportChoice.Replace -> commitPlan(plan, replace = true)
+            ImportChoice.Choose -> choosingFolder = true
+            ImportChoice.Cancel -> finishImport(plan)
+        }
+    }
+
+    private fun commitPlan(plan: ImportPlan, replace: Boolean) {
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
-                copyIntoFolder(this@ContentActivity, gameDir, uri, folder)
+                commitImport(plan, gameDir, replace)
             }
-            when (result) {
-                is ImportResult.Copied -> {
-                    toast(getString(R.string.content_placed, result.name, result.folder))
-                    reload()
-                }
-                else -> toast(getString(R.string.content_add_failed))
+            finishImport(plan)
+            report(result)
+        }
+    }
+
+    /** Copy the staged file into the folder the player chose. */
+    private fun placeInto(plan: ImportPlan, folder: File) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                commitImportInto(plan, gameDir, folder)
             }
+            finishImport(plan)
+            report(result)
+        }
+    }
+
+    private fun report(result: ImportResult) {
+        when (result) {
+            is ImportResult.Added -> {
+                toast(
+                    getString(
+                        R.string.content_added, result.name, getString(result.kind.titleRes)
+                    )
+                )
+                reload()
+            }
+            is ImportResult.Copied -> {
+                toast(getString(R.string.content_placed, result.name, result.folder))
+                reload()
+            }
+            // Reachable only from a hand-built state now that the plan carries the kind, and
+            // still said rather than swallowed: an add that does nothing and reports nothing is
+            // the one outcome this button must never have.
+            ImportResult.Unrecognised, ImportResult.Failed ->
+                toast(getString(R.string.content_add_failed))
+        }
+    }
+
+    /** Drop the staged copy and close whichever dialog was showing it. */
+    private fun finishImport(plan: ImportPlan) {
+        discardImport(plan)
+        if (pendingPlan === plan) {
+            pendingPlan = null
+            choosingFolder = false
         }
     }
 
@@ -476,7 +539,27 @@ class ContentActivity : BaseActivity() {
      * is the launcher's reading of somebody else's metadata and being wrong must stay undoable.
      */
     private fun disableBrokenMods() {
-        val broken = items.filter { it.kind == ContentKind.MOD && it.enabled && it.warning != null }
+        // A duplicate means something different by "turn the broken ones off": both copies
+        // carry the warning, and switching both off removes the mod altogether rather than
+        // fixing anything. So one of each group survives, the newest, which is the copy
+        // somebody almost certainly just installed.
+        //
+        // Told apart by the sentence the row is SHOWING, not by whether the mod is duplicated.
+        // A second copy that is also built for the wrong Minecraft version shows the version
+        // warning, because that is the more fundamental problem, and it should be turned off
+        // like any other mod that cannot run here. Only a row whose single complaint is the
+        // duplication gets the newest-survives treatment.
+        val duplicateWarning = getString(R.string.content_mod_duplicate)
+        val olderCopies = olderDuplicateMods(items).map { key(it) }.toSet()
+        val broken = items.filter { item ->
+            if (item.kind != ContentKind.MOD || !item.enabled || item.warning == null) {
+                false
+            } else if (item.warning == duplicateWarning) {
+                olderCopies.contains(key(item))
+            } else {
+                true
+            }
+        }
         var turnedOff = 0
         for (item in broken) {
             val renamed = setContentEnabled(item, false) ?: continue

@@ -1648,6 +1648,83 @@ re-litigated. The reasoning lives in the commit that made the change.
   The folder is resolved on the **main thread** before the copy moves off it, because
   `recordingsDirectory()` and the screenshots path both go through `LauncherProfiles` (§12.7).
 
+- **Managing a world** (`ui/content/NbtEditor.java` + `WorldModel.kt` + `WorldSheet.kt`) —
+  name, game mode, difficulty, cheats, a copy, a backup zip, and turning hardcore off, none of
+  which needed the game. Game files could list a world and delete it; tapping one handed its
+  folder to an intent, which from Android 11 nothing on the phone can act on, so the one row
+  whose tap reliably did nothing was the kind the game is made of.
+  **The splice is the decision.** The obvious implementation parses `level.dat` into a tree,
+  changes a field and writes the tree back. That would be wrong here, because the only reader
+  available is `NbtReader`, which is built for a screen: it caps lists and nesting so a
+  malformed file cannot hang the launcher, and it collapses NBT's twelve tag types onto Java's.
+  Serialising its output would silently drop whatever those caps cut and would have to guess
+  the element type of every empty list. So nothing is rewritten: the decompressed bytes are
+  walked once recording where the value sits, and the new bytes are spliced into that range.
+  Every other byte is the byte that was there, including the parts this code does not model and
+  the parts a future Minecraft adds. **The blast radius is the one field.**
+  **Being wrong has to be cheap**, which is the rest of it. `edit` writes a temporary file,
+  reads it back **with the shipped reader** rather than a check of its own, and only then
+  replaces anything, keeping the original as `.bak`. A splice that corrupted the file fails
+  before it lands. That is what makes offering this reasonable at all: a world is somebody's
+  hundreds of hours, and 16.23's arithmetic says a feature whose correctness is invisible needs
+  the cost of being wrong brought down rather than the odds talked up.
+  **The folder name is not the world's name.** Minecraft shows `LevelName`, so renaming writes
+  that first and succeeds or fails on it; the folder follows as a courtesy and a failure there
+  is not worth undoing the rename that worked, because nothing reads the folder's name.
+  **Turning hardcore off also sets survival**, because a hardcore death writes GameType 3 as
+  well, and a world that is no longer hardcore but still locked to spectator is half rescued.
+  **A copy is a copy and a backup is a zip in Downloads**, for the texture pack exporter's
+  reason: a backup written beside the world is one nobody can reach, send or copy off the
+  phone.
+  Checked by `nbtsim`, which drives the real class; fifteen mutations fail it. Three coverage
+  holes were found by mutating rather than by reading, and each is now a fixture: a compound
+  that must be stepped **over** rather than entered, a name long enough to need both bytes of
+  the length prefix, and a string too long for it at all.
+
+- **Adding a file, with the guess shown before it is acted on** (`ImportPlan` + `ImportDialog`)
+  — the add button still works out where a file belongs by looking inside it, and that is still
+  right. What was wrong is that the decision was also the action.
+  **A guess that is right nearly always is still a guess**, and the two questions most worth
+  asking of an import both land in the gap between deciding and writing: is this really a mod,
+  and do you know you already have this one. So `planImport` stops at the decision and hands
+  back a staged file; one tap accepts it, which is no more work than before, and "choose a
+  folder" is one tap away instead of impossible. The folder picker is no longer only for what
+  could not be identified.
+  **The duplicate check is why this is a dialog and not a toast afterwards.** Two jars
+  declaring one mod id is a loader that refuses to start, naming an id the player has never
+  seen, and the usual way to get there is the most ordinary thing anybody does: updating a mod
+  by adding the new file and forgetting the old. Replace is offered first, in the error colour,
+  with Keep both beside it and Cancel spelled out rather than left to a tap outside, because
+  the primary action here deletes a file.
+  **Matched on the declared mod id, never on the file name**, the same rule the folder's own
+  duplicate check follows: "sodium-0.6.jar" beside "sodium-0.5.jar" is the case this exists for
+  and no amount of stemming tells it from "reeses-sodium-options.jar". A jar whose metadata
+  will not parse has no duplicate, which is `UNKNOWN never CONFLICTS` again.
+
+- **Duplicates, sorting, and a download you can see** (`ContentCompat.duplicateModIds` +
+  `ContentSort` + `ModInstall.Progress`) — three complaints about the mods half of Game files,
+  with one shape between them: the screen knew things it was not saying.
+  **A duplicated mod id is the one failure in the folder that stops the game starting** rather
+  than stopping a mod loading, so it sits above a missing dependency in the row's one warning
+  line and below the two that say the mod cannot run here at all. "Turn them off" had to learn
+  about it: both copies carry the warning and switching both off removes the mod entirely, so
+  the newest of each group survives. Told apart by **the sentence the row is showing**, not by
+  whether the mod is duplicated, because a second copy that is also built for the wrong version
+  should be turned off like any other mod that cannot run.
+  **Newest first is the default sort**, and for a mod that is literally last installed: a jar's
+  timestamp is when it was written. The old default buried a mod somebody had just added
+  alphabetically among two hundred others. Sorting moved out of the scan, because a world's
+  real timestamp and a mod's real size only arrive in the slow pass and ordering on
+  placeholders makes the list reshuffle under a thumb.
+  **The install band replaces an 18dp spinner inside the button that was tapped**, which says
+  "something is happening" and nothing else, and is invisible the moment that row scrolls away
+  — which during a dependency walk is most of the wait. Progress is reported **per file and
+  never for the whole**, because the whole is not known until it is over: dependencies are
+  discovered as the graph is walked, so a bar across everything would have to lie about its own
+  denominator. Throttled at the source at 128KB (16.30), and `modrinthsim`'s download stub now
+  actually drives the monitor so the throttle is a thing checks can see (16.16): removing it,
+  dropping the final partial step, or setting the step to one byte each fail it.
+
 - **Saying what it costs** (the onboarding's honesty page + `SettingsRoute.DEMANDS`) — one
   page in the welcome saying this is capability first and not frame rate first, and four
   screens of mechanism in Settings for anybody who wants to know why.
@@ -2596,6 +2673,37 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - It cannot tell you **whether your phone will be fast enough**, which is the question being
   asked. Nothing can: the answer depends on the chip, the driver, the Minecraft version, the
   mods and the renderer, and the launcher can read two of those five.
+- **A world is edited one field at a time, and only the fields the sheet names.** `NbtEditor`
+  splices a string, a byte or an int into a path that already exists; it cannot add a key that
+  is absent, delete one, or touch a list or an array. Anything else about a world is still the
+  game's business. A `level.dat` that will not parse is not editable at all, which the sheet
+  says rather than offering controls that would refuse.
+- Every edit leaves a **`level.dat.bak`** beside the world and nothing ever deletes it. That is
+  deliberate, and it does mean the newest backup is the only one: a second edit overwrites the
+  first. It is a safety net for the edit you just made, not a history.
+- **The seed is shown and cannot be changed.** Changing it on a world that has already
+  generated chunks does nothing to the ones that exist and breaks the join between them and
+  everything generated afterwards, which looks like a corrupt world rather than a new seed.
+- **Turning hardcore off cannot give back what the death took.** It makes the world playable
+  again in survival; the inventory, the position and whatever was in the lava are gone, because
+  Minecraft wrote that before the launcher ever saw the file.
+- A world **copy and a backup zip both cost the world's size again**, and a big world is
+  gigabytes. Neither reports progress beyond a line on the row, and neither can be cancelled.
+  The copy is removed if it fails part way; the zip is hidden from Downloads until every byte
+  is there.
+- **A rename changes the folder as well, and the two can still disagree.** The name in
+  `level.dat` is what Minecraft shows and is what the rename succeeds or fails on; the folder
+  follows unless something is already using that name, in which case it is left as it was.
+- The duplicate mod check reads **declared mod ids only**. A jar whose metadata will not parse
+  is not compared against anything, two versions of a mod that declares different ids in each
+  are not a duplicate, and a `.disabled` copy is not counted, because it is not in the game.
+- The install band reports **one file at a time and no overall total**. A mod's dependencies
+  are discovered as the graph is walked, so how many files are coming is not known until the
+  last one has landed; what it can say is which file, how far through it is and how many have
+  finished.
+- **Neither the import dialog nor the world sheet is driven by a harness.** Both are Kotlin, so
+  §16.25 applies: the splice under the sheet is Java and checked, and the screens over it are
+  read rather than executed.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -2669,9 +2777,15 @@ Before pushing:
   keycode exists.
 - **Run `python3 scripts/check_crash_rules.py`** if the crash rule table changed — it tests the
   shipped patterns, parsed out of the Kotlin source, against fixture crash logs.
-- **Run `scripts/nbtsim/run.sh`** if `NbtReader` changed — it writes a `level.dat` shaped like a
-  real one, nested compounds and arrays and all, and reads it back through the shipped source.
-  Binary format parsing is wrong in ways reading cannot catch.
+- **Run `bash scripts/nbtsim/run.sh`** if `NbtReader` or `NbtEditor` changed — it writes a
+  `level.dat` shaped like a real one, nested compounds and arrays and all, and reads it back
+  through the shipped source. Binary format parsing is wrong in ways reading cannot catch.
+  For the editor it asserts the property the splice exists for, which is that **only the edited
+  payload differs**, by comparing the common prefix and suffix of the two files rather than by
+  checking the fields the harness happens to look at: a writer that round-tripped those and
+  quietly dropped a capped list would pass the weaker check and destroy a world. It also drives
+  `edit()` on a real file for the backup, the verify-before-replace step, a change that returns
+  null and a change that corrupts, and it keeps an uncompressed file uncompressed.
 - **Run `scripts/gyrosim/run.sh`** if gyro aiming changed — it stubs the four framework types
   `GyroControl` touches, compiles the real shipped source, and drives synthetic motion through it:
   1:1 scaling, no drift under a hardware bias, one-pixel steps on a slow turn, no added latency on
@@ -2684,9 +2798,14 @@ Before pushing:
   the nine-slice can be reproduced in Python and rendered as a contact sheet at real button sizes,
   which is how a face that vanished over a bright sky and a corner radius that turned a small
   button into a circle were both caught before they shipped.
-- **Run `sh scripts/modrinthsim/run.sh`** if the Modrinth client changed. It compiles the shipped
-  `ModrinthMods` and `ModInstall` against stubs at source 8 and drives them with fixtures, which
-  is the only check available: the API is not reachable from the build container.
+- **Run `sh scripts/modrinthsim/run.sh`** if the Modrinth client or the installer changed. It
+  compiles the shipped `ModrinthMods` and `ModInstall` against stubs at source 8 and drives them
+  with fixtures, which is the only check available: the API is not reachable from the build
+  container. Its download stub **drives the progress monitor** rather than returning silently,
+  because the question worth asking is how many reports reach the caller and a stub that
+  reports nothing answers "none" however the throttle is written (16.16). Two assertions
+  matter: the reports are far fewer than the raw callbacks, and they still **end at the file's
+  real size**, which is the half that found the clip editor's bar stopping at 99% (16.30).
 - **Run `sh scripts/loadersim/run.sh`** if the loader index changed. It drives the shipped
   parsers against the shapes those four APIs send, including the historical Forge id that splits
   wrongly on its last hyphen and NeoForge's undeclared Minecraft version. None of those hosts is

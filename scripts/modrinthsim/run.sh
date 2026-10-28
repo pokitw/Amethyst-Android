@@ -66,6 +66,9 @@ public class Tools {
     public static String read(InputStream in) { return ""; }
     public static File getGameDirPath(
             net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile p) { return null; }
+    public interface DownloaderFeedback {
+        void updateProgress(int curr, int max);
+    }
 }
 EOF
 cat > "$OUT/stub/net/kdt/pojavlaunch/utils/DownloadUtils.java" <<'EOF'
@@ -73,7 +76,41 @@ package net.kdt.pojavlaunch.utils;
 import java.io.File;
 import java.io.IOException;
 public class DownloadUtils {
-    public static void downloadFile(String url, File out) throws IOException {}
+    /** Writes something, because ModInstall verifies that a download actually landed. */
+    public static void downloadFile(String url, File out) throws IOException {
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+            fos.write(new byte[16]);
+        }
+    }
+
+    /**
+     * Stands in for the real monitored download, and actually drives the monitor.
+     *
+     * A stub that merely returned would make every check about progress vacuous (16.16): the
+     * whole question is how many reports reach the caller, and a stub that reports nothing
+     * answers "none" however the throttle is written. This emits a 64KB buffer at a time, the
+     * same as the real one, over a size the test sets.
+     */
+    public static int sizeBytes = 0;
+    public static int rawCallbacks = 0;
+
+    public static void downloadFileMonitored(String url, File out, byte[] buffer,
+                                             net.kdt.pojavlaunch.Tools.DownloaderFeedback monitor)
+            throws IOException {
+        rawCallbacks = 0;
+        int chunk = 65535;
+        int done = 0;
+        while (done < sizeBytes) {
+            done = Math.min(sizeBytes, done + chunk);
+            rawCallbacks++;
+            monitor.updateProgress(done, sizeBytes);
+        }
+        // A few real bytes, because ModInstall verifies what landed: with no hash and no
+        // declared size the check is "something was written", and a zero byte file fails it.
+        try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+            fos.write(new byte[16]);
+        }
+    }
 }
 EOF
 cat > "$OUT/stub/net/kdt/pojavlaunch/value/launcherprofiles/MinecraftProfile.java" <<'EOF'

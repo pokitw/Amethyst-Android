@@ -6,6 +6,8 @@ package net.kdt.pojavlaunch.modloaders.modpacks.api;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 
+import net.kdt.pojavlaunch.utils.DownloadUtils;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -153,6 +155,8 @@ public class Harness {
         check(ModInstall.safeName("sodium-fabric-1.0.jar").equals("sodium-fabric-1.0.jar"),
                 "an ordinary name should be left alone");
 
+        progressChecks();
+
         System.out.println("checked " + files.size() + " parsed versions, "
                 + "file selection, null tolerance, version choice, facets and name safety");
         if (failures > 0) {
@@ -160,6 +164,80 @@ public class Harness {
             System.exit(1);
         }
         System.out.println("modrinth parsing OK");
+    }
+
+    /**
+     * The install's progress reporting, which is a main thread flood if it is not throttled.
+     *
+     * The real monitored download calls back per 64KB buffer, so a 20MB mod is three hundred
+     * callbacks and every one of them becomes a post to the main thread at the other end. That
+     * is exactly the shape of 16.30, where ClipEditor reported per sample and nothing about
+     * either half looked wrong on its own.
+     *
+     * Two assertions, and the second is the one that found the bug in the clip editor: the
+     * stream of reports has to be much smaller than the stream of callbacks, AND it has to end
+     * at the real total rather than stopping short of it, because a throttle that drops the
+     * last partial step leaves a bar that never fills.
+     */
+    private static void progressChecks() throws Exception {
+        java.io.File folder = java.nio.file.Files.createTempDirectory("modinstall").toFile();
+        folder.deleteOnExit();
+
+        // No hash and no declared size, so verify() accepts whatever lands and the install is
+        // not refused for a reason that has nothing to do with progress.
+        ModrinthMods.File file = new ModrinthMods.File("abc", "sodium", "1.0", "release",
+                "sodium-fabric-0.6.jar", "https://example.invalid/sodium-fabric-0.6.jar", null, 0,
+                java.util.Collections.<ModrinthMods.Dependency>emptyList());
+        DownloadUtils.sizeBytes = 20 * 1024 * 1024;
+
+        final int[] reports = {0};
+        final long[] last = {-1L};
+        final long[] highest = {0L};
+        ModInstall.install(folder, file, "1.20.1", "fabric", new ModInstall.Progress() {
+            @Override
+            public void onProgress(String name, long done, long total, int completed) {
+                reports[0]++;
+                check(done >= last[0], "progress went backwards: " + last[0] + " then " + done);
+                last[0] = done;
+                if (done > highest[0]) highest[0] = done;
+            }
+        });
+
+        check(DownloadUtils.rawCallbacks > 300,
+                "the stub should have produced a flood to throttle, got "
+                        + DownloadUtils.rawCallbacks);
+        check(reports[0] > 1, "a 20MB download reported " + reports[0] + " times");
+        // 20MB at a 128KB step is about 160; the raw stream is about 320. Anything near the raw
+        // count means the throttle is not doing anything.
+        check(reports[0] <= DownloadUtils.rawCallbacks / 2,
+                "throttle let " + reports[0] + " of " + DownloadUtils.rawCallbacks + " through");
+        check(highest[0] == DownloadUtils.sizeBytes,
+                "progress stopped at " + highest[0] + " of " + DownloadUtils.sizeBytes);
+
+        // A small file still reports, and still ends at its own size: the throttle must not
+        // swallow a download that finishes inside one step.
+        DownloadUtils.sizeBytes = 4000;
+        ModrinthMods.File small = new ModrinthMods.File("def", "tiny", "1.0", "release",
+                "tiny.jar", "https://example.invalid/tiny.jar", null, 0,
+                java.util.Collections.<ModrinthMods.Dependency>emptyList());
+        final long[] smallHighest = {-1L};
+        ModInstall.install(folder, small, "1.20.1", "fabric", new ModInstall.Progress() {
+            @Override
+            public void onProgress(String name, long done, long total, int completed) {
+                if (done > smallHighest[0]) smallHighest[0] = done;
+            }
+        });
+        check(smallHighest[0] == 4000,
+                "a one buffer download ended at " + smallHighest[0] + " rather than its size");
+
+        // And no listener at all must still install, because that is the path every caller
+        // that does not want a bar takes.
+        DownloadUtils.sizeBytes = 1024;
+        ModrinthMods.File quiet = new ModrinthMods.File("ghi", "quiet", "1.0", "release",
+                "quiet.jar", "https://example.invalid/quiet.jar", null, 0,
+                java.util.Collections.<ModrinthMods.Dependency>emptyList());
+        ModInstall.Result result = ModInstall.install(folder, quiet, "1.20.1", "fabric");
+        check(result.ok(), "an install with no progress listener failed");
     }
 
     private static ModrinthMods.File byId(List<ModrinthMods.File> files, String id) {
