@@ -35,6 +35,18 @@ import net.kdt.pojavlaunch.ui.content.readThumbnail
 import net.kdt.pojavlaunch.ui.content.scanContent
 import net.kdt.pojavlaunch.ui.content.setContentEnabled
 import net.kdt.pojavlaunch.ui.content.summarise
+import net.kdt.pojavlaunch.ui.content.WorldAction
+import net.kdt.pojavlaunch.ui.content.WorldDetails
+import net.kdt.pojavlaunch.ui.content.WorldExport
+import net.kdt.pojavlaunch.ui.content.WorldSheet
+import net.kdt.pojavlaunch.ui.content.duplicateWorld
+import net.kdt.pojavlaunch.ui.content.exportWorld
+import net.kdt.pojavlaunch.ui.content.readWorldDetails
+import net.kdt.pojavlaunch.ui.content.renameWorld
+import net.kdt.pojavlaunch.ui.content.setWorldCheats
+import net.kdt.pojavlaunch.ui.content.setWorldDifficulty
+import net.kdt.pojavlaunch.ui.content.setWorldGameMode
+import net.kdt.pojavlaunch.ui.content.unsetHardcore
 import net.kdt.pojavlaunch.ui.mediaedit.MediaEditorActivity
 import net.kdt.pojavlaunch.ui.mods.ModTarget
 import net.kdt.pojavlaunch.ui.mods.currentModTarget
@@ -128,6 +140,12 @@ class ContentActivity : BaseActivity() {
      */
     private var unplaced by mutableStateOf<Pair<Uri, String>?>(null)
 
+    /** The world whose manage sheet is open, with everything its level.dat said. */
+    private var managing by mutableStateOf<WorldDetails?>(null)
+    /** The folder behind [managing]; kept apart because a rename changes it. */
+    private var managingFile: File? = null
+    private var worldBusy by mutableStateOf(false)
+
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importFile(uri)
     }
@@ -178,6 +196,14 @@ class ContentActivity : BaseActivity() {
                     onFindMissingMod = ::browseFor,
                     onBack = ::finish
                 )
+                managing?.let { world ->
+                    WorldSheet(
+                        details = world,
+                        busy = worldBusy,
+                        onAction = { action -> runWorldAction(world, action) },
+                        onDismiss = { managing = null }
+                    )
+                }
                 unplaced?.let { (uri, name) ->
                     FolderPickerDialog(
                         fileName = name,
@@ -555,8 +581,119 @@ class ContentActivity : BaseActivity() {
                 .onFailure { openPath(item.file) }
             return
         }
+        // A world opens its own sheet rather than going out to the device. Handing a DIRECTORY
+        // to an intent was never going to do anything useful, and under Android 11 the folder
+        // cannot be reached by any app on the phone anyway, so this was the one row whose tap
+        // reliably did nothing at all.
+        if (item.kind == ContentKind.WORLD) {
+            manageWorld(item.file)
+            return
+        }
         openPath(item.file)
     }
+
+    /* -------------------------------------------------------------- worlds */
+
+    /** Read the world off the main thread, then show the sheet. */
+    private fun manageWorld(folder: File) {
+        managingFile = folder
+        worldBusy = true
+        lifecycleScope.launch {
+            val details = withContext(Dispatchers.IO) { readWorldDetails(folder) }
+            worldBusy = false
+            // Only if the player has not dismissed or moved on while the folder was walked.
+            if (managingFile == folder) managing = details
+        }
+    }
+
+    /**
+     * Do what the sheet asked, then read the world back.
+     *
+     * Everything is re-read rather than patched into the open sheet, because the writes are
+     * splices into a file the launcher does not fully model: what the sheet should show after
+     * one is whatever the file now says, not whatever this code believed it wrote.
+     */
+    private fun runWorldAction(details: WorldDetails, action: WorldAction) {
+        val folder = managingFile ?: return
+        if (worldBusy) return
+        worldBusy = true
+        lifecycleScope.launch {
+            var next: File? = folder
+            var message: String? = null
+            var failed = false
+            withContext(Dispatchers.IO) {
+                when (action) {
+                    is WorldAction.Rename -> {
+                        val renamed = renameWorld(folder, action.name)
+                        if (renamed == null) failed = true else {
+                            next = renamed
+                            message = getString(R.string.world_renamed, action.name.trim())
+                        }
+                    }
+                    is WorldAction.SetGameMode ->
+                        failed = !setWorldGameMode(folder, action.mode)
+                    is WorldAction.SetDifficulty ->
+                        failed = !setWorldDifficulty(folder, action.level)
+                    is WorldAction.SetCheats ->
+                        failed = !setWorldCheats(folder, action.on)
+                    WorldAction.ClearHardcore ->
+                        failed = !unsetHardcore(folder)
+                    WorldAction.Duplicate -> {
+                        val copy = duplicateWorld(
+                            folder, getString(R.string.world_duplicate_suffix)
+                        )
+                        if (copy == null) failed = true else {
+                            message = getString(R.string.world_duplicated, copy.name)
+                        }
+                    }
+                    WorldAction.Export -> {
+                        when (val result = exportWorld(this@ContentActivity, folder)) {
+                            is WorldExport.Saved ->
+                                message = getString(R.string.world_exported, result.fileName)
+                            WorldExport.Failed -> failed = true
+                        }
+                    }
+                    WorldAction.Delete -> {
+                        if (!deleteTreeOf(folder)) failed = true else next = null
+                    }
+                }
+            }
+            if (failed) {
+                worldBusy = false
+                toast(
+                    getString(
+                        when (action) {
+                            WorldAction.Duplicate -> R.string.world_duplicate_failed
+                            WorldAction.Export -> R.string.world_export_failed
+                            else -> R.string.world_save_failed
+                        }
+                    )
+                )
+                return@launch
+            }
+            message?.let { toast(it) }
+            val landed = next
+            if (landed == null) {
+                managing = null
+                managingFile = null
+                worldBusy = false
+                reload()
+                return@launch
+            }
+            managingFile = landed
+            val refreshed = withContext(Dispatchers.IO) { readWorldDetails(landed) }
+            worldBusy = false
+            managing = refreshed
+            reload()
+        }
+    }
+
+    /** Delete through the same path the rows use, so there is one definition of it. */
+    private fun deleteTreeOf(folder: File): Boolean = deleteContent(
+        ContentItem(
+            kind = ContentKind.WORLD, file = folder, id = folder.name, title = folder.name
+        )
+    )
 
     /** Hand a file to whatever the device opens it with, through the launcher's own provider. */
     private fun openPath(file: File) {

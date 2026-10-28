@@ -858,7 +858,7 @@
     <string name="content_add_title">Add to this profile</string>
     <string name="content_add_hint">What you pick decides where it goes.</string>
     <string name="content_add_from_modrinth">Search Modrinth</string>
-    <string name="content_add_from_file">Pick a file</string>
+    <string name="content_add_from_file">Choose a file</string>
     <string name="content_title">Game files</string>
     <string name="content_add">Add</string>
     <string name="content_added">%1$s added to %2$s</string>
@@ -868,7 +868,7 @@
     <string name="content_delete_failed">That could not be deleted.</string>
     <string name="content_open_failed">Nothing on this device could open that.</string>
     <string name="content_delete_title">Delete %1$s?</string>
-    <string name="content_delete_world">The whole world folder goes, and there is no copy. If you only want to stop it appearing in game, move it out instead.</string>
+    <string name="content_delete_world">Everything in the world goes and there is no undo. If you are not sure, tap the world and save a backup to Downloads first.</string>
     <string name="content_delete_toggleable">The file is removed. Turning it off instead keeps it, so you can put it back.</string>
     <string name="content_delete_plain">The file is removed from the game folder.</string>
     <string name="content_delete_confirm">Delete</string>
@@ -877,7 +877,7 @@
     <string name="content_storage">Storage</string>
     <string name="content_storage_line">%1$s used · %2$s free</string>
     <string name="content_show">Show</string>
-    <string name="content_hold_hint">Tap a mod to turn it on or off, tap anything else to open it. Hold to delete.</string>
+    <string name="content_hold_hint">Tap a mod to turn it on or off, tap a world to manage it. Hold any row to delete it.</string>
     <string name="content_loading">Reading the folder</string>
     <string name="content_open_folder">Open the folder in a file manager</string>
     <string name="content_settings_description">Worlds, mods, resource packs, shaders and screenshots</string>
@@ -1455,12 +1455,68 @@
     <string name="image_too_large">This picture is too large to edit on this device</string>
     <string name="content_screenshot_open">Open elsewhere</string>
     <string name="recordings_edit">Edit</string>
-    <string name="content_place_title">Where should this go?</string>
-    <string name="content_place_body">The launcher could not tell what %1$s is. Choose a folder to put it in.</string>
-    <string name="content_place_up">Back up a folder</string>
-    <string name="content_place_empty">No folders in here. It can still go in this one.</string>
-    <string name="content_place_here">Put it here</string>
-    <string name="content_placed">Put %1$s in %2$s</string>
+    <string name="world_sheet_hint">Changes are saved straight into the world. A copy of the old file is kept next to it.</string>
+    <string name="world_sheet_unreadable">This world\'s data file could not be read, so it can only be copied, exported or deleted.</string>
+    <string name="world_detail_version">Made in</string>
+    <string name="world_detail_size">Size</string>
+    <string name="world_detail_played">Last played</string>
+    <string name="world_detail_seed">Seed</string>
+    <string name="world_detail_folder">Folder</string>
+    <string name="world_detail_unknown">Not set</string>
+
+    <string name="world_section_settings">WORLD SETTINGS</string>
+    <string name="world_rename_title">Name</string>
+    <string name="world_rename_description">What the world is called in game. The folder is renamed to match.</string>
+    <string name="world_rename_placeholder">World name</string>
+    <string name="world_mode_title">Game mode</string>
+    <string name="world_mode_description">What you start in next time you load the world.</string>
+    <string name="world_mode_survival">Survival</string>
+    <string name="world_mode_creative">Creative</string>
+    <string name="world_mode_adventure">Adventure</string>
+    <string name="world_mode_spectator">Spectator</string>
+    <string name="world_difficulty_title">Difficulty</string>
+    <string name="world_difficulty_description">Peaceful stops hostile mobs spawning.</string>
+    <string name="world_difficulty_peaceful">Peaceful</string>
+    <string name="world_difficulty_easy">Easy</string>
+    <string name="world_difficulty_normal">Normal</string>
+    <string name="world_difficulty_hard">Hard</string>
+    <string name="world_cheats_title">Allow cheats</string>
+    <string name="world_cheats_description">Lets you use commands such as /gamemode and /tp in this world.</string>
+
+    <string name="world_section_hardcore">HARDCORE</string>
+    <string name="world_hardcore_title">Turn off hardcore</string>
+    <string name="world_hardcore_description">Play this world again after dying. Minecraft cannot do this from inside the game.</string>
+    <string name="world_hardcore_confirm_title">Turn off hardcore?</string>
+    <string name="world_hardcore_confirm_body">The world stops being hardcore and goes back to survival, so you can play it again after dying. You can turn hardcore back on later, and the old data file is kept next to it either way.</string>
+    <string name="world_hardcore_confirm_action">Turn it off</string>
+
+    <string name="world_section_copies">COPIES</string>
+    <string name="world_duplicate_title">Make a copy</string>
+    <string name="world_duplicate_description">A second world with the same blocks, to try something without risking this one.</string>
+    <string name="world_duplicate_suffix">copy</string>
+    <string name="world_duplicated">Copied to %1$s</string>
+    <string name="world_duplicate_failed">That world could not be copied. There may not be room for it.</string>
+    <string name="world_export_title">Save a backup to Downloads</string>
+    <string name="world_export_description">A .zip you can copy off the phone or send to someone.</string>
+    <string name="world_exporting">Saving the backup</string>
+    <string name="world_exported">Saved %1$s to Downloads</string>
+    <string name="world_export_failed">The backup could not be saved. Downloads may not be writable.</string>
+
+    <string name="world_section_remove">REMOVE</string>
+    <string name="world_delete_title">Delete this world</string>
+    <string name="world_delete_description">Everything in it goes, and there is no undo.</string>
+
+    <string name="world_saving">Saving</string>
+    <string name="world_save_failed">That change could not be saved, so the world is unchanged.</string>
+    <string name="world_renamed">Renamed to %1$s</string>
+    <string name="world_manage">Manage</string>
+
+    <string name="content_place_title">Choose a folder</string>
+    <string name="content_place_body">Pick where %1$s should be saved.</string>
+    <string name="content_place_up">Up one level</string>
+    <string name="content_place_empty">No folders inside this one. You can still save here.</string>
+    <string name="content_place_here">Save here</string>
+    <string name="content_placed">Saved %1$s to %2$s</string>
     <string name="preference_gallery_copy_recordings_title">Copy recordings to gallery</string>
     <string name="preference_gallery_copy_screenshots_title">Copy screenshots to gallery</string>
     <string name="preference_gallery_copy_description">Copies what you already have. Anything taken before the switch above was turned on is only in the game folder, which nothing else on the phone can open.</string>

@@ -15,8 +15,10 @@ trap 'rm -rf "$work"' EXIT
 
 mkdir -p "$work/src/net/kdt/pojavlaunch/ui/content"
 cp -r "$here/stubs/." "$work/src/"
-cp "$repo/app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/ui/content/NbtReader.java" \
-   "$work/src/net/kdt/pojavlaunch/ui/content/"
+for f in NbtReader NbtEditor; do
+  cp "$repo/app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/ui/content/$f.java" \
+     "$work/src/net/kdt/pojavlaunch/ui/content/"
+done
 cp "$here/NbtSim.java" "$work/src/"
 
 javac -nowarn -d "$work/out" $(find "$work/src" -name '*.java')

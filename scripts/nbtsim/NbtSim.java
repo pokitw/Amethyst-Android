@@ -1,3 +1,4 @@
+import net.kdt.pojavlaunch.ui.content.NbtEditor;
 import net.kdt.pojavlaunch.ui.content.NbtReader;
 import java.io.*;
 import java.util.Map;
@@ -28,12 +29,28 @@ public class NbtSim {
             tag(o, 3, "GameType"); o.writeInt(0);
             tag(o, 1, "hardcore"); o.writeByte(1);
             tag(o, 4, "LastPlayed"); o.writeLong(1735689600000L);
+            // A short and a float, so every fixed-width tag type is one the walker must step
+            // over at least once somewhere before the fields the checks read.
+            tag(o, 2, "SpawnY"); o.writeShort(64);
+            tag(o, 5, "SpawnAngle"); o.writeFloat(0.5f);
             // A byte array in the middle: must be stepped over exactly or everything after shifts.
             tag(o, 7, "BiomeBytes"); o.writeInt(300); o.write(new byte[300]);
             tag(o, 11, "Ints"); o.writeInt(5); for (int i = 0; i < 5; i++) o.writeInt(i);
             tag(o, 12, "Longs"); o.writeInt(3); for (int i = 0; i < 3; i++) o.writeLong(i);
             // A list of compounds, also stepped over.
             tag(o, 9, "ServerBrands"); o.writeByte(8); o.writeInt(2); str(o, "vanilla"); str(o, "fabric");
+            // A compound BEFORE the one being looked for, so reaching Version means stepping
+            // over a whole compound rather than recursing into it. Without this, skipPayload's
+            // TAG_COMPOUND arm is unreachable from every check in this file.
+            tag(o, 10, "DragonFight");
+              tag(o, 1, "DragonKilled"); o.writeByte(1);
+              tag(o, 10, "ExitPortalLocation");
+                tag(o, 3, "X"); o.writeInt(0);
+                tag(o, 3, "Y"); o.writeInt(64);
+              o.writeByte(0);                           // end ExitPortalLocation
+              tag(o, 9, "Gateways"); o.writeByte(3); o.writeInt(4);
+                for (int i = 0; i < 4; i++) o.writeInt(i);
+            o.writeByte(0);                             // end DragonFight
             tag(o, 10, "Version");
               tag(o, 8, "Name"); str(o, "1.20.1");
               tag(o, 3, "Id"); o.writeInt(3465);
@@ -49,6 +66,230 @@ public class NbtSim {
         out.write(raw.toByteArray());
         out.close();
         return f;
+    }
+
+    static byte[] bytesOf(File f) throws IOException {
+        byte[] out = new byte[(int) f.length()];
+        DataInputStream in = new DataInputStream(new FileInputStream(f));
+        in.readFully(out);
+        in.close();
+        return out;
+    }
+
+    /**
+     * NbtEditor: a splice, so everything it does not touch has to come back byte for byte.
+     *
+     * That property is the whole reason this class exists instead of a tree writer, and it is
+     * also the only one worth asserting hard: a writer that round-trips the fields the harness
+     * happens to look at while quietly dropping a capped list would pass a weaker check and
+     * destroy somebody's world. So each edit is compared against the original bytes with the
+     * edited range cut out of both, which is an assertion about the whole file rather than
+     * about the fields.
+     */
+    static void editorChecks(File dir) throws Exception {
+        File level = writeLevel(dir, true);
+        byte[] plain = NbtEditor.gunzip(bytesOf(level));
+
+        // ---- a string, the same length ----
+        byte[] sameLength = NbtEditor.setString(plain, "Skyblock Extra", "Data", "LevelName");
+        check("string of equal length splices",
+                sameLength != null && sameLength.length == plain.length,
+                sameLength == null ? "null" : sameLength.length + " vs " + plain.length);
+
+        // ---- a string, longer and shorter: the file must change size by exactly the delta ----
+        byte[] longer = NbtEditor.setString(plain, "A Much Longer World Name", "Data", "LevelName");
+        check("longer string grows the file by the delta",
+                longer != null && longer.length == plain.length + ("A Much Longer World Name".length()
+                        - "Skyblock Ultra".length()),
+                longer == null ? "null" : String.valueOf(longer.length - plain.length));
+        byte[] shorter = NbtEditor.setString(plain, "Hi", "Data", "LevelName");
+        check("shorter string shrinks the file by the delta",
+                shorter != null && shorter.length == plain.length
+                        + (2 - "Skyblock Ultra".length()),
+                shorter == null ? "null" : String.valueOf(shorter.length - plain.length));
+
+        // ---- everything else is untouched, asserted on the bytes ----
+        // The LevelName payload is the only range allowed to differ. Find it by the one thing
+        // that cannot lie: the common prefix and the common suffix of the two files.
+        int prefix = 0;
+        while (prefix < plain.length && prefix < longer.length && plain[prefix] == longer[prefix]) {
+            prefix++;
+        }
+        int suffix = 0;
+        while (suffix < plain.length - prefix && suffix < longer.length - prefix
+                && plain[plain.length - 1 - suffix] == longer[longer.length - 1 - suffix]) {
+            suffix++;
+        }
+        int changedInOriginal = plain.length - prefix - suffix;
+        check("only the edited payload differs",
+                changedInOriginal <= "Skyblock Ultra".length() + 2,
+                changedInOriginal + " bytes differ");
+
+        // ---- and it still parses, with every neighbour intact ----
+        File out = new File(dir, "edited.dat");
+        NbtEditor.writeAll(out, NbtEditor.gzip(longer));
+        Map<String, Object> reread = NbtReader.read(out);
+        check("edited file parses",
+                "A Much Longer World Name".equals(NbtReader.getString(reread, "Data", "LevelName")),
+                String.valueOf(NbtReader.getString(reread, "Data", "LevelName")));
+        check("the field after the edit survives",
+                "1.20.1".equals(NbtReader.getString(reread, "Data", "Version", "Name")),
+                String.valueOf(NbtReader.getString(reread, "Data", "Version", "Name")));
+        check("the long after the edit survives",
+                NbtReader.getLong(reread, 0, "Data", "LastPlayed") == 1735689600000L,
+                String.valueOf(NbtReader.getLong(reread, 0, "Data", "LastPlayed")));
+        check("the double after the edit survives",
+                NbtReader.get(reread, "Data", "BorderSize") instanceof Double,
+                String.valueOf(NbtReader.get(reread, "Data", "BorderSize")));
+
+        // ---- numbers ----
+        byte[] typed = NbtEditor.setInt(plain, 1, "Data", "GameType");
+        File gm = new File(dir, "gm.dat");
+        NbtEditor.writeAll(gm, NbtEditor.gzip(typed));
+        check("int edit lands and keeps the length",
+                typed != null && typed.length == plain.length
+                        && NbtReader.getLong(NbtReader.read(gm), -1, "Data", "GameType") == 1,
+                String.valueOf(NbtReader.getLong(NbtReader.read(gm), -1, "Data", "GameType")));
+
+        byte[] flagged = NbtEditor.setByte(plain, 0, "Data", "hardcore");
+        File hc = new File(dir, "hc.dat");
+        NbtEditor.writeAll(hc, NbtEditor.gzip(flagged));
+        check("byte edit lands",
+                flagged != null
+                        && NbtReader.getLong(NbtReader.read(hc), -1, "Data", "hardcore") == 0,
+                String.valueOf(NbtReader.getLong(NbtReader.read(hc), -1, "Data", "hardcore")));
+
+        // ---- the type has to match, or a world stops loading quietly ----
+        check("setInt refuses a byte field",
+                NbtEditor.setInt(plain, 1, "Data", "hardcore") == null, "refused");
+        check("setByte refuses an int field",
+                NbtEditor.setByte(plain, 1, "Data", "GameType") == null, "refused");
+        check("setString refuses a number",
+                NbtEditor.setString(plain, "x", "Data", "GameType") == null, "refused");
+
+        // ---- paths that are not there ----
+        check("absent key refused",
+                NbtEditor.setString(plain, "x", "Data", "Nope") == null, "refused");
+        check("absent parent refused",
+                NbtEditor.setString(plain, "x", "Nope", "LevelName") == null, "refused");
+        check("empty path refused",
+                NbtEditor.setString(plain, "x") == null, "refused");
+        check("a compound is not a value",
+                NbtEditor.setString(plain, "x", "Data") == null, "refused");
+
+        // ---- nested, past a list and two arrays ----
+        byte[] nested = NbtEditor.setString(plain, "1.21.4", "Data", "Version", "Name");
+        File nf = new File(dir, "nested.dat");
+        NbtEditor.writeAll(nf, NbtEditor.gzip(nested));
+        Map<String, Object> nestedRoot = NbtReader.read(nf);
+        check("nested string edit lands",
+                "1.21.4".equals(NbtReader.getString(nestedRoot, "Data", "Version", "Name")),
+                String.valueOf(NbtReader.getString(nestedRoot, "Data", "Version", "Name")));
+        check("its sibling int survives",
+                NbtReader.getLong(nestedRoot, -1, "Data", "Version", "Id") == 3465,
+                String.valueOf(NbtReader.getLong(nestedRoot, -1, "Data", "Version", "Id")));
+        check("the outer name survives a nested edit",
+                "Skyblock Ultra".equals(NbtReader.getString(nestedRoot, "Data", "LevelName")),
+                String.valueOf(NbtReader.getString(nestedRoot, "Data", "LevelName")));
+
+        // ---- edit() on a real file: backup kept, content changed, still readable ----
+        File live = new File(dir, "live.dat");
+        NbtEditor.writeAll(live, bytesOf(level));
+        boolean ok = NbtEditor.edit(live, new NbtEditor.Change() {
+            public byte[] apply(byte[] nbt) {
+                return NbtEditor.setString(nbt, "Renamed", "Data", "LevelName");
+            }
+        });
+        check("edit() reports success", ok, String.valueOf(ok));
+        check("edit() changed the file",
+                "Renamed".equals(NbtReader.getString(NbtReader.read(live), "Data", "LevelName")),
+                String.valueOf(NbtReader.getString(NbtReader.read(live), "Data", "LevelName")));
+        File backup = new File(dir, "live.dat.bak");
+        check("edit() left a backup of the original",
+                backup.isFile() && "Skyblock Ultra".equals(
+                        NbtReader.getString(NbtReader.read(backup), "Data", "LevelName")),
+                backup.isFile() ? "kept" : "missing");
+        check("edit() left no temporary behind",
+                !new File(dir, "live.dat.tmp").exists(), "clean");
+        check("the edited file is still gzipped",
+                NbtEditor.isGzip(bytesOf(live)), "gzip");
+
+        // ---- a change that returns null must not touch the file ----
+        byte[] before = bytesOf(live);
+        boolean refused = NbtEditor.edit(live, new NbtEditor.Change() {
+            public byte[] apply(byte[] nbt) { return null; }
+        });
+        check("a null change writes nothing",
+                !refused && java.util.Arrays.equals(before, bytesOf(live)), "untouched");
+
+        // ---- a change that corrupts the file must be rejected before it lands ----
+        boolean corrupt = NbtEditor.edit(live, new NbtEditor.Change() {
+            public byte[] apply(byte[] nbt) { return "not nbt at all".getBytes(); }
+        });
+        check("a corrupting change is refused and the file survives",
+                !corrupt && java.util.Arrays.equals(before, bytesOf(live)),
+                corrupt ? "WROTE IT" : "untouched");
+
+        // ---- an uncompressed level.dat stays uncompressed ----
+        File flat = new File(dir, "flat.dat");
+        NbtEditor.writeAll(flat, plain);
+        NbtEditor.edit(flat, new NbtEditor.Change() {
+            public byte[] apply(byte[] nbt) {
+                return NbtEditor.setString(nbt, "Flat", "Data", "LevelName");
+            }
+        });
+        check("an uncompressed file is not gzipped on the way out",
+                !NbtEditor.isGzip(bytesOf(flat))
+                        && "Flat".equals(NbtReader.getString(NbtReader.read(flat), "Data", "LevelName")),
+                "plain");
+
+        // ---- a name long enough that the length prefix needs both its bytes ----
+        StringBuilder wide = new StringBuilder();
+        for (int i = 0; i < 300; i++) wide.append('w');
+        byte[] wideName = NbtEditor.setString(plain, wide.toString(), "Data", "LevelName");
+        File wf = new File(dir, "wide.dat");
+        NbtEditor.writeAll(wf, NbtEditor.gzip(wideName));
+        Map<String, Object> wideRoot = NbtReader.read(wf);
+        check("a 300 character name round trips",
+                wideName != null && wide.toString().equals(
+                        NbtReader.getString(wideRoot, "Data", "LevelName")),
+                wideRoot == null ? "unparseable"
+                        : String.valueOf(NbtReader.getString(wideRoot, "Data", "LevelName")).length()
+                          + " chars");
+        check("and the field after a 300 character name survives",
+                "1.20.1".equals(NbtReader.getString(wideRoot, "Data", "Version", "Name")),
+                String.valueOf(NbtReader.getString(wideRoot, "Data", "Version", "Name")));
+
+        // ---- a string NBT cannot hold ----
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 70000; i++) huge.append('x');
+        check("a name too long for the length prefix is refused",
+                NbtEditor.setString(plain, huge.toString(), "Data", "LevelName") == null,
+                "refused");
+
+        // ---- a compound before the target has to be stepped over, not entered ----
+        byte[] pastCompound = NbtEditor.setString(plain, "2.0.0", "Data", "Version", "Name");
+        File pc = new File(dir, "past.dat");
+        NbtEditor.writeAll(pc, NbtEditor.gzip(pastCompound));
+        Map<String, Object> pcRoot = NbtReader.read(pc);
+        check("the compound that was stepped over is intact",
+                NbtReader.getLong(pcRoot, -1, "Data", "DragonFight", "ExitPortalLocation", "Y") == 64,
+                String.valueOf(NbtReader.getLong(pcRoot, -1, "Data", "DragonFight",
+                        "ExitPortalLocation", "Y")));
+        check("and the field past it was the one edited",
+                "2.0.0".equals(NbtReader.getString(pcRoot, "Data", "Version", "Name")),
+                String.valueOf(NbtReader.getString(pcRoot, "Data", "Version", "Name")));
+
+        // ---- garbage in, refusal out ----
+        check("garbage bytes are refused",
+                NbtEditor.setString("hello".getBytes(), "x", "Data", "LevelName") == null,
+                "refused");
+        check("empty bytes are refused",
+                NbtEditor.setString(new byte[0], "x", "Data", "LevelName") == null, "refused");
+        byte[] truncated = new byte[plain.length / 2];
+        System.arraycopy(plain, 0, truncated, 0, truncated.length);
+        check("a truncated file is refused, not half edited",
+                NbtEditor.setString(truncated, "x", "Data", "Version", "Name") == null, "refused");
     }
 
     public static void main(String[] a) throws Exception {
@@ -101,6 +342,8 @@ public class NbtSim {
         check("truncated file returns quickly",
                 System.currentTimeMillis() - start < 1000,
                 (System.currentTimeMillis() - start) + " ms");
+
+        editorChecks(dir);
 
         for (File f : dir.listFiles()) f.delete();
         dir.delete();
