@@ -2829,10 +2829,20 @@ Before pushing:
   in a second and finding them by counting hashes in a CI log. It warns rather than failing on
   non-positional format conversions, because thirteen inherited strings have them.
 - **Run `python3 scripts/check_settings_calls.py`** if anything in `ui/settings/SettingsComponents.kt`
-  changed its parameters. It reproduces Kotlin's "No value passed for parameter" against every
-  call site of every shared row, which is the one way an optional parameter added in the middle
-  of one of them fails: a trailing lambda still binds to the last parameter, and a callback
-  passed positionally does not.
+  changed its parameters, **or if a full screen composable gained one**. It reproduces Kotlin's
+  "No value passed for parameter" against every call site of every shared row, which is the one
+  way an optional parameter added in the middle of one of them fails: a trailing lambda still
+  binds to the last parameter, and a callback passed positionally does not.
+  It also covers the screens in `SCREENS`, which have a single caller each and so look like the
+  safe case. They are not: a parameter added to `ContentScreen` whose argument never reached
+  that one call site failed exactly as a shifted position does, three minutes into CI. The
+  screens are named rather than taken wholesale from their files, because several of them
+  declare a private `Thumbnail` or `Spinner` and merging declarations by name across files
+  would check a call against the wrong signature.
+  **The skip for a declaring file is per name, not per file.** Adding `SettingsScreen.kt` as a
+  declaration source and skipping the whole file took the largest consumer of the shared rows
+  out of the scan: the count fell from 183 to 43 and it went on printing ok. The count is
+  printed for that reason, and it is worth reading.
 - **Run `python3 scripts/check_keyboard.py`** if the on-screen keyboard changed — it parses the cap
   tables out of `GameKeyboard.kt` and checks the row weights, the keycode range, and that every key
   the old dialog could send is still reachable. A board is also worth *looking* at: the same parser

@@ -28,6 +28,40 @@ SRC = os.path.join(ROOT, "app_pojavlauncher", "src", "main", "java")
 COMPONENTS = os.path.join(
     SRC, "net", "kdt", "pojavlaunch", "ui", "settings", "SettingsComponents.kt")
 
+# The full-screen composables an activity calls exactly once.
+#
+# Added after a parameter was put on ContentScreen and the matching argument never reached the
+# one call site, which is the same mistake as a shifted positional argument and fails the same
+# way: three minutes into CI, with "No value passed for parameter". These have ONE caller each,
+# so the shared-component reasoning does not apply and the usual defence, noticing the compile
+# error while editing both ends, is exactly what does not happen when the edit to the second
+# end is lost.
+#
+# Named rather than taken wholesale from each file, because a private helper called Thumbnail
+# or Spinner exists in several of them and merging declarations by name across files would
+# check a call against the wrong signature.
+SCREENS = {
+    "ui/content/ContentScreen.kt": ["ContentScreen"],
+    "ui/content/WorldSheet.kt": ["WorldSheet"],
+    "ui/content/ImportDialog.kt": ["ImportChoiceDialog"],
+    "ui/content/FolderPickerDialog.kt": ["FolderPickerDialog"],
+    "ui/mods/ModBrowserScreen.kt": ["ModBrowserScreen"],
+    "ui/mods/ModProjectScreen.kt": ["ModProjectScreen"],
+    "ui/mediaedit/ClipEditScreen.kt": ["ClipEditScreen"],
+    "ui/mediaedit/ImageEditScreen.kt": ["ImageEditScreen"],
+    "ui/settings/SettingsScreen.kt": ["SettingsScreen"],
+}
+
+
+def screen_sources():
+    """The screen files that exist, as absolute paths mapped to the names to check."""
+    found = {}
+    for relative, names in SCREENS.items():
+        path = os.path.join(SRC, "net", "kdt", "pojavlaunch", *relative.split("/"))
+        if os.path.isfile(path):
+            found[path] = names
+    return found
+
 FUNCTION_TYPE = re.compile(r"(\(\s*[^()]*\)\s*->)|(^\s*@Composable)")
 
 
@@ -168,13 +202,31 @@ def main():
         print("parsed no declarations, which means this check is not checking anything")
         return 1
 
+    # Where each name is declared, so a file can still be scanned for calls to everything it
+    # does NOT declare. Skipping whole files instead took SettingsScreen.kt out of the scan the
+    # moment it was added as a declaration source, which is where most of the call sites are:
+    # the count fell from 183 to 43 and the check went on printing ok.
+    declaring = {name: os.path.abspath(COMPONENTS) for name in declarations}
+    missing_screens = []
+    for path, names in screen_sources().items():
+        parsed = parse_declarations(strip_comments(open(path, encoding="utf-8").read()))
+        for name in names:
+            if name not in parsed:
+                # Said rather than skipped: a screen this cannot parse is a screen it is
+                # silently not checking, and the count printed at the end would not show it.
+                missing_screens.append("%s: could not parse %s"
+                                       % (os.path.relpath(path, ROOT), name))
+                continue
+            declarations[name] = parsed[name]
+            declaring[name] = os.path.abspath(path)
+
     problems = []
     checked = 0
     for path in glob.glob(os.path.join(SRC, "**", "*.kt"), recursive=True):
         source = strip_comments(open(path, encoding="utf-8").read())
         for name, parameters in declarations.items():
             for line, arguments, trailing in find_calls(source, name):
-                if os.path.abspath(path) == os.path.abspath(COMPONENTS):
+                if os.path.abspath(path) == declaring.get(name):
                     continue
                 checked += 1
                 supplied = set()
@@ -212,12 +264,13 @@ def main():
                             "%s:%d %s: no value passed for parameter '%s'"
                             % (os.path.relpath(path, ROOT), line, name, parameter["name"]))
 
-    for problem in sorted(set(problems)):
+    for problem in sorted(set(problems)) + missing_screens:
         print("FAIL:", problem)
-    if problems:
-        print("%d problems across %d call sites" % (len(set(problems)), checked))
+    if problems or missing_screens:
+        print("%d problems across %d call sites"
+              % (len(set(problems)) + len(missing_screens), checked))
         return 1
-    print("ok: %d calls to %d settings components, every required parameter supplied"
+    print("ok: %d calls to %d shared rows and screens, every required parameter supplied"
           % (checked, len(declarations)))
     return 0
 

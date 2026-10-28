@@ -93,6 +93,14 @@ class ContentActivity : BaseActivity() {
     private var loading by mutableStateOf(true)
     private var query by mutableStateOf("")
     private var filter by mutableStateOf<ContentKind?>(null)
+    /**
+     * Newest first by default, which for a mod means last installed.
+     *
+     * Held here rather than persisted. "What did I just add" is a question about this visit,
+     * and a sort somebody set a fortnight ago silently applying to a folder they have not
+     * opened since is a worse default than the one that answers the common question.
+     */
+    private var sort by mutableStateOf(ContentSort.RECENT)
     private var profileLabel by mutableStateOf<String?>(null)
     private var storageLine by mutableStateOf("")
 
@@ -202,6 +210,9 @@ class ContentActivity : BaseActivity() {
                     onFilter = { value ->
                         filter = ContentKind.values().firstOrNull { it.name == value }
                     },
+                    onSort = { value ->
+                        sort = ContentSort.values().firstOrNull { it.name == value } ?: sort
+                    },
                     onAdd = ::pick,
                     onBrowseMods = ::browseMods,
                     onToggle = toggleItem,
@@ -254,7 +265,9 @@ class ContentActivity : BaseActivity() {
         val result = ArrayList<ContentSection>(ContentKind.values().size)
         for (kind in ContentKind.values()) {
             if (filter != null && filter != kind) continue
-            val ofKind = items.filter { it.kind == kind && it.matches(lowered) }
+            val ofKind = items
+                .filter { it.kind == kind && it.matches(lowered) }
+                .sortedWith(orderingFor(sort))
             if (ofKind.isEmpty()) continue
             val bytes = ofKind.sumOf { it.sizeBytes }
             val heading = getString(kind.titleRes).uppercase(Locale.getDefault()) +
