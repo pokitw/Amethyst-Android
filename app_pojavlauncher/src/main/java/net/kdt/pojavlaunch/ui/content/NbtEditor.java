@@ -7,13 +7,13 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -68,8 +68,11 @@ public final class NbtEditor {
     /** A level.dat is tens of kilobytes. Anything past this is not one. */
     private static final int MAX_BYTES = 32 * 1024 * 1024;
 
-    /** NBT strings are length-prefixed with an unsigned short. */
+    /** NBT strings are length-prefixed with an unsigned short, in MODIFIED UTF-8 bytes. */
     private static final int MAX_STRING_BYTES = 0xFFFF;
+
+    /** Minecraft's own name for the file it falls back to when level.dat will not read. */
+    public static final String BACKUP_NAME = "level.dat_old";
 
     private NbtEditor() {}
 
@@ -97,20 +100,43 @@ public final class NbtEditor {
     @Nullable
     public static byte[] setString(@NonNull byte[] nbt, @NonNull String value,
                                    @NonNull String... path) {
-        byte[] encoded;
-        try {
-            encoded = value.getBytes("UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            return null;                              // cannot happen; UTF-8 is required of a JVM
-        }
-        if (encoded.length > MAX_STRING_BYTES) return null;
+        byte[] replacement = encodeString(value);
+        if (replacement == null) return null;
         Span span = locate(nbt, path);
         if (span == null || span.type != TAG_STRING) return null;
-        byte[] replacement = new byte[encoded.length + 2];
-        replacement[0] = (byte) ((encoded.length >>> 8) & 0xFF);
-        replacement[1] = (byte) (encoded.length & 0xFF);
-        System.arraycopy(encoded, 0, replacement, 2, encoded.length);
         return splice(nbt, span, replacement);
+    }
+
+    /**
+     * A length prefixed NBT string: {@code DataOutput.writeUTF}, not standard UTF-8.
+     *
+     * <b>NBT uses Java's modified UTF-8</b>, and the difference is not cosmetic. A character
+     * outside the basic multilingual plane, which is to say every emoji, is four bytes in
+     * standard UTF-8 and six in modified UTF-8, encoded as a surrogate pair. {@code readUTF},
+     * which is what {@link NbtReader} and Minecraft both read these with, rejects any byte at
+     * or above 0xF0 outright. So a world renamed with {@code String.getBytes("UTF-8")} produced
+     * a file that neither could parse, the verify step correctly refused it, and renaming to
+     * anything containing an emoji failed every time with no reason given.
+     *
+     * Written through {@code DataOutputStream} rather than by hand, so the encoder is literally
+     * the one the reader is paired with. It also throws for a string too long for the two byte
+     * prefix, which is the bound that matters and is measured in the right units: counting
+     * standard UTF-8 bytes would have allowed a string the real encoder then refused.
+     */
+    @Nullable
+    private static byte[] encodeString(@NonNull String value) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream(value.length() + 2);
+            DataOutputStream out = new DataOutputStream(bytes);
+            out.writeUTF(value);
+            out.flush();
+            byte[] encoded = bytes.toByteArray();
+            return encoded.length > MAX_STRING_BYTES + 2 ? null : encoded;
+        } catch (IOException e) {
+            // UTFDataFormatException for a string past the prefix's reach, and nothing else:
+            // a ByteArrayOutputStream does not fail.
+            return null;
+        }
     }
 
     /**
@@ -153,12 +179,22 @@ public final class NbtEditor {
      * Apply a change to an NBT file on disk, safely.
      *
      * Five steps, and the order is the whole of the safety: read, change, write somewhere else,
-     * <b>read the new file back with the shipped reader</b>, and only then put it in place,
-     * keeping the original as {@code <name>.bak}. A splice that corrupted the file fails the
-     * fourth step and the world is untouched.
+     * <b>read the new file back with the shipped reader</b>, and only then put it in place. A
+     * splice that corrupted the file fails the fourth step and the world is untouched.
      *
-     * The backup is left rather than deleted. It costs a few tens of kilobytes and it is the
-     * difference between a bad edit being an inconvenience and being the end of a world.
+     * <b>Put in place by renaming the verified file</b>, which is the part worth being careful
+     * about. Writing over {@code level.dat} truncates it to zero the instant the stream opens,
+     * so a process killed during that write leaves a world with an empty data file and no way
+     * back; {@code rename} replaces the path atomically and the file is never absent or
+     * partial. It also means the bytes that land are the exact bytes that were verified, rather
+     * than a second encoding of the same tree that is only identical because the compressor
+     * happens to be deterministic.
+     *
+     * <b>The backup is {@code level.dat_old}</b>, which is Minecraft's own name for one: the
+     * game falls back to it when {@code level.dat} will not read, so a recovery needs no file
+     * manager, which matters because from Android 11 nothing can reach this folder anyway. The
+     * cost is that it overwrites the game's own previous backup, which is the lesser loss of
+     * the two and is a file the game rewrites on its next save regardless.
      *
      * @return true if the file now holds the change
      */
@@ -172,8 +208,9 @@ public final class NbtEditor {
             byte[] changed = change.apply(plain);
             if (changed == null) return false;
 
+            byte[] encoded = gzipped ? gzip(changed) : changed;
             File temporary = new File(file.getParentFile(), file.getName() + ".tmp");
-            writeAll(temporary, gzipped ? gzip(changed) : changed);
+            writeAll(temporary, encoded);
             // The shipped reader, not a check of our own: what has to be true is that the file
             // the launcher reads still parses, and the only honest way to assert that is to use
             // the thing that will read it.
@@ -182,15 +219,18 @@ public final class NbtEditor {
                 temporary.delete();
                 return false;
             }
-            File backup = new File(file.getParentFile(), file.getName() + ".bak");
+            File backup = new File(file.getParentFile(), BACKUP_NAME);
             //noinspection ResultOfMethodCallIgnored
             backup.delete();
-            // Copied rather than renamed: a rename would leave no level.dat at all for the
-            // instant between the two operations, and a process killed there loses the world.
             writeAll(backup, original);
-            writeAll(file, gzipped ? gzip(changed) : changed);
-            //noinspection ResultOfMethodCallIgnored
-            temporary.delete();
+            if (!temporary.renameTo(file)) {
+                // Within one directory this is rename(2) and does not fail, but a filesystem
+                // that refuses it must not leave the edit unapplied with a backup sitting
+                // beside it suggesting otherwise. The same verified bytes, written in place.
+                writeAll(file, encoded);
+                //noinspection ResultOfMethodCallIgnored
+                temporary.delete();
+            }
             return true;
         } catch (Throwable t) {
             return false;

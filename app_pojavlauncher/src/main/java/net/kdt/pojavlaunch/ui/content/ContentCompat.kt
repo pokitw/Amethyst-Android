@@ -179,32 +179,59 @@ fun duplicateModIds(items: List<ContentItem>): Set<String> = items
     .keys
 
 /**
- * The jars to switch off so that one copy of each duplicated mod is left.
+ * Every enabled mod "turn them off" should switch off, with one copy of each duplicate kept.
  *
- * <b>Newest wins</b>, by the file's own timestamp, which is when it was written and therefore
- * when it was installed. Somebody with two copies of a mod almost always added the second one on
- * purpose and forgot the first, so keeping the newest is keeping the one they meant; and it is
- * the same definition of "newest" the list's own default sort uses, so what survives is the row
- * that was at the top.
+ * <b>The survivor has to be a copy that can actually run.</b> Picking the newest by timestamp
+ * and leaving it at that had a hole that is reachable by the single most ordinary route there
+ * is. Update a mod by adding the new jar and forgetting the old one, and have the new one be
+ * built for a version this profile is not: the newer jar carries the wrong-version warning, so
+ * it is turned off as broken, and the older one carries only "another copy is also on", so it
+ * is turned off as the older duplicate. Both go, the mod is gone from the next launch, and the
+ * copy that would have worked is the one that was removed. Exactly the outcome the feature
+ * exists to prevent.
+ *
+ * So the broken ones are worked out first, and a group's survivor is chosen from what is left.
+ * Where every copy of a mod is broken for its own reasons they all go, which is right: none of
+ * them can run, and keeping one would be keeping a mod that does not work.
+ *
+ * Told apart by the sentence the row is SHOWING rather than by whether the mod is duplicated,
+ * because the one warning line names the most fundamental problem and a duplicate with a
+ * compat failure is reporting the compat failure.
+ *
+ * @param duplicateWarning the exact string a row shows when duplication is its only complaint
  */
-fun olderDuplicateMods(items: List<ContentItem>): List<ContentItem> {
-    val duplicated = duplicateModIds(items)
-    if (duplicated.isEmpty()) return emptyList()
-    return items
-        .filter {
-            it.kind == ContentKind.MOD && it.enabled &&
-                    it.requirements?.modId?.let(duplicated::contains) == true
-        }
-        .groupBy { it.requirements!!.modId }
-        .values
-        .flatMap { group ->
-            // Ties on the timestamp broken by name, so the choice is the same on both of two
-            // jars copied in the same second rather than whichever the filesystem listed first.
-            val sorted = group.sortedWith(
-                compareByDescending<ContentItem> { it.modifiedMs }.thenBy { it.file.name }
-            )
-            sorted.drop(1)
-        }
+fun modsToTurnOff(items: List<ContentItem>, duplicateWarning: String): List<ContentItem> {
+    val enabledMods = items.filter { it.kind == ContentKind.MOD && it.enabled }
+    val broken = enabledMods.filter { it.warning != null && it.warning != duplicateWarning }
+    val brokenKeys = broken.map { it.file.absolutePath }.toHashSet()
+
+    val duplicated = duplicateModIds(enabledMods)
+    val surplus = ArrayList<ContentItem>()
+    if (duplicated.isNotEmpty()) {
+        enabledMods
+            .filter { it.requirements?.modId?.let(duplicated::contains) == true }
+            .groupBy { it.requirements!!.modId }
+            .forEach { (_, group) ->
+                val runnable = group.filterNot { brokenKeys.contains(it.file.absolutePath) }
+                // Nothing runnable in this group: every copy is already in `broken`, so there
+                // is no survivor to choose and nothing to add here.
+                if (runnable.isEmpty()) return@forEach
+                // Newest wins, by the file's own timestamp, which is when it was written and
+                // so when it was installed. Ties broken by name, so two jars copied in the
+                // same second give the same answer on both of two reads.
+                val keep = runnable.sortedWith(
+                    compareByDescending<ContentItem> { it.modifiedMs }.thenBy { it.file.name }
+                ).first()
+                group.forEach { item ->
+                    if (item.file.absolutePath != keep.file.absolutePath &&
+                        !brokenKeys.contains(item.file.absolutePath)
+                    ) {
+                        surplus.add(item)
+                    }
+                }
+            }
+    }
+    return broken + surplus
 }
 
 /**

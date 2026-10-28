@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.ui.content.ContentItem
 import net.kdt.pojavlaunch.ui.content.applyModCompat
 import net.kdt.pojavlaunch.ui.content.countModProblems
-import net.kdt.pojavlaunch.ui.content.olderDuplicateMods
+import net.kdt.pojavlaunch.ui.content.modsToTurnOff
 import net.kdt.pojavlaunch.ui.content.ContentSort
 import net.kdt.pojavlaunch.ui.content.orderingFor
 import net.kdt.pojavlaunch.ui.content.firstMissingMod
@@ -188,9 +188,12 @@ class ContentActivity : BaseActivity() {
         setContent {
             AmethystXTheme {
                 val lowered = query.trim().lowercase(Locale.getDefault())
-                // Keyed on the three things that can change it, so a batch of metadata landing
-                // costs one pass over the list rather than one per row.
-                val sections = remember(items, lowered, filter) { buildSections(lowered) }
+                // Keyed on EVERY input buildSections reads. Reading `sort` inside the lambda
+                // registers with the recompose scope, so changing it does recompose, and
+                // remember then finds its keys unchanged and hands back the list it built
+                // before: the row's value line updated and the order did not. It only looked
+                // like it worked while the background passes were still churning `items`.
+                val sections = remember(items, lowered, filter, sort) { buildSections(lowered) }
                 ContentScreen(
                     state = ContentState(
                         sections = sections,
@@ -229,13 +232,18 @@ class ContentActivity : BaseActivity() {
                         details = world,
                         busy = worldBusy,
                         onAction = { action -> runWorldAction(world, action) },
-                        onDismiss = { managing = null }
+                        onDismiss = { closeWorldSheet() }
                     )
                 }
                 pendingPlan?.let { plan ->
                     if (choosingFolder) {
                         FolderPickerDialog(
-                            fileName = plan.landingName,
+                            // displayName, not landingName. landingName is the name it would
+                            // get in the folder the launcher chose, which for a world archive
+                            // is the unpacked folder's name and not the file's at all; this
+                            // path writes displayName, and a dialog that promises one name
+                            // while the writer uses another is worse than showing none.
+                            fileName = plan.displayName,
                             gameDir = gameDir,
                             onDismiss = { finishImport(plan) },
                             onConfirm = { folder -> placeInto(plan, folder) },
@@ -552,27 +560,11 @@ class ContentActivity : BaseActivity() {
      * is the launcher's reading of somebody else's metadata and being wrong must stay undoable.
      */
     private fun disableBrokenMods() {
-        // A duplicate means something different by "turn the broken ones off": both copies
-        // carry the warning, and switching both off removes the mod altogether rather than
-        // fixing anything. So one of each group survives, the newest, which is the copy
-        // somebody almost certainly just installed.
-        //
-        // Told apart by the sentence the row is SHOWING, not by whether the mod is duplicated.
-        // A second copy that is also built for the wrong Minecraft version shows the version
-        // warning, because that is the more fundamental problem, and it should be turned off
-        // like any other mod that cannot run here. Only a row whose single complaint is the
-        // duplication gets the newest-survives treatment.
-        val duplicateWarning = getString(R.string.content_mod_duplicate)
-        val olderCopies = olderDuplicateMods(items).map { key(it) }.toSet()
-        val broken = items.filter { item ->
-            if (item.kind != ContentKind.MOD || !item.enabled || item.warning == null) {
-                false
-            } else if (item.warning == duplicateWarning) {
-                olderCopies.contains(key(item))
-            } else {
-                true
-            }
-        }
+        // One definition of what to switch off, in ContentCompat beside the duplicate check
+        // that complicates it. The rule is not "every row with a warning": where a mod has two
+        // copies and only one of them is otherwise broken, switching both off removes the mod
+        // rather than fixing it, so the survivor is the newest copy that can actually run.
+        val broken = modsToTurnOff(items, getString(R.string.content_mod_duplicate))
         var turnedOff = 0
         for (item in broken) {
             val renamed = setContentEnabled(item, false) ?: continue
@@ -690,16 +682,36 @@ class ContentActivity : BaseActivity() {
 
     /* -------------------------------------------------------------- worlds */
 
-    /** Read the world off the main thread, then show the sheet. */
+    /**
+     * Read the world off the main thread, then show the sheet.
+     *
+     * Reading walks the whole folder for its size, which on a large world is seconds, so every
+     * landing checks that the sheet is still about this world before it writes anything: both
+     * dismissing it and tapping a different one happen inside that window.
+     */
     private fun manageWorld(folder: File) {
+        if (worldBusy) return
         managingFile = folder
         worldBusy = true
         lifecycleScope.launch {
             val details = withContext(Dispatchers.IO) { readWorldDetails(folder) }
+            if (managingFile != folder) return@launch
             worldBusy = false
-            // Only if the player has not dismissed or moved on while the folder was walked.
-            if (managingFile == folder) managing = details
+            managing = details
         }
+    }
+
+    /**
+     * Put the sheet away and forget which world it was about.
+     *
+     * Both, which is the half that was missing. Clearing only `managing` left `managingFile`
+     * pointing at the world, so an export that was still running reopened the sheet by itself
+     * when it finished, and if another world had been tapped meanwhile the open sheet silently
+     * became the first one again.
+     */
+    private fun closeWorldSheet() {
+        managing = null
+        managingFile = null
     }
 
     /**
@@ -770,16 +782,23 @@ class ContentActivity : BaseActivity() {
             message?.let { toast(it) }
             val landed = next
             if (landed == null) {
-                managing = null
-                managingFile = null
+                closeWorldSheet()
                 worldBusy = false
                 reload()
                 return@launch
             }
             managingFile = landed
-            val refreshed = withContext(Dispatchers.IO) { readWorldDetails(landed) }
+            // Re-read, because every write is a splice into a file this code does not fully
+            // model and what the sheet should show afterwards is whatever the file now says.
+            // The size is carried over instead: only Duplicate and Export touch the folder's
+            // contents and neither changes THIS world's size, so re-walking a three gigabyte
+            // save to recompute a number that cannot have moved left every control inert for
+            // seconds after flipping a switch.
+            val refreshed = withContext(Dispatchers.IO) {
+                readWorldDetails(landed, knownSizeBytes = details.sizeBytes)
+            }
             worldBusy = false
-            managing = refreshed
+            if (managingFile == landed) managing = refreshed
             reload()
         }
     }

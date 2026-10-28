@@ -142,40 +142,59 @@ fun WorldSheet(
 
             if (details.editable) {
                 SectionLabel(stringResource(R.string.world_section_settings))
+                // A field the file does not carry is shown and not offered. The splice
+                // replaces a tag that exists and cannot add one, so a picker over an absent
+                // GameType would be a control whose every option reports a failure, which the
+                // note below used to say was the thing to avoid and then shipped.
                 SettingsCard {
-                    TextRow(
-                        title = stringResource(R.string.world_rename_title),
-                        description = stringResource(R.string.world_rename_description),
-                        value = details.name,
-                        placeholder = stringResource(R.string.world_rename_placeholder),
-                        onValueChange = { if (!busy) onAction(WorldAction.Rename(it)) }
-                    )
-                    // "Not set" is offered only while that IS the state. A picker that keeps
-                    // an entry nobody can usefully choose is a control that does nothing, and
-                    // writing -1 into GameType is not a thing to let anybody ask for.
-                    val modeUnknown = details.gameMode !in 0..3
-                    ChoiceRow(
-                        title = stringResource(R.string.world_mode_title),
-                        description = stringResource(R.string.world_mode_description),
-                        names = gameModeNames(modeUnknown),
-                        values = optionValues(modeUnknown),
-                        selected = details.gameMode.toString(),
-                        onSelect = { if (!busy) onAction(WorldAction.SetGameMode(it.toInt())) }
-                    )
-                    val difficultyUnknown = details.difficulty !in 0..3
-                    ChoiceRow(
-                        title = stringResource(R.string.world_difficulty_title),
-                        description = stringResource(R.string.world_difficulty_description),
-                        names = difficultyNames(difficultyUnknown),
-                        values = optionValues(difficultyUnknown),
-                        selected = details.difficulty.toString(),
-                        onSelect = { if (!busy) onAction(WorldAction.SetDifficulty(it.toInt())) }
-                    )
-                    SwitchRow(
-                        stringResource(R.string.world_cheats_title),
-                        stringResource(R.string.world_cheats_description),
-                        details.cheats
-                    ) { if (!busy) onAction(WorldAction.SetCheats(it)) }
+                    if (details.canSetName) {
+                        TextRow(
+                            title = stringResource(R.string.world_rename_title),
+                            description = stringResource(R.string.world_rename_description),
+                            value = details.name,
+                            placeholder = stringResource(R.string.world_rename_placeholder),
+                            onValueChange = { if (!busy) onAction(WorldAction.Rename(it)) }
+                        )
+                    }
+                    if (details.canSetGameMode) {
+                        ChoiceRow(
+                            title = stringResource(R.string.world_mode_title),
+                            description = stringResource(R.string.world_mode_description),
+                            names = gameModeNames(),
+                            values = MODE_VALUES,
+                            selected = details.gameMode.toString(),
+                            onSelect = { if (!busy) onAction(WorldAction.SetGameMode(it.toInt())) }
+                        )
+                    } else {
+                        InfoRow(
+                            title = stringResource(R.string.world_mode_title),
+                            description = stringResource(R.string.world_field_absent),
+                            value = stringResource(R.string.world_detail_unknown)
+                        )
+                    }
+                    if (details.canSetDifficulty) {
+                        ChoiceRow(
+                            title = stringResource(R.string.world_difficulty_title),
+                            description = stringResource(R.string.world_difficulty_description),
+                            names = difficultyNames(),
+                            values = MODE_VALUES,
+                            selected = details.difficulty.toString(),
+                            onSelect = { if (!busy) onAction(WorldAction.SetDifficulty(it.toInt())) }
+                        )
+                    } else {
+                        InfoRow(
+                            title = stringResource(R.string.world_difficulty_title),
+                            description = stringResource(R.string.world_field_absent),
+                            value = stringResource(R.string.world_detail_unknown)
+                        )
+                    }
+                    if (details.canSetCheats) {
+                        SwitchRow(
+                            stringResource(R.string.world_cheats_title),
+                            stringResource(R.string.world_cheats_description),
+                            details.cheats
+                        ) { if (!busy) onAction(WorldAction.SetCheats(it)) }
+                    }
                 }
 
                 // Its own section, not a fourth switch above. Turning hardcore off is the one
@@ -271,30 +290,26 @@ private fun ConfirmDialog(
 }
 
 /**
- * The stored values are Minecraft's own numbers.
+ * Minecraft's own numbers, and only the four that can be written.
  *
- * "-1" stands for a file that does not say, and it is in the list only when it is the current
- * value: a ChoiceRow whose selection is absent from its own values falls back to printing the
- * raw string, which would put "-1" on screen, and an entry that can be picked but cannot be
- * written is worse than either.
+ * There is no "not set" entry. A picker is shown only where the tag exists, so the current
+ * value is always one of these, and an entry that can be picked and cannot be written is the
+ * one thing a picker must not have.
  */
-private fun optionValues(includeUnknown: Boolean): List<String> =
-    if (includeUnknown) listOf("0", "1", "2", "3", "-1") else listOf("0", "1", "2", "3")
+private val MODE_VALUES = listOf("0", "1", "2", "3")
 
 @Composable
-private fun gameModeNames(includeUnknown: Boolean): List<String> = buildList {
-    add(stringResource(R.string.world_mode_survival))
-    add(stringResource(R.string.world_mode_creative))
-    add(stringResource(R.string.world_mode_adventure))
-    add(stringResource(R.string.world_mode_spectator))
-    if (includeUnknown) add(stringResource(R.string.world_detail_unknown))
-}
+private fun gameModeNames(): List<String> = listOf(
+    stringResource(R.string.world_mode_survival),
+    stringResource(R.string.world_mode_creative),
+    stringResource(R.string.world_mode_adventure),
+    stringResource(R.string.world_mode_spectator)
+)
 
 @Composable
-private fun difficultyNames(includeUnknown: Boolean): List<String> = buildList {
-    add(stringResource(R.string.world_difficulty_peaceful))
-    add(stringResource(R.string.world_difficulty_easy))
-    add(stringResource(R.string.world_difficulty_normal))
-    add(stringResource(R.string.world_difficulty_hard))
-    if (includeUnknown) add(stringResource(R.string.world_detail_unknown))
-}
+private fun difficultyNames(): List<String> = listOf(
+    stringResource(R.string.world_difficulty_peaceful),
+    stringResource(R.string.world_difficulty_easy),
+    stringResource(R.string.world_difficulty_normal),
+    stringResource(R.string.world_difficulty_hard)
+)

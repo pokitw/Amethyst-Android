@@ -6,6 +6,12 @@
 # compiles the real source against a fixture it generates.
 #
 # Usage: scripts/nbtsim/run.sh
+# Known NOT to be caught, said here rather than left to be discovered:
+#
+#   Replacing the final rename with an in-place write. Both land the same verified bytes and
+#   the only difference is the window in which level.dat is truncated, which exists solely
+#   while the process is being killed. Nothing a harness can observe; it is in the file as a
+#   comment on the line, and the line is one sentence long.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

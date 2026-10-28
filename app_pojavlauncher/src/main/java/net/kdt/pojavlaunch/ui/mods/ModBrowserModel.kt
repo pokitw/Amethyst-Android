@@ -66,7 +66,9 @@ data class DownloadStatus(
     val fileName: String,
     val doneBytes: Long,
     val totalBytes: Long,
-    val completed: Int
+    val completed: Int,
+    /** Other installs running alongside this one, so the band can speak for all of them. */
+    val others: Int = 0
 ) {
     val fraction: Float?
         get() = if (totalBytes > 0L) {

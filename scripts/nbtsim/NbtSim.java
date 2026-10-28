@@ -204,8 +204,16 @@ public class NbtSim {
         check("edit() changed the file",
                 "Renamed".equals(NbtReader.getString(NbtReader.read(live), "Data", "LevelName")),
                 String.valueOf(NbtReader.getString(NbtReader.read(live), "Data", "LevelName")));
-        File backup = new File(dir, "live.dat.bak");
-        check("edit() left a backup of the original",
+        // Named level.dat_old, which is the name Minecraft itself falls back to, so a bad edit
+        // is recoverable by launching the game rather than by a file manager that cannot reach
+        // this folder at all.
+        // The literal, not NbtEditor.BACKUP_NAME. The value is a contract with Minecraft,
+        // which falls back to this exact name, so a check that reads the constant out of the
+        // code under test would agree with any rename of it.
+        check("the backup is named the way Minecraft looks for it",
+                "level.dat_old".equals(NbtEditor.BACKUP_NAME), NbtEditor.BACKUP_NAME);
+        File backup = new File(dir, "level.dat_old");
+        check("edit() left a backup under Minecraft's own backup name",
                 backup.isFile() && "Skyblock Ultra".equals(
                         NbtReader.getString(NbtReader.read(backup), "Data", "LevelName")),
                 backup.isFile() ? "kept" : "missing");
@@ -279,6 +287,51 @@ public class NbtSim {
         check("and the field past it was the one edited",
                 "2.0.0".equals(NbtReader.getString(pcRoot, "Data", "Version", "Name")),
                 String.valueOf(NbtReader.getString(pcRoot, "Data", "Version", "Name")));
+
+        // ---- modified UTF-8, which is what NBT uses and what readUTF demands ----
+        // A supplementary character is four bytes in standard UTF-8 and six in modified UTF-8,
+        // and readUTF rejects any byte at or above 0xF0 outright. Encoding the wrong one made
+        // every rename containing an emoji fail, with the verify step correctly refusing a
+        // file neither this reader nor Minecraft could parse.
+        String emoji = "My World \uD83C\uDFAE";
+        byte[] withEmoji = NbtEditor.setString(plain, emoji, "Data", "LevelName");
+        File ef = new File(dir, "emoji.dat");
+        check("an emoji name encodes at all", withEmoji != null, "encoded");
+        if (withEmoji != null) {
+            NbtEditor.writeAll(ef, NbtEditor.gzip(withEmoji));
+            Map<String, Object> emojiRoot = NbtReader.read(ef);
+            check("an emoji name round trips through the real reader",
+                    emoji.equals(NbtReader.getString(emojiRoot, "Data", "LevelName")),
+                    emojiRoot == null ? "unparseable"
+                            : String.valueOf(NbtReader.getString(emojiRoot, "Data", "LevelName")));
+            check("the field after an emoji name survives",
+                    "1.20.1".equals(NbtReader.getString(emojiRoot, "Data", "Version", "Name")),
+                    String.valueOf(NbtReader.getString(emojiRoot, "Data", "Version", "Name")));
+        }
+        // A NUL is the other place the two encodings differ: one byte in standard UTF-8 and
+        // two in modified, and readUTF will not take the one byte form.
+        byte[] withNul = NbtEditor.setString(plain, "a\u0000b", "Data", "LevelName");
+        File nf2 = new File(dir, "nul.dat");
+        if (withNul != null) {
+            NbtEditor.writeAll(nf2, NbtEditor.gzip(withNul));
+            check("a NUL in a name round trips",
+                    "a\u0000b".equals(
+                            NbtReader.getString(NbtReader.read(nf2), "Data", "LevelName")),
+                    "nul");
+        } else {
+            check("a NUL in a name round trips", false, "refused outright");
+        }
+
+        // ---- the edit lands by rename, so level.dat is never truncated ----
+        File atomic = new File(dir, "atomic.dat");
+        NbtEditor.writeAll(atomic, bytesOf(level));
+        NbtEditor.edit(atomic, new NbtEditor.Change() {
+            public byte[] apply(byte[] nbt) {
+                return NbtEditor.setString(nbt, "Atomic", "Data", "LevelName");
+            }
+        });
+        check("no temporary is left after a rename based replace",
+                !new File(dir, "atomic.dat.tmp").exists(), "clean");
 
         // ---- garbage in, refusal out ----
         check("garbage bytes are refused",

@@ -112,6 +112,7 @@ fun ModBrowserScreen(
     }
 
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+      Box(Modifier.fillMaxSize()) {
         LazyAppScaffold(
             title = stringResource(R.string.mods_browse_title),
             subtitle = state.target.name.ifEmpty { null },
@@ -131,17 +132,6 @@ fun ModBrowserScreen(
                     Spacer(Modifier.height(12.dp))
                     RefineCard(state, onToggleFilter, onSort, onCategory)
                     Spacer(Modifier.height(18.dp))
-                }
-            }
-
-            // Above everything but the search box, and outside the list, so it stays put while
-            // the results are scrolled. A spinner inside the row that was tapped is invisible
-            // the moment that row leaves the screen, which during a dependency walk is most of
-            // the time somebody spends waiting.
-            state.download?.let { download ->
-                item(key = "downloading") {
-                    DownloadBand(download)
-                    Spacer(Modifier.height(14.dp))
                 }
             }
 
@@ -210,7 +200,21 @@ fun ModBrowserScreen(
             if (state.loadingMore) {
                 item(key = "more") { Centred { Spinner() } }
             }
+            // Room under the last row for the band to sit over without covering anything.
+            if (state.download != null) {
+                item(key = "bandRoom") { Spacer(Modifier.height(104.dp)) }
+            }
         }
+
+        state.download?.let { download ->
+            DownloadBand(
+                download,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            )
+        }
+      }
     }
 }
 
@@ -228,23 +232,36 @@ fun ModBrowserScreen(
 /**
  * What is coming down, how far through it is, and what has landed already.
  *
+ * <b>Pinned over the list, not an item in it.</b> The first version put it in the LazyColumn
+ * and claimed in its own comment to be outside one, which gave it exactly the behaviour it was
+ * built to replace: the band scrolled off the moment somebody kept browsing, which during a
+ * dependency walk is most of the wait. It also shifted the results down by its own height as
+ * it appeared and back up as it went.
+ *
  * Determinate where the server gave a size and indeterminate where it did not, rather than a
  * bar that fills to a number nobody knows: a progress bar whose denominator is invented is
  * worse than none, because it is believed.
  */
 @Composable
-private fun DownloadBand(download: DownloadStatus) {
+private fun DownloadBand(download: DownloadStatus, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     Column(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .background(colors.surfaceContainer)
+            .background(colors.surfaceContainerHigh)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         Text(
-            stringResource(R.string.mods_browse_downloading, download.title),
+            if (download.others > 0) {
+                pluralStringResource(
+                    R.plurals.mods_browse_downloading_several,
+                    download.others + 1, download.others + 1
+                )
+            } else {
+                stringResource(R.string.mods_browse_downloading, download.title)
+            },
             style = MaterialTheme.typography.titleSmall,
             color = colors.onSurface,
             maxLines = 1,

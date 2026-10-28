@@ -2112,6 +2112,24 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     writing a check for anything that counts.
 
 
+33. **NBT strings are modified UTF-8, and `getBytes("UTF-8")` is not that.** Renaming a world
+    to anything containing an emoji failed every time, silently and permanently. A supplementary
+    character is four bytes in standard UTF-8 and six in modified UTF-8, where it is written as
+    a surrogate pair, and `DataInput.readUTF` rejects any byte at or above 0xF0 outright. So the
+    splice produced a file neither `NbtReader` nor Minecraft could parse, the verify step
+    correctly refused it, and the player got "could not save" with no reason and no recourse.
+    The fix is to encode through `DataOutputStream.writeUTF`, which is literally the encoder
+    paired with the reader, rather than hand-rolling a length prefix over `String.getBytes`. The
+    general form: **a wire format's string encoding is part of the format**, and the two places
+    this is most often wrong are Java's modified UTF-8 (NBT, class files, `DataOutput`) and the
+    assumption that a character is a byte. Where the platform ships the matching encoder, use
+    it, because then the only way to be wrong is to pick the wrong one rather than to implement
+    it wrong. The bound moves with it: `MAX_STRING_BYTES` counted standard UTF-8 bytes, which is
+    the wrong unit for the prefix it was writing.
+    It was found by an adversarial pass that **compiled the shipped class against the harness
+    stubs and ran it** rather than reading it, which is the part worth copying: the harness had
+    every fixture it needed to catch this and not one of them used a character above U+00FF.
+
 32. **"Can not extract resource from ParsedResource" means a bare apostrophe, and the message
     names nothing.** Six of them failed a build at once. aapt prints an object hash per
     offender and no string name, no line and no hint about what is wrong, so the only thing
@@ -2673,14 +2691,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - It cannot tell you **whether your phone will be fast enough**, which is the question being
   asked. Nothing can: the answer depends on the chip, the driver, the Minecraft version, the
   mods and the renderer, and the launcher can read two of those five.
+- **A field the world's own file does not carry cannot be added.** The splice replaces a tag
+  that exists; adding a key means rewriting the compound around it, which is the tree rewrite
+  this deliberately does not do. So a world with no `Difficulty` tag shows "Not set" and no
+  picker, rather than a picker whose every option reports a failure.
 - **A world is edited one field at a time, and only the fields the sheet names.** `NbtEditor`
   splices a string, a byte or an int into a path that already exists; it cannot add a key that
   is absent, delete one, or touch a list or an array. Anything else about a world is still the
   game's business. A `level.dat` that will not parse is not editable at all, which the sheet
   says rather than offering controls that would refuse.
-- Every edit leaves a **`level.dat.bak`** beside the world and nothing ever deletes it. That is
-  deliberate, and it does mean the newest backup is the only one: a second edit overwrites the
-  first. It is a safety net for the edit you just made, not a history.
+- Every edit leaves a **`level.dat_old`** beside the world and nothing ever deletes it. That is
+  Minecraft's own backup name, so the game falls back to it by itself, which is the only
+  recovery route a player has when the folder cannot be browsed to. It does mean the newest
+  backup is the only one, that a second edit overwrites the first, and that it displaces the
+  game's own previous backup. It is a safety net for the edit you just made, not a history.
 - **The seed is shown and cannot be changed.** Changing it on a world that has already
   generated chunks does nothing to the ones that exist and breaks the join between them and
   everything generated afterwards, which looks like a corrupt world rather than a new seed.

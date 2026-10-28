@@ -855,6 +855,10 @@
     <string name="mods_browse_no_version">No version of this mod fits this profile.</string>
     <string name="mods_browse_install_failed">That mod could not be downloaded.</string>
     <string name="mods_browse_downloading">Downloading %1$s</string>
+    <plurals name="mods_browse_downloading_several">
+        <item quantity="one">Downloading %1$d mod</item>
+        <item quantity="other">Downloading %1$d mods</item>
+    </plurals>
     <plurals name="mods_browse_download_with_done">
         <item quantity="one">%1$s · %2$d file added</item>
         <item quantity="other">%1$s · %2$d files added</item>
@@ -1474,6 +1478,7 @@
     <string name="world_detail_folder">Folder</string>
     <string name="world_detail_unknown">Not set</string>
 
+    <string name="world_field_absent">This world\'s data file does not record it, so it cannot be changed here.</string>
     <string name="world_section_settings">WORLD SETTINGS</string>
     <string name="world_rename_title">Name</string>
     <string name="world_rename_description">What the world is called in game. The folder is renamed to match.</string>

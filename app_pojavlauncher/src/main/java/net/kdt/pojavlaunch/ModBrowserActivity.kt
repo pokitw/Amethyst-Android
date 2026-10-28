@@ -296,18 +296,36 @@ class ModBrowserActivity : BaseActivity() {
      * snapshot state. Already throttled at the source, so a download is a few dozen posts
      * rather than one per 64KB buffer (16.30).
      */
+    /**
+     * How many installs are running.
+     *
+     * Nothing stops a second tap while the first is downloading, and nothing should: the rows
+     * are deliberately always tappable. What that broke is the band, which one install took
+     * down on finishing while the other was still going, leaving no indicator at all for the
+     * rest of it. The band now belongs to the set rather than to whichever reported last.
+     */
+    private var installsRunning = 0
+
     private fun reporter(title: String): ModInstall.Progress =
         ModInstall.Progress { name, done, total, completed ->
             runOnUiThread {
                 state = state.copy(
-                    download = DownloadStatus(title, name, done, total, completed)
+                    download = DownloadStatus(
+                        title, name, done, total, completed,
+                        others = (installsRunning - 1).coerceAtLeast(0)
+                    )
                 )
             }
         }
 
-    /** Take the band down, whatever the install did. Called on every exit from one. */
+    private fun beginDownload() {
+        installsRunning++
+    }
+
+    /** Take the band down once nothing is left downloading. */
     private fun clearDownload() {
-        state = state.copy(download = null)
+        installsRunning = (installsRunning - 1).coerceAtLeast(0)
+        if (installsRunning == 0) state = state.copy(download = null)
     }
 
     private fun install(row: ModRow) {
@@ -335,6 +353,7 @@ class ModBrowserActivity : BaseActivity() {
             return
         }
         update(row) { it.copy(state = InstallState.WORKING, note = null) }
+        beginDownload()
         val mcVersion = state.effectiveVersion
         val loader = state.effectiveLoader
 
@@ -494,6 +513,7 @@ class ModBrowserActivity : BaseActivity() {
         val mcVersion = state.effectiveVersion
         val loader = state.effectiveLoader
         val pageTitle = state.page?.hit?.title.orEmpty()
+        beginDownload()
         lifecycleScope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 runCatching {

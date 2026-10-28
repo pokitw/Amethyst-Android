@@ -54,6 +54,19 @@ data class WorldDetails(
     val cheats: Boolean,
     /** 0 peaceful to 3 hard, or -1 when the file does not say. */
     val difficulty: Int,
+    /**
+     * Which fields are actually present in the file.
+     *
+     * [NbtEditor] splices a value into a tag that exists; it cannot add one that does not, by
+     * design, because adding a key means rewriting the compound around it and that is the tree
+     * rewrite this deliberately does not do. A world missing `Difficulty` therefore has a
+     * difficulty that can be read as "not set" and cannot be written at all, and offering a
+     * picker for it would be offering a control that always reports a failure.
+     */
+    val canSetName: Boolean,
+    val canSetGameMode: Boolean,
+    val canSetDifficulty: Boolean,
+    val canSetCheats: Boolean,
     val lastPlayedMs: Long,
     val sizeBytes: Long,
     val seed: Long?,
@@ -71,10 +84,16 @@ private const val LEVEL = "level.dat"
 
 fun worldLevelFile(world: File): File = File(world, LEVEL)
 
-/** Read everything the sheet needs. Off the main thread: this walks the folder for its size. */
-fun readWorldDetails(world: File): WorldDetails {
+/**
+ * Read everything the sheet needs. Off the main thread: this walks the folder for its size.
+ *
+ * @param knownSizeBytes a size already measured, to skip the walk. Every edit here is a splice
+ *        into `level.dat`, which cannot change what the folder contains, so re-measuring after
+ *        one costs seconds on a large world to arrive at the number already on screen.
+ */
+fun readWorldDetails(world: File, knownSizeBytes: Long? = null): WorldDetails {
     val level = runCatching { NbtReader.read(worldLevelFile(world)) }.getOrNull()
-    val size = runCatching { measureTree(world) }.getOrDefault(0L)
+    val size = knownSizeBytes ?: runCatching { measureTree(world) }.getOrDefault(0L)
     if (level == null) {
         return WorldDetails(
             name = world.name,
@@ -84,6 +103,10 @@ fun readWorldDetails(world: File): WorldDetails {
             hardcore = false,
             cheats = false,
             difficulty = -1,
+            canSetName = false,
+            canSetGameMode = false,
+            canSetDifficulty = false,
+            canSetCheats = false,
             lastPlayedMs = world.lastModified(),
             sizeBytes = size,
             seed = null,
@@ -99,6 +122,10 @@ fun readWorldDetails(world: File): WorldDetails {
         hardcore = NbtReader.getLong(level, 0L, "Data", "hardcore") != 0L,
         cheats = NbtReader.getLong(level, 0L, "Data", "allowCommands") != 0L,
         difficulty = NbtReader.getLong(level, -1L, "Data", "Difficulty").toInt(),
+        canSetName = NbtReader.get(level, "Data", "LevelName") is String,
+        canSetGameMode = NbtReader.get(level, "Data", "GameType") is Number,
+        canSetDifficulty = NbtReader.get(level, "Data", "Difficulty") is Number,
+        canSetCheats = NbtReader.get(level, "Data", "allowCommands") is Number,
         lastPlayedMs = if (lastPlayed > 0L) lastPlayed else world.lastModified(),
         sizeBytes = size,
         // Moved in 1.16 when world generation became data driven. Both are read because the
@@ -187,7 +214,9 @@ fun unsetHardcore(world: File): Boolean {
  */
 fun duplicateWorld(world: File, copyLabel: String): File? {
     val parent = world.parentFile ?: return null
-    val details = runCatching { readWorldDetails(world) }.getOrNull()
+    // Only the name is wanted, so the folder walk is skipped: measuring a three gigabyte world
+    // to read one string and throw the rest away is seconds of nothing.
+    val details = runCatching { readWorldDetails(world, knownSizeBytes = 0L) }.getOrNull()
     val baseName = details?.name ?: world.name
     val newName = "$baseName $copyLabel"
     val target = uniqueChild(parent, folderSafeName(newName).ifEmpty { world.name + " copy" })
@@ -227,10 +256,17 @@ fun exportWorld(context: Context, world: File): WorldExport {
     var uri: Uri? = null
     return try {
         val stream = openDownload(context, fileName) { uri = it } ?: return WorldExport.Failed
-        ZipOutputStream(stream).use { zip -> zipTree(world, world.name, zip) }
+        ZipOutputStream(stream).use { zip ->
+            zipTree(world, world.name, zip, intArrayOf(200_000), 0)
+        }
         finishDownload(context, fileName, uri)
         WorldExport.Saved(fileName)
     } catch (t: Throwable) {
+        // A failure must take its half written file with it. On Q and up the row was inserted
+        // pending, so nothing can see it, but it holds the bytes and no app on the phone can
+        // reach it to delete: a few failed exports of a large world would eat gigabytes that
+        // only MediaStore's own expiry would ever reclaim.
+        abandonDownload(context, fileName, uri)
         WorldExport.Failed
     }
 }
@@ -259,8 +295,13 @@ private fun openDownload(
     }
     val folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     if (!folder.exists() && !folder.mkdirs()) return null
-    return FileOutputStream(File(folder, fileName))
+    // Written under a part name and renamed by finishDownload, so the promise above holds
+    // below Q as well: a direct write would truncate a previous backup of the same world the
+    // instant the stream opened, and leave the broken remains of it looking like a backup.
+    return FileOutputStream(File(folder, fileName + PART_SUFFIX))
 }
+
+private const val PART_SUFFIX = ".part"
 
 private fun finishDownload(context: Context, fileName: String, uri: Uri?) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -272,18 +313,44 @@ private fun finishDownload(context: Context, fileName: String, uri: Uri?) {
         return
     }
     val folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    MediaScannerConnection.scanFile(
-        context, arrayOf(File(folder, fileName).absolutePath), null, null
-    )
+    val part = File(folder, fileName + PART_SUFFIX)
+    val target = File(folder, fileName)
+    target.delete()
+    if (!part.renameTo(target)) {
+        part.delete()
+        return
+    }
+    MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), null, null)
 }
 
-/** Depth first, so a region folder's thousands of files do not all sit open at once. */
-private fun zipTree(root: File, prefix: String, zip: ZipOutputStream) {
+/** Remove whatever a failed export left behind, on either path. */
+private fun abandonDownload(context: Context, fileName: String, uri: Uri?) {
+    runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            uri?.let { context.contentResolver.delete(it, null, null) }
+            return
+        }
+        val folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        File(folder, fileName + PART_SUFFIX).delete()
+    }
+}
+
+/**
+ * Depth first, so a region folder's thousands of files do not all sit open at once.
+ *
+ * Bounded like the other two walks in this file, and for the reason they are: a directory
+ * symlink loop inside a world folder is otherwise an export that writes into Downloads until
+ * the volume is full, and deep enough nesting is a StackOverflowError that the caller's
+ * catch-all would quietly report as "the backup could not be saved".
+ */
+private fun zipTree(root: File, prefix: String, zip: ZipOutputStream, budget: IntArray, depth: Int) {
+    if (depth > 64) return
     val children = root.listFiles() ?: return
     for (child in children) {
+        if (--budget[0] <= 0) throw IllegalStateException("world has too many files to export")
         val entry = "$prefix/${child.name}"
         if (child.isDirectory) {
-            zipTree(child, entry, zip)
+            zipTree(child, entry, zip, budget, depth + 1)
         } else {
             zip.putNextEntry(ZipEntry(entry))
             child.inputStream().use { it.copyTo(zip) }

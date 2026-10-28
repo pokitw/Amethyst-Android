@@ -261,7 +261,14 @@ public final class ModInstall {
                             @Override
                             public void updateProgress(int curr, int max) {
                                 long done = curr & 0xFFFFFFFFL;
-                                if (done - lastReported[0] < PROGRESS_STEP_BYTES && done < max) {
+                                // "max > 0" and not just "done < max". A chunked response or a
+                                // missing Content-Length makes max -1, which made "done < max"
+                                // false, which short-circuited the whole guard away and let
+                                // every 64KB callback through: one main thread post per buffer,
+                                // which is the flood the step exists to prevent (16.30), on
+                                // exactly the downloads nobody can draw a bar for anyway.
+                                boolean finished = max > 0 && done >= max;
+                                if (!finished && done - lastReported[0] < PROGRESS_STEP_BYTES) {
                                     return;
                                 }
                                 lastReported[0] = done;

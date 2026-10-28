@@ -93,6 +93,14 @@ public class DownloadUtils {
      */
     public static int sizeBytes = 0;
     public static int rawCallbacks = 0;
+    /**
+     * What the real one passes as "max" when the server did not say.
+     *
+     * conn.getContentLength() is -1 for a chunked response or an absent header, and modelling
+     * only the "the server told us" shape is 16.16: the throttle had a guard that short
+     * circuited away entirely in that case and the harness could not express it.
+     */
+    public static boolean unknownLength = false;
 
     public static void downloadFileMonitored(String url, File out, byte[] buffer,
                                              net.kdt.pojavlaunch.Tools.DownloaderFeedback monitor)
@@ -100,10 +108,11 @@ public class DownloadUtils {
         rawCallbacks = 0;
         int chunk = 65535;
         int done = 0;
+        int reported = unknownLength ? -1 : sizeBytes;
         while (done < sizeBytes) {
             done = Math.min(sizeBytes, done + chunk);
             rawCallbacks++;
-            monitor.updateProgress(done, sizeBytes);
+            monitor.updateProgress(done, reported);
         }
         // A few real bytes, because ModInstall verifies what landed: with no hash and no
         // declared size the check is "something was written", and a zero byte file fails it.

@@ -481,11 +481,21 @@ fun planImport(context: Context, gameDir: File, uri: Uri): ImportPlan? {
     val staged: File
     try {
         staged = File.createTempFile("amethyst-import", null, context.cacheDir)
+    } catch (t: Throwable) {
+        return null
+    }
+    try {
         context.contentResolver.openInputStream(uri).use { input ->
-            if (input == null) return null
+            // Deleted on the way out of both failure paths. Nobody downstream is handed a plan
+            // they could discard, so this is the only place it can be cleaned up.
+            if (input == null) {
+                staged.delete()
+                return null
+            }
             staged.outputStream().use { output -> input.copyTo(output) }
         }
     } catch (t: Throwable) {
+        staged.delete()
         return null
     }
 
@@ -512,15 +522,16 @@ fun planImport(context: Context, gameDir: File, uri: Uri): ImportPlan? {
  */
 fun commitImport(plan: ImportPlan, gameDir: File, replaceDuplicate: Boolean = false): ImportResult {
     val kind = plan.kind ?: return ImportResult.Unrecognised
-    if (replaceDuplicate) plan.duplicateFile?.delete()
-    return if (plan.unpacks) {
-        extractWorld(plan.staged, gameDir, plan.worldPrefix, plan.displayName)
-    } else {
-        // Resolved again rather than reusing landingName: a dialog can sit open for as long as
-        // somebody leaves it, and the folder may have gained that name in the meantime. The
-        // name shown was the truth when it was shown, and this is the truth when it is written.
-        place(plan.staged, gameDir, kind, plan.displayName)
+    if (plan.unpacks) {
+        return extractWorld(plan.staged, gameDir, plan.worldPrefix, plan.displayName)
     }
+    // Resolved again rather than reusing landingName: a dialog can sit open for as long as
+    // somebody leaves it, and the folder may have gained that name in the meantime. The name
+    // shown was the truth when it was shown, and this is the truth when it is written.
+    return place(
+        plan.staged, gameDir, kind, plan.displayName,
+        replacing = if (replaceDuplicate) plan.duplicateFile else null
+    )
 }
 
 /**
@@ -674,19 +685,44 @@ private fun inspectArchive(file: File): ArchiveShape? = try {
     null
 }
 
-private fun place(staged: File, gameDir: File, kind: ContentKind, name: String): ImportResult {
+/**
+ * Write the file into its folder, and only then remove what it replaces.
+ *
+ * <b>The order is the whole of it.</b> Deleting first and copying second reads naturally and
+ * loses somebody's mod the first time the copy fails: out of space, which is plausible because
+ * a staged second copy is already sitting in the cache, or a provider that stopped answering.
+ * The old jar would be gone, the new one would be gone, and the only report would be "that
+ * file could not be added".
+ *
+ * So the bytes land under a `.part` name first. Nothing is deleted until they are all there,
+ * and the final name is resolved AFTER the delete, so replacing `sodium.jar` with a file of
+ * the same name gives `sodium.jar` rather than `sodium (2).jar` beside a hole.
+ */
+private fun place(
+    staged: File,
+    gameDir: File,
+    kind: ContentKind,
+    name: String,
+    replacing: File? = null
+): ImportResult {
     val folder = contentFolder(gameDir, kind)
     if (!folder.exists() && !folder.mkdirs()) return ImportResult.Failed
-    val target = uniqueFile(folder, name)
-    return try {
+    val partial = uniqueFile(folder, "$name.part")
+    try {
         staged.inputStream().use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
+            partial.outputStream().use { output -> input.copyTo(output) }
         }
-        ImportResult.Added(kind, target.name)
     } catch (t: Throwable) {
-        target.delete()
-        ImportResult.Failed
+        partial.delete()
+        return ImportResult.Failed
     }
+    replacing?.delete()
+    val target = uniqueFile(folder, name)
+    if (!partial.renameTo(target)) {
+        partial.delete()
+        return ImportResult.Failed
+    }
+    return ImportResult.Added(kind, target.name)
 }
 
 /**

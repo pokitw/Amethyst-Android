@@ -214,6 +214,25 @@ public class Harness {
         check(highest[0] == DownloadUtils.sizeBytes,
                 "progress stopped at " + highest[0] + " of " + DownloadUtils.sizeBytes);
 
+        // The same download with no Content-Length, which is the shape the first throttle let
+        // straight through: "done < max" is false when max is -1, so the whole guard short
+        // circuited and every 64KB buffer became a main thread post.
+        DownloadUtils.unknownLength = true;
+        final int[] blindReports = {0};
+        ModrinthMods.File blind = new ModrinthMods.File("jkl", "blind", "1.0", "release",
+                "blind.jar", "https://example.invalid/blind.jar", null, 0,
+                java.util.Collections.<ModrinthMods.Dependency>emptyList());
+        ModInstall.install(folder, blind, "1.20.1", "fabric", new ModInstall.Progress() {
+            @Override
+            public void onProgress(String name, long done, long total, int completed) {
+                blindReports[0]++;
+            }
+        });
+        check(blindReports[0] <= DownloadUtils.rawCallbacks / 2,
+                "with no Content-Length the throttle let " + blindReports[0] + " of "
+                        + DownloadUtils.rawCallbacks + " through");
+        DownloadUtils.unknownLength = false;
+
         // A small file still reports, and still ends at its own size: the throttle must not
         // swallow a download that finishes inside one step.
         DownloadUtils.sizeBytes = 4000;
