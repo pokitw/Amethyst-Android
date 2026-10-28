@@ -2148,6 +2148,21 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     string, which is an aapt warning that thirteen inherited strings already carry: a check
     that is red before anybody touches anything is a check nobody runs.
 
+34. **A key that is deliberately stable is a key that can collide.** A mod row's id has
+    `.disabled` stripped off it so that switching a mod does not change the identity of its row,
+    which is the right call and is also why `foo.jar` beside `foo.jar.disabled` is one id twice.
+    Nothing in either file reads as wrong, and the folder is one the launcher now builds itself:
+    "turn them off" renames a jar to `.disabled`, and installing the mod again writes the
+    original name back next to it. A `LazyColumn` throws on the duplicate at the moment the
+    second row is **composed**, so the symptom is a crash while scrolling and not a screen that
+    fails to open, which points the reader at the scroll rather than at the scan. The same id was
+    also the dependency graph's lookup key, so both rows silently shared one verdict.
+    The general form: **deriving a key by discarding part of the thing it names makes two things
+    share a key, and the place it surfaces is wherever the key is required to be unique rather
+    than where it was built.** Worth asking of any id built by stripping a suffix, lowercasing, or
+    normalising whitespace. The repair is to rename only the rows that actually clash, so the
+    stability the stripping was for survives everywhere it was not the problem.
+
 31. **A control offered only when a setting is off cannot call code that the same setting gates.**
     "Add to gallery" appeared exactly when the automatic export preference was off, and
     `GalleryExport.publish` returns false early when that preference is off, so the button could
