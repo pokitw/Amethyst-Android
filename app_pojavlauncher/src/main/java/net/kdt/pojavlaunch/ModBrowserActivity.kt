@@ -3,6 +3,7 @@ package net.kdt.pojavlaunch
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -81,6 +82,13 @@ class ModBrowserActivity : BaseActivity() {
         onBackPressedDispatcher.addCallback(this, pageBack)
         setContent {
             AmethystXTheme {
+                // Hoisted above the branch below, which is the whole fix for coming back from a
+                // mod page at the top of the list. The project page is a route inside this
+                // activity, so the results leave the composition while it is open, and a state
+                // remembered inside `ModBrowserScreen` goes with them: the list came back built
+                // from index 0 with the query and the rows still perfectly intact, which is why
+                // it read as the activity restarting.
+                val results = rememberLazyListState()
                 val page = state.page
                 if (page != null) {
                     ModProjectScreen(
@@ -97,6 +105,7 @@ class ModBrowserActivity : BaseActivity() {
                 } else {
                     ModBrowserScreen(
                         state = state,
+                        listState = results,
                         onQuery = { state = state.copy(query = it) },
                         onSearch = { search(reset = true) },
                         onToggleFilter = {

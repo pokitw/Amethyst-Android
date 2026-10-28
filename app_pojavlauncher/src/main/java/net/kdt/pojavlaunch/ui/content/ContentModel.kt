@@ -179,7 +179,41 @@ fun scanContent(gameDir: File, kind: ContentKind): List<ContentItem> {
         }
         if (item != null) items.add(item)
     }
-    return items
+    return uniquifyIds(items)
+}
+
+/**
+ * Make sure no two rows in a folder carry the same [ContentItem.id].
+ *
+ * A mod's id has `.disabled` stripped off it so that switching a mod does not change the identity
+ * of its row. That is right, and it means `foo.jar` sitting beside `foo.jar.disabled` produces one
+ * id twice, which is a folder the launcher itself now builds: "turn them off" renames a jar to
+ * `.disabled`, and installing the mod again writes the original name back next to it.
+ *
+ * Two rows with one key is an `IllegalArgumentException` thrown out of the `LazyColumn` at the
+ * moment the second one is composed, so it is a crash on scroll rather than anything visible on
+ * arrival, and nothing in either file reads as wrong. It also silently gave both rows the same
+ * dependency verdict, since the graph's results are looked up by the same id.
+ *
+ * Only the rows that actually clash are renamed, so an ordinary folder's ids are untouched and a
+ * toggle there still lands on the same row. Where they do clash the file name is the honest
+ * identity anyway, which is why nothing is hidden to achieve this. The marker keeps a rebuilt id
+ * out of the namespace the untouched ones live in, and the loop behind it turns "a folder cannot
+ * hold two entries of one name" from a belief into something enforced.
+ */
+private fun uniquifyIds(items: List<ContentItem>): List<ContentItem> {
+    val counts = HashMap<String, Int>(items.size * 2)
+    for (item in items) counts[item.id] = (counts[item.id] ?: 0) + 1
+    if (counts.size == items.size) return items
+    val taken = HashSet<String>(items.size * 2)
+    val out = ArrayList<ContentItem>(items.size)
+    for (item in items) {
+        var id = if ((counts[item.id] ?: 0) > 1) "!" + item.file.name else item.id
+        var n = 2
+        while (!taken.add(id)) id = "!" + item.file.name + " (" + (n++) + ")"
+        out.add(if (id == item.id) item else item.copy(id = id))
+    }
+    return out
 }
 
 /**

@@ -3,6 +3,7 @@ package net.kdt.pojavlaunch.ui.settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -355,7 +357,15 @@ fun ChoiceRow(
             onDismissRequest = { open = false },
             title = { Text(title, style = MaterialTheme.typography.titleMedium) },
             text = {
-                Column {
+                // Capped and scrollable, not a plain column. Most pickers here are four entries
+                // and fit, which is why this went unnoticed; Modrinth's category list is dozens,
+                // and a dialog's text slot clips what overflows it rather than scrolling, so the
+                // entries past the bottom of the screen could not be reached at all.
+                Column(
+                    Modifier
+                        .heightIn(max = 340.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
                     if (hint != null) {
                         Text(
                             hint,
