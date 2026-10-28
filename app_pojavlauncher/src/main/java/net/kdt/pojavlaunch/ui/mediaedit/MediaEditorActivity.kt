@@ -127,6 +127,7 @@ class MediaEditorActivity : BaseActivity() {
         onPosition = ::onPlayerPosition,
         onReady = ::onPlayerReady,
         onEnded = ::onPlaybackEnded,
+        onFailed = ::onPlaybackFailed,
     )
 
     // Image
@@ -239,9 +240,12 @@ class MediaEditorActivity : BaseActivity() {
             // Not at a boundary, because a split there divides nothing, and inside the trim.
             canSplit = live != null && playUs > inUs && playUs < outUs &&
                     spans.none { it.startUs == playUs },
-            // Restoring is always allowed. Deleting is not allowed to empty the output, which
-            // is the one state the exporter refuses and there is no reason to let somebody
-            // arrange it.
+            // Restoring is always allowed; deleting the last surviving span is not, so one tap
+            // cannot produce an output with nothing in it. A trim drag still can, because
+            // retime keeps any span overlapping a cut and dragging a handle changes what the
+            // spans are. That state is drawn (the whole strip is shaded), named ("Nothing is
+            // left to save") and undone by Restore, so it is reported rather than prevented;
+            // what this guard buys is that Delete alone never reaches it silently.
             canDelete = selectedSpan != null && (selectedRemoved || spans.any {
                 it !== selectedSpan && !ClipPlan.isRemoved(it, cuts)
             }),
@@ -272,7 +276,15 @@ class MediaEditorActivity : BaseActivity() {
                 if (playUs > outUs) seekPlayhead(outUs)
                 reshape()
             },
-            onPlayhead = { at -> seekPlayhead(at.coerceIn(0L, live?.durationUs ?: 0L)) },
+            onPlayhead = { at ->
+                val target = at.coerceIn(0L, live?.durationUs ?: 0L)
+                seekPlayhead(target)
+                // The selection follows the playhead however the playhead moved. Only the tap
+                // path used to select, so dragging the marker into another part left the ring
+                // behind and Delete acted on a span nobody was looking at any more.
+                val index = ClipPlan.segmentAt(spans, target)
+                if (index >= 0) selected = index
+            },
             onSelect = { index -> if (index >= 0) selected = index },
             onSplit = {
                 if (live != null && playUs > inUs && playUs < outUs && !splits.contains(playUs)) {
@@ -365,7 +377,7 @@ class MediaEditorActivity : BaseActivity() {
     private fun onPlaybackEnded() {
         stopTicking()
         playing = false
-        seekPlayheadNow(inUs)
+        seekPlayheadNow(firstKeptFrom(inUs))
     }
 
     private fun togglePlay() {
@@ -376,10 +388,19 @@ class MediaEditorActivity : BaseActivity() {
             stopTicking()
             return
         }
-        // Starting from the end, or from inside something deleted, starts from the top of the
-        // selection instead. Pressing play and watching nothing happen is the failure here.
-        if (playUs >= outUs || cutHolding(playUs) != null) seekPlayheadNow(inUs)
-        player.play()
+        // Starting from the end, or from inside something deleted, starts from the first
+        // material that will actually be in the output. seekPlayheadNow(inUs) was not enough:
+        // when the FIRST span is the deleted one, inUs is itself inside a cut by construction,
+        // so playback began on material the preview exists to prove is gone and only the next
+        // tick moved it on.
+        if (playUs >= outUs || cutHolding(playUs) != null) seekPlayheadNow(firstKeptFrom(inUs))
+        // Only commit to playing if the player says it started. It refuses before prepareAsync
+        // has called back, and forever after an error, and both used to leave a pause icon
+        // over a still picture with a ticker waking every 60ms behind it.
+        if (!player.play()) {
+            message = getString(R.string.editor_cannot_play)
+            return
+        }
         playing = true
         startTicking()
     }
@@ -428,14 +449,13 @@ class MediaEditorActivity : BaseActivity() {
             player.seekTo(inUs)
             return
         }
-        val cut = cutHolding(atUs)
-        if (cut != null) {
-            val resume = cut.endUs
+        if (cutHolding(atUs) != null) {
+            val resume = firstKeptFrom(atUs)
             if (resume >= outUs) {
                 player.pause()
                 playing = false
                 stopTicking()
-                seekPlayheadNow(inUs)
+                seekPlayheadNow(firstKeptFrom(inUs))
             } else {
                 playUs = resume
                 player.seekTo(resume)
@@ -443,6 +463,30 @@ class MediaEditorActivity : BaseActivity() {
             return
         }
         playUs = atUs
+    }
+
+    /**
+     * The first time at or after [atUs] that is not inside a deleted span.
+     *
+     * Walks through CONSECUTIVE cuts rather than stepping over one. Deleting three spans in a
+     * row used to take three ticks to get past, and a tick is 60ms of the material playing, so
+     * the preview showed about a fifth of a second of exactly what it exists to prove is gone.
+     * Bounded by the cut count, which is bounded by the span count, so it cannot loop.
+     */
+    private fun firstKeptFrom(atUs: Long): Long {
+        var at = atUs
+        var guard = cuts.size + 1
+        while (guard-- > 0) {
+            val cut = cutHolding(at) ?: return at
+            at = cut.endUs
+        }
+        return at
+    }
+
+    private fun onPlaybackFailed() {
+        stopTicking()
+        playing = false
+        message = getString(R.string.editor_cannot_play)
     }
 
     private fun cutHolding(atUs: Long): ClipPlan.Range? =
@@ -565,6 +609,14 @@ class MediaEditorActivity : BaseActivity() {
             message = getString(R.string.editor_nothing_to_save)
             toast(message!!)
             return
+        }
+        // Stopped before the export, because the transport is disabled while busy: playing on
+        // would mean sound and picture running for the length of a long export with the only
+        // control that could stop them greyed out, and Back swallowed too.
+        if (playing) {
+            player.pause()
+            playing = false
+            stopTicking()
         }
         busy = true
         progress = 0f

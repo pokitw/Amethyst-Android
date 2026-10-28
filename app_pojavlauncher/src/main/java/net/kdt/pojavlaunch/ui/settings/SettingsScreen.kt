@@ -1209,9 +1209,7 @@ private fun GalleryCopyRow(image: Boolean) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var line by remember { mutableStateOf<String?>(null) }
-    var running by remember { mutableStateOf(false) }
     val busyText = stringResource(R.string.preference_gallery_copy_running)
-    val noneText = stringResource(R.string.preference_gallery_copy_none)
     NavRow(
         title = stringResource(
             if (image) R.string.preference_gallery_copy_screenshots_title
@@ -1220,9 +1218,10 @@ private fun GalleryCopyRow(image: Boolean) {
         description = stringResource(R.string.preference_gallery_copy_description),
         value = line,
         iconRes = R.drawable.ic_x_files,
-        onClick = onClick@{
-            if (running) return@onClick
-            running = true
+        onClick = {
+            // No local "already running" guard. This row can leave the composition while the
+            // copy carries on, taking any such flag with it, so the guard is inside
+            // GalleryExport where the copy is and a second press comes back as busy.
             line = busyText
             scope.launch {
                 // Resolved here and not inside the IO block: both of these go through
@@ -1233,11 +1232,18 @@ private fun GalleryCopyRow(image: Boolean) {
                     if (folder == null) null
                     else GalleryExport.publishFolderOnRequest(context, folder, image)
                 }
-                running = false
-                line = if (result == null || (result.copied == 0 && result.failed == 0)) {
-                    noneText
-                } else {
-                    context.getString(
+                // Five outcomes, and four of them copy nothing. Collapsing those four into one
+                // sentence is what makes a row look broken: "nothing new to copy" is a real
+                // answer to only one of them.
+                line = when {
+                    result == null || result.unavailable ->
+                        context.getString(R.string.preference_gallery_copy_unavailable)
+                    result.busy -> context.getString(R.string.preference_gallery_copy_running)
+                    result.total() == 0 ->
+                        context.getString(R.string.preference_gallery_copy_empty)
+                    result.copied == 0 && result.failed == 0 ->
+                        context.getString(R.string.preference_gallery_copy_all_there, result.skipped)
+                    else -> context.getString(
                         R.string.preference_gallery_copy_result,
                         result.copied, result.skipped, result.failed
                     )
@@ -1247,8 +1253,15 @@ private fun GalleryCopyRow(image: Boolean) {
     )
 }
 
-/** Minecraft's own screenshots folder, which is also where the launcher writes its own. */
+/**
+ * Minecraft's own screenshots folder, which is also where the launcher writes its own.
+ *
+ * `LauncherProfiles.load()` first, exactly as `recordingsDirectory()` does: the current profile
+ * is read out of the loaded JSON, and in a process that has not loaded it yet this silently
+ * resolves against nothing and the row reports an empty folder. Main thread only (§12.7).
+ */
 private fun screenshotsFolder(): File? = runCatching {
+    LauncherProfiles.load()
     File(Tools.getGameDirPath(LauncherProfiles.getCurrentProfile()), "screenshots")
 }.getOrNull()
 
@@ -1278,6 +1291,10 @@ private fun RecordingScreen(
                 stringResource(R.string.preference_gallery_export_description),
                 store.bool("galleryExport", true)
             ) { store.put("galleryExport", it) }
+            // Under the switch rather than beside it, because they are what the switch could
+            // not do: it only ever sees a file at the moment it is written.
+            GalleryCopyRow(image = false)
+            GalleryCopyRow(image = true)
         }
 
         SectionLabel(stringResource(R.string.settings_section_video))

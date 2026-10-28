@@ -5,7 +5,7 @@ import android.view.TextureView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -170,7 +170,7 @@ fun ClipEditScreen(
                 // source would be reporting on material the player is about to stop having,
                 // and it would jump by the length of every deleted span as playback stepped
                 // over it.
-                atUs = plan.mapToOutput(playUs).coerceAtLeast(0L),
+                atUs = outputPositionOf(plan, playUs),
                 totalUs = plan.outputDurationUs.takeIf { it > 0L } ?: durationUs,
                 enabled = durationUs > 0L && !busy,
                 part = if (segments.size > 1) {
@@ -381,7 +381,12 @@ private fun Timeline(
             .clip(MaterialTheme.shapes.medium)
             .background(well)
             .pointerInput(Unit) {
-                detectDragGestures(
+                // Horizontal only. detectDragGestures is omnidirectional and consumes on slop,
+                // so in the landscape layout, where this sits inside a vertical scroll, the
+                // 86dp full width strip was the largest grabbable band in the pane and could
+                // not be used to scroll past it. A timeline has nothing to say about vertical
+                // movement anyway.
+                detectHorizontalDragGestures(
                     onDragStart = { at ->
                         val total = live.value[3].coerceAtLeast(1L)
                         val w = size.width.toFloat().coerceAtLeast(1f)
@@ -403,7 +408,7 @@ private fun Timeline(
                     },
                     onDragEnd = { grab = null },
                     onDragCancel = { grab = null },
-                    onDrag = { change, _ ->
+                    onHorizontalDrag = { change, _ ->
                         change.consume()
                         val total = live.value[3].coerceAtLeast(1L)
                         val w = size.width.toFloat().coerceAtLeast(1f)
@@ -782,6 +787,27 @@ internal fun QuietButton(text: String, onClick: () -> Unit) {
 }
 
 /* ------------------------------------------------------------------ arithmetic */
+
+/**
+ * Where the playhead is, measured in the output.
+ *
+ * `mapToOutput` answers -1 for a source time that no segment holds, and coercing that to zero
+ * is the wrong repair: the sentinel and the very start of the clip then read identically, so
+ * parking the marker inside a deleted span, or outside the trim, or exactly on the clip's end,
+ * all printed "0:00" over a marker sitting in the middle of the strip.
+ *
+ * The honest answer for a time that is not in the output is where playback will next be, which
+ * is the output start of the first segment that begins at or after it, and the output's full
+ * length once there are none. That also makes the clock monotonic as playback steps over a cut.
+ */
+internal fun outputPositionOf(plan: ClipPlan.Plan, atUs: Long): Long {
+    val direct = plan.mapToOutput(atUs)
+    if (direct >= 0L) return direct
+    plan.segments.forEach { segment ->
+        if (segment.sourceStartUs >= atUs) return segment.outputStartUs
+    }
+    return plan.outputDurationUs
+}
 
 internal fun usAt(x: Float, width: Float, totalUs: Long): Long =
     ((x / width).coerceIn(0f, 1f) * totalUs).toLong()

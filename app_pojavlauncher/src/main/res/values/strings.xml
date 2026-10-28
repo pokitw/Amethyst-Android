@@ -1427,6 +1427,7 @@
     <string name="editor_gallery_done">Added to your gallery</string>
     <string name="editor_gallery_failed">Could not add it to your gallery</string>
     <string name="editor_nothing_to_save">There is nothing to save yet</string>
+    <string name="editor_cannot_play">This clip cannot be played here. You can still trim it.</string>
     <string name="editor_reset">Reset</string>
     <string name="editor_original_kept">Your original is never changed. Saving writes a new file beside it.</string>
 
@@ -1465,5 +1466,8 @@
     <string name="preference_gallery_copy_description">Copies what you already have. Anything taken before the switch above was turned on is only in the game folder, which nothing else on the phone can open.</string>
     <string name="preference_gallery_copy_running">Copying</string>
     <string name="preference_gallery_copy_none">Nothing new to copy</string>
+    <string name="preference_gallery_copy_empty">Nothing in that folder yet</string>
+    <string name="preference_gallery_copy_all_there">All %1$d are already in your gallery</string>
+    <string name="preference_gallery_copy_unavailable">Could not open that folder</string>
     <string name="preference_gallery_copy_result">%1$d copied, %2$d already there, %3$d failed</string>
 </resources>

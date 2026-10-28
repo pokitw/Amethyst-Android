@@ -159,19 +159,47 @@ public final class GalleryExport {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    /** What a bulk copy did, so a settings row can report it rather than merely finishing. */
+    /**
+     * What a bulk copy did, so a settings row can report it rather than merely finishing.
+     *
+     * {@code unavailable} and {@code busy} are told apart from "nothing new" deliberately: all
+     * three finish instantly having copied nothing, and only one of them means the gallery is
+     * already up to date.
+     */
     public static final class BulkResult {
         public final int copied;
         public final int skipped;
         public final int failed;
+        /** The folder could not be listed at all, which is not the same as it being empty. */
+        public final boolean unavailable;
+        /** Another copy of this kind is already running. */
+        public final boolean busy;
 
-        BulkResult(int copied, int skipped, int failed) {
+        BulkResult(int copied, int skipped, int failed, boolean unavailable, boolean busy) {
             this.copied = copied;
             this.skipped = skipped;
             this.failed = failed;
+            this.unavailable = unavailable;
+            this.busy = busy;
+        }
+
+        public int total() {
+            return copied + skipped + failed;
         }
     }
+
+    /**
+     * One bulk copy at a time, per process rather than per screen.
+     *
+     * The settings row that starts this lives in a composition, and leaving the screen and
+     * coming back destroys whatever state it was holding while the copy carries on: there is no
+     * suspension point inside it to cancel at. A second press would then run a second pass over
+     * the same folder, and the two would race the first one's media store inserts, so
+     * {@link #alreadyInGallery} would answer false for a file the other pass was halfway
+     * through writing. The guard belongs here, where the copy is, and not on the row.
+     */
+    private static final java.util.concurrent.atomic.AtomicBoolean BULK_RUNNING =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /**
      * Copy a whole folder into the gallery, on request, skipping what is already there.
@@ -193,8 +221,20 @@ public final class GalleryExport {
      */
     public static BulkResult publishFolderOnRequest(@NonNull Context context, @NonNull File folder,
                                                     final boolean image) {
+        if (!BULK_RUNNING.compareAndSet(false, true)) {
+            return new BulkResult(0, 0, 0, false, true);
+        }
+        try {
+            return copyFolder(context, folder, image);
+        } finally {
+            BULK_RUNNING.set(false);
+        }
+    }
+
+    private static BulkResult copyFolder(@NonNull Context context, @NonNull File folder,
+                                         final boolean image) {
         File[] files = folder.listFiles();
-        if (files == null) return new BulkResult(0, 0, 0);
+        if (files == null) return new BulkResult(0, 0, 0, true, false);
         int copied = 0;
         int skipped = 0;
         int failed = 0;
@@ -214,7 +254,7 @@ public final class GalleryExport {
                     : publishVideoOnRequest(context, file);
             if (ok) copied++; else failed++;
         }
-        return new BulkResult(copied, skipped, failed);
+        return new BulkResult(copied, skipped, failed, false, false);
     }
 
     /** Whether the album already holds a file of this name. Errs towards copying. */
@@ -252,6 +292,11 @@ public final class GalleryExport {
         }
     }
 
+    // Back on the method that needs it: every column this touches is API 29. It had drifted
+    // onto an unrelated data holder when that holder was inserted between the two, which
+    // compiles, suppresses nothing where it matters, and marks the holder as Q-only for every
+    // caller.
+    @RequiresApi(Build.VERSION_CODES.Q)
     private static boolean publishViaMediaStore(@NonNull Context context, @NonNull File source,
                                                 @NonNull String mime, boolean image)
             throws Exception {

@@ -30,6 +30,8 @@ class ClipPlayer(
     private val onPosition: (Long) -> Unit,
     private val onReady: (Long) -> Unit,
     private val onEnded: () -> Unit,
+    /** The player gave up on this file. Nothing will play until another one is opened. */
+    private val onFailed: () -> Unit = {},
 ) {
 
     private var player: MediaPlayer? = null
@@ -95,18 +97,32 @@ class ClipPlayer(
             created.setOnErrorListener { _, what, extra ->
                 Log.w(TAG, "player error $what/$extra on ${file.name}")
                 prepared = false
+                onFailed()
                 true
             }
             created.prepareAsync()
         } catch (t: Throwable) {
             Log.w(TAG, "could not open ${file.name}", t)
             release()
+            onFailed()
         }
     }
 
-    fun play() {
-        if (!prepared) return
-        runCatching { player?.start() }
+    /**
+     * Start playing, and say whether it actually started.
+     *
+     * The host decides from this whether to show a pause icon and run a position ticker, and
+     * the answer is genuinely no twice: before `prepareAsync` has called back, which is a real
+     * window because the editor enables its transport as soon as the file is read, and forever
+     * after an error, which leaves the player in a state where `start()` does nothing. Both
+     * used to end with a pause icon over a frozen picture and a coroutine waking every 60ms.
+     */
+    fun play(): Boolean {
+        if (!prepared) return false
+        return runCatching {
+            player?.start()
+            true
+        }.getOrDefault(false)
     }
 
     fun pause() {
