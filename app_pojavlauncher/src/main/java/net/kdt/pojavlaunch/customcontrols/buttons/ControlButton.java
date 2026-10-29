@@ -646,6 +646,14 @@ public class ControlButton extends TextView implements ControlInterface {
     private float mDownX, mDownY;
     /** Whether this press has turned into a repeat, and which edge the cycle is currently on. */
     private boolean mRepeating, mRepeatDown;
+    /**
+     * The two edges of the run, worked out once when it starts.
+     *
+     * A repeat runs at up to twenty edges a second for as long as a finger is down, and the keys
+     * cannot change while it does, so computing the order per edge would be two throwaway arrays
+     * forty times a second for an answer that never differs.
+     */
+    private int[] mRepeatPressOrder, mRepeatReleaseOrder;
     private final Runnable mRepeatAdvance = this::advanceRepeat;
 
     /**
@@ -712,6 +720,13 @@ public class ControlButton extends TextView implements ControlInterface {
     /** The cycle itself, however it was asked for. */
     private void beginRepeat(){
         mRepeating = true;
+        // Only what the clock is meant to strike. The modifiers of a combination went down with
+        // the press and stay down until the finger comes off, which is what makes a button
+        // carrying Shift and place a bridging button rather than a stutter; KeyCombo.cycled owns
+        // that division and falls back to every key for a button that holds nothing else.
+        int[] cycled = KeyCombo.cycled(mProperties.keycodes);
+        mRepeatPressOrder = KeyCombo.order(cycled, true);
+        mRepeatReleaseOrder = KeyCombo.order(cycled, false);
         // The key went down when the finger did and is still down, so the cycle picks up from
         // there: the first thing owed is a release, half a gap from now, and from then on the
         // spacing is regular.
@@ -750,6 +765,10 @@ public class ControlButton extends TextView implements ControlInterface {
         if(!mRepeating) return;
         mRepeating = false;
         mRepeatDown = false;
+        // After the caller's chance to use them: stopRepeat is called before the release in both
+        // paths, and onDetachedFromWindow sends the outstanding edge through sendRepeatEdge.
+        mRepeatPressOrder = null;
+        mRepeatReleaseOrder = null;
         refreshLatchAlpha();
         invalidate();
     }
@@ -762,11 +781,12 @@ public class ControlButton extends TextView implements ControlInterface {
      * {@link #onDraw(Canvas)} says what is happening instead, once.
      */
     private void sendRepeatEdge(boolean isDown){
-        // Only what the clock is meant to strike. The modifiers of a combination went down with
-        // the press and stay down until the finger comes off, which is what makes a button
-        // carrying Shift and place a bridging button rather than a stutter; KeyCombo.cycled owns
-        // that division and falls back to every key for a button that holds nothing else.
-        for(int keycode : KeyCombo.order(KeyCombo.cycled(mProperties.keycodes), isDown)){
+        int[] order = isDown ? mRepeatPressOrder : mRepeatReleaseOrder;
+        // Null only if something cancelled the run between an edge being booked and that edge
+        // arriving, which removeCallbacks already prevents. Guarded rather than trusted because
+        // this is the input path, where a crash takes the game with it.
+        if(order == null) return;
+        for(int keycode : order){
             sendSingleKey(keycode, isDown);
         }
     }

@@ -1936,6 +1936,9 @@ re-litigated. The reasoning lives in the commit that made the change.
   which is the same partition `KeyCombo.order` already makes for a single press, applied over
   time. Slide to repeat gets the fix for free, which is right, because bridging by sliding was
   already one of the things it was sold on.
+  **The two edges are worked out once when the run starts**, not per edge: the keys cannot change
+  while a finger is down, and twenty edges a second times two throwaway arrays is garbage on the
+  input path for an answer that never differs.
   **A button of nothing but modifiers cycles all of them**, and that degenerate case belongs in
   `KeyCombo` rather than in the caller: sustaining everything leaves the clock with nothing to
   send, which is a button doing nothing twenty times a second and looks exactly like a broken
