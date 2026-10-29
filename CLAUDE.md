@@ -1911,6 +1911,16 @@ re-litigated. The reasoning lives in the commit that made the change.
   **`targetPage` is one based so that zero can mean "cycle".** A page button somebody has just
   bound and not configured moves to the next page, which is what most layouts want and nobody
   has to set; an absent field deserialises to zero and lands on exactly that.
+  **Adding a page asks what the page starts with**, because creating the second one otherwise
+  handed you a copy of the first: every control saved before pages existed carries mask 0, which
+  means every page, so a new page came up with the whole layout on it and the only way to the
+  clear screen the feature exists for was to untick twenty controls one at a time. Neither answer
+  can be guessed, since mask 0 is also exactly right for the stick and the menu button, so the
+  dialog has two ways to add and the question is asked once, at the moment the intent is in mind,
+  and is changeable per control afterwards either way. **Page buttons stay shared whichever is
+  chosen**: they are the way between pages rather than something you play with, and a page
+  deliberately created with no way off it is the dead end the rail exists as a last resort
+  against.
   **In the editor you arrange one page at a time**, because stacking four pages of buttons on
   top of each other is the clutter this exists to remove, and a control added lands on the page
   being looked at. Unticking a page does **not** hide the control there and then: it would make
@@ -3134,6 +3144,14 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A **cycle** page button says which page you are on rather than where it will take you, because
   it cannot know: the next page depends on where you are. Four cycle buttons therefore all read
   the same thing, which is correct and is why a layout wanting tabs binds them to pages.
+- **Start empty leaves the joystick and the menu button off the new page too.** Everything except
+  page buttons is pinned off it, because the launcher cannot tell furniture from the controls you
+  play with and guessing would move somebody's buttons. The drawer pull tab comes back on a page
+  with no menu button, so the sheet is still reachable, and the controls that belong on every page
+  are ticked back on from the editor.
+- Pinning controls off a new page **makes their membership explicit**, so a page added later does
+  not pick them up the way a shared control would. That is the honest consequence of having said
+  which pages they are on, and it is per control in the editor to change.
 - A page button bound to a page that was later deleted **does nothing** rather than going
   somewhere plausible. The layout report names it; silently sending somebody to the wrong page
   would be worse.

@@ -1623,6 +1623,9 @@
 	<string name="control_special_log_output">Game log</string>
 	<string name="control_special_quick_settings">Quick settings</string>
 	<string name="control_page_default_name">Page %1$d</string>
+	<string name="control_center_page_add_body">Controls are shared between pages unless you say otherwise. Start the new page empty and nothing you have now appears on it, so you can put only what you want there. Page buttons stay on every page either way, and you can change which pages a control is on by long pressing it in the editor.</string>
+	<string name="control_center_page_add_empty">Start empty</string>
+	<string name="control_center_page_add_shared">Keep these controls</string>
 	<string name="control_editor_section_pages">Pages</string>
 	<string name="control_editor_pages_title">Shown on</string>
 	<string name="control_editor_pages_description">Which pages of this layout draw this control. Tap to add or remove.</string>

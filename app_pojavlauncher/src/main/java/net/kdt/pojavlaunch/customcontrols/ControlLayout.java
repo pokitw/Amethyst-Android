@@ -594,6 +594,31 @@ public class ControlLayout extends FrameLayout {
 		return true;
 	}
 
+	/**
+	 * Keep every control that is already here off a page that has just been added.
+	 *
+	 * Without this, creating a second page hands you a copy of the first: every control saved
+	 * before pages existed carries mask 0, which means every page (§12.14), so the new page comes
+	 * up with the whole layout on it and the only way to get the clear screen the feature exists
+	 * for is to untick twenty controls one at a time. That default is still the right one for
+	 * anybody who wants the furniture shared, which is why this is a choice made when the page is
+	 * added rather than a rule applied behind one.
+	 *
+	 * <b>Page buttons are deliberately left shared.</b> They are the way between pages rather
+	 * than something you play with, and a page that starts with no way off it is the dead end the
+	 * control center's rail exists as a last resort against, not something to create on purpose.
+	 */
+	private void pinExistingControlsOffPage(int page) {
+		if (mLayout == null) return;
+		int pages = mLayout.pageCount();
+		for (ControlInterface button : getButtonChildren()) {
+			ControlData properties = button.getProperties();
+			if (properties.containsKeycode(ControlData.SPECIALBTN_PAGE)) continue;
+			properties.pages = ControlPages.withPage(properties.pages, page, false, pages);
+		}
+		setModified(true);
+	}
+
 	/** Every page gone, which is what turning the feature back off means. */
 	public void clearPages() {
 		if (mLayout == null || mLayout.pageNames == null) return;
@@ -1210,19 +1235,35 @@ public class ControlLayout extends FrameLayout {
 		final EditText edit = new EditText(context);
 		edit.setSingleLine();
 		edit.setHint(context.getString(R.string.control_page_default_name, mLayout.pageCount() + 1));
+		// Two ways to add, because the two answers are both reasonable and neither can be
+		// guessed: a page of its own is what pages are for, and shared furniture is what mask 0
+		// already means. Asked once, at the moment the intent is in mind, and changeable per
+		// control in the editor afterwards either way.
 		new AlertDialog.Builder(context)
 				.setTitle(R.string.control_center_page_add)
+				.setMessage(R.string.control_center_page_add_body)
 				.setView(edit)
-				.setPositiveButton(android.R.string.ok, (dialog, which) -> {
-					// The first page keeps the name of what the layout already was, so a layout
-					// that grows a second page does not suddenly have an unnamed first one.
-					String first = context.getString(R.string.control_page_default_name, 1);
-					int added = addPage(first, edit.getText().toString().trim());
-					if (added >= 0) setCurrentPage(added);
-					notifyPageChanged();
-				})
+				.setPositiveButton(R.string.control_center_page_add_empty, (dialog, which) ->
+						addPageFromDialog(context, edit, true))
+				.setNeutralButton(R.string.control_center_page_add_shared, (dialog, which) ->
+						addPageFromDialog(context, edit, false))
 				.setNegativeButton(android.R.string.cancel, null)
 				.show();
+	}
+
+	/** Both buttons of the add dialog, which differ only in what the new page starts with. */
+	private void addPageFromDialog(Context context, EditText edit, boolean empty) {
+		// The first page keeps the name of what the layout already was, so a layout that grows a
+		// second page does not suddenly have an unnamed first one.
+		String first = context.getString(R.string.control_page_default_name, 1);
+		int added = addPage(first, edit.getText().toString().trim());
+		if (added >= 0) {
+			// Before the switch, so the page is already filtered the first time it is shown
+			// rather than arriving full and emptying a frame later.
+			if (empty) pinExistingControlsOffPage(added);
+			setCurrentPage(added);
+		}
+		notifyPageChanged();
 	}
 
 	/** Rename a page, or take it away. */
