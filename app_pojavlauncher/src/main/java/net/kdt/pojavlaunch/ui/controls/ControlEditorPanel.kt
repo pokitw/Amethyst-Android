@@ -3,6 +3,7 @@ package net.kdt.pojavlaunch.ui.controls
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,8 @@ import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData
 import net.kdt.pojavlaunch.customcontrols.ControlSkin
 import net.kdt.pojavlaunch.customcontrols.ControlGlyphs
+import net.kdt.pojavlaunch.customcontrols.ControlPages
+import net.kdt.pojavlaunch.ui.settings.ChoiceRow
 import net.kdt.pojavlaunch.ui.settings.InfoRow
 import net.kdt.pojavlaunch.ui.settings.SectionLabel
 import net.kdt.pojavlaunch.ui.settings.SettingsCard
@@ -310,6 +313,29 @@ fun ControlEditorPanel(
                             state.showInMenu,
                             onCheckedChange = state::applyShowInMenu
                         )
+                    }
+                }
+
+                // Below visibility, because it is the same question asked across the layout
+                // rather than across the two grab states: both of them answer "is this drawn".
+                if (state.pagesEditable && state.pageCount > 1) {
+                    SectionLabel(stringResource(R.string.control_editor_section_pages))
+                    SettingsCard {
+                        PageMembershipRow(state)
+                        // Only on a button that actually switches pages, so the row is never a
+                        // control over nothing, which is the rule the JPEG quality slider set.
+                        if (state.isPageButton) {
+                            val names = listOf(stringResource(R.string.control_editor_page_target_cycle)) +
+                                    (0 until state.pageCount).map { pageLabel(state.pageLabels, it) }
+                            ChoiceRow(
+                                title = stringResource(R.string.control_editor_page_target_title),
+                                description = stringResource(R.string.control_editor_page_target_description),
+                                names = names,
+                                values = (0..state.pageCount).map { it.toString() },
+                                selected = state.targetPage.coerceIn(0, state.pageCount).toString(),
+                                onSelect = { state.applyTargetPage(it.toInt()) }
+                            )
+                        }
                     }
                 }
 
@@ -712,6 +738,80 @@ private fun OrientationRow(state: ControlEditorState) {
  * Delete is last and is the only thing on the panel in the error colour, because it is the one
  * action here that cannot be undone by dragging something back.
  */
+/** A page's own name, or its number where it has none. */
+@Composable
+private fun pageLabel(labels: List<String>, index: Int): String {
+    val given = labels.getOrNull(index).orEmpty()
+    return if (given.isNotBlank()) given
+    else stringResource(R.string.control_page_default_name, index + 1)
+}
+
+/**
+ * Which pages draw this control.
+ *
+ * Chips rather than a row of switches, because the question is "which of these" and the answer
+ * is usually one of them: eight switches would be eight rows for a thing that fits on one line.
+ * Written out here rather than through a settings row because none of them takes a set.
+ */
+@Composable
+private fun PageMembershipRow(state: ControlEditorState) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 15.dp, vertical = 12.dp)
+    ) {
+        Text(
+            stringResource(R.string.control_editor_pages_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.onSurface
+        )
+        Text(
+            stringResource(R.string.control_editor_pages_description),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            if (state.pageMask == ControlPages.ALL_PAGES) {
+                stringResource(R.string.control_editor_pages_all)
+            } else {
+                stringResource(
+                    R.string.control_editor_pages_some,
+                    ControlPages.pagesOn(state.pageMask, state.pageCount),
+                    state.pageCount
+                )
+            },
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.primary
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            for (page in 0 until state.pageCount) {
+                val on = ControlPages.onPage(state.pageMask, page)
+                val label = pageLabel(state.pageLabels, page)
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (on) colors.primary else colors.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(
+                            if (on) colors.primary.copy(alpha = 0.13f)
+                            else colors.surfaceContainerHighest
+                        )
+                        .clickable { state.applyPage(page, !on) }
+                        .padding(horizontal = 14.dp, vertical = 13.dp)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun PanelFooter(state: ControlEditorState, actions: ControlEditorActions) {
     val colors = MaterialTheme.colorScheme

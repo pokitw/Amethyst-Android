@@ -1612,4 +1612,29 @@
 		<item>A button can send up to four keys, in order, a set gap apart.</item>
 		<item>The editor draws a bright world behind your buttons, so you can see what reads.</item>
 	</string-array>
+
+	<!-- Control pages, and which keyboard a keyboard button opens. -->
+	<string name="onboarding_row_pages">Several sets of controls in one layout</string>
+	<string name="control_special_page">Switch page</string>
+	<string name="control_page_default_name">Page %1$d</string>
+	<string name="control_editor_section_pages">Pages</string>
+	<string name="control_editor_pages_title">Shown on</string>
+	<string name="control_editor_pages_description">Which pages of this layout draw this control. Tap to add or remove.</string>
+	<string name="control_editor_pages_all">All pages</string>
+	<string name="control_editor_pages_some">%1$d of %2$d pages</string>
+	<string name="control_editor_page_target_title">Goes to</string>
+	<string name="control_editor_page_target_description">Where this button takes you.</string>
+	<string name="control_editor_page_target_cycle">The next page</string>
+	<string name="control_center_pages_title">Pages</string>
+	<string name="control_center_pages_hint">Tap a page to switch to it. Long press one to rename or remove it.</string>
+	<string name="control_center_pages_hint_game">Tap a page to switch to it.</string>
+	<string name="control_center_page_add">Add page</string>
+	<string name="control_center_page_rename">Rename page</string>
+	<string name="control_center_page_remove">Remove page</string>
+	<string name="control_center_page_remove_body">The controls that are only on this page move to the page that takes its place. Nothing is deleted.</string>
+	<string name="control_center_page_full">A layout can have %1$d pages.</string>
+	<string name="control_center_pages_start">Split these controls across pages, so one set does not have to cover everything. Bind a button to Switch page to move between them.</string>
+	<string name="control_report_page_stuck">Page %1$s has no button that leads to another page. The control center can still switch pages.</string>
+	<string name="preference_system_keyboard_title">Use the phone keyboard</string>
+	<string name="preference_system_keyboard_description">Open the keyboard you type everywhere else with, instead of the one built into the launcher. Your own layout, your own autocorrect, your own emoji. It covers more of the screen and cannot hold a key down for a keybind.</string>
 </resources>

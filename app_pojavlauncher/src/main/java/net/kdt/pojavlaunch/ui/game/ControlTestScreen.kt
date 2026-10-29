@@ -317,6 +317,9 @@ private fun LayoutPanel(report: LayoutReport) {
             if (report.invisible > 0) {
                 Finding(stringResource(R.string.control_test_layout_invisible, report.invisible))
             }
+            for (page in report.stuckPages) {
+                Finding(stringResource(R.string.control_report_page_stuck, page))
+            }
         }
     }
 }

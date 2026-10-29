@@ -14,6 +14,32 @@ public class CustomControls {
 	public List<ControlData> mControlDataList;
 	public List<ControlDrawerData> mDrawerDataList;
 	public List<ControlJoystickData> mJoystickDataList;
+
+	/**
+	 * What this layout's pages are called, in order.
+	 *
+	 * Null or a single entry is a layout with one page, which is every layout that existed
+	 * before pages did and is still the shape of most of them. Nothing in the UI appears until
+	 * there are two, so the feature costs nothing to anyone who never asks for it.
+	 */
+	public List<String> pageNames;
+
+	/** How many pages this layout has, bounded, never less than one. */
+	public int pageCount() {
+		return ControlPages.pageCount(pageNames == null ? 1 : pageNames.size());
+	}
+
+	/** This page's name, or null where it has none and the caller should number it. */
+	public String pageName(int index) {
+		if (pageNames == null || index < 0 || index >= pageNames.size()) return null;
+		return pageNames.get(index);
+	}
+
+	/** Whether there is anything to switch between. */
+	public boolean hasPages() {
+		return pageNames != null && pageNames.size() > 1;
+	}
+
 	public CustomControls() {
 		this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
 	}

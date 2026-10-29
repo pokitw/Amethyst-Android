@@ -34,6 +34,8 @@ class ControlCenterHost(
     private var recording by mutableStateOf(RecordingUiState())
     // Named apart from setShutterOn(): a property of that name would clash with it on the JVM.
     private var shutter by mutableStateOf(false)
+    // Named apart from setPages(): a property of that name would clash with it on the JVM (16.9).
+    private var pageState by mutableStateOf(PageUiState())
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -58,7 +60,9 @@ class ControlCenterHost(
         )
         sheetView.setContent {
             AmethystXTheme {
-                ControlCenter(visible, editing, testable, recording, shutter, callbacks, ::close)
+                ControlCenter(
+                    visible, editing, testable, recording, shutter, pageState, callbacks, ::close
+                )
             }
         }
         pillView.setViewCompositionStrategy(
@@ -114,6 +118,16 @@ class ControlCenterHost(
      */
     fun applyShutterOn(on: Boolean) {
         shutter = on
+    }
+
+    /**
+     * The layout's pages and which one is showing.
+     *
+     * Pushed after every switch, including the ones made by a button rather than by this
+     * sheet, so the rail is never highlighting a page the player left a while ago.
+     */
+    fun applyPages(names: List<String>, current: Int) {
+        pageState = PageUiState(names, current)
     }
 
     /**

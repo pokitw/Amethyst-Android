@@ -468,6 +468,12 @@ public class ControlButton extends TextView implements ControlInterface {
             if(keycode == ControlData.SPECIALBTN_TOGGLECTRL && isDown){
                 getControlLayoutParent().toggleControlVisible();
             }
+            // And the page switch, for the same reason: it is about which controls are on the
+            // screen rather than about the game, so trying a layout is exactly when you would
+            // want to see whether its pages reach each other.
+            if(keycode == ControlData.SPECIALBTN_PAGE && isDown){
+                getControlLayoutParent().switchPage(mProperties.targetPage);
+            }
             return;
         }
         if(keycode >= GLFW_KEY_UNKNOWN){
@@ -701,6 +707,12 @@ public class ControlButton extends TextView implements ControlInterface {
             // when your thumb landed, and a capture armed on the way up is a frame or two late.
             case ControlData.SPECIALBTN_SCREENSHOT:
                 if (isDown) mControlLayout.notifyScreenshot();
+                break;
+
+            // Never leaves the view layer, which is why there is no listener for it: a page is
+            // a fact about which controls are drawn, and the game is not told and does not care.
+            case ControlData.SPECIALBTN_PAGE:
+                if (isDown) getControlLayoutParent().switchPage(mProperties.targetPage);
                 break;
 
             default:

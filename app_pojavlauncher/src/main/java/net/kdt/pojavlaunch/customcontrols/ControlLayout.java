@@ -64,6 +64,15 @@ public class ControlLayout extends FrameLayout {
 	private boolean mIsModified;
 	private boolean mControlVisible = false;
 
+	/**
+	 * Which page is showing, in a game and in the editor alike.
+	 *
+	 * Deliberately not saved with the layout. A layout opens on its first page every time: the
+	 * page you happened to leave the editor on is not a thing to launch into, and page one is the
+	 * one a layout is designed to be met on.
+	 */
+	private int mCurrentPage = 0;
+
 	private ControlEditorHost mControlEditor = null;
 	private ControlHandleView mHandleView;
 
@@ -188,6 +197,7 @@ public class ControlLayout extends FrameLayout {
 		if (controlLayout == null) return;
 
 		mLayout = controlLayout;
+		mCurrentPage = 0;
 		
 
 		// Joystick(s) first, to workaround the touch dispatch
@@ -211,10 +221,14 @@ public class ControlLayout extends FrameLayout {
 		setModified(sanitizedModified);
 		mButtons = null;
 		getButtonChildren(); // Force refresh
+		// The first push, so a rail opens showing the layout that was just loaded rather than
+		// whatever the one before it had.
+		notifyPageChanged();
 	} // loadLayout
 
 	//CONTROL BUTTON
 	public void addControlButton(ControlData controlButton) {
+		adoptCurrentPage(controlButton);
 		mLayout.mControlDataList.add(controlButton);
 		addControlView(controlButton);
 	}
@@ -329,6 +343,19 @@ public class ControlLayout extends FrameLayout {
 		return mLayout.scaledAt;
 	}
 
+	/**
+	 * A control added in the editor belongs to the page being looked at.
+	 *
+	 * Without this a new button lands on every page at once, which is almost never what
+	 * somebody arranging a PvP page meant, and the mistake is invisible until they switch.
+	 */
+	private void adoptCurrentPage(ControlData data) {
+		if (mLayout == null || !mLayout.hasPages()) return;
+		// Safe as a bare bit because the guard above means there are at least two pages, so one
+		// page is never the whole set and can never need the ALL_PAGES spelling.
+		data.pages = 1 << mCurrentPage;
+	}
+
 	public CustomControls getLayout(){
 		return mLayout;
 	}
@@ -338,8 +365,142 @@ public class ControlLayout extends FrameLayout {
 
 		mControlVisible = isVisible;
 		for(ControlInterface button : getButtonChildren()){
-			button.setVisible(((button.getProperties().displayInGame && isGrabbing()) || (button.getProperties().displayInMenu && !isGrabbing())) && isVisible);
+			ControlData properties = button.getProperties();
+			button.setVisible(ControlPages.visible(properties.pages, properties.displayInGame,
+					properties.displayInMenu, isGrabbing(), mCurrentPage) && isVisible);
 		}
+	}
+
+	public int getCurrentPage() {
+		return mCurrentPage;
+	}
+
+	public int getPageCount() {
+		return mLayout == null ? 1 : mLayout.pageCount();
+	}
+
+	public boolean hasPages() {
+		return mLayout != null && mLayout.hasPages();
+	}
+
+	/** Move by a page button's target: 0 cycles, 1 and up name a page. */
+	public void switchPage(int targetPage) {
+		setCurrentPage(ControlPages.resolveTarget(targetPage, mCurrentPage, getPageCount()));
+	}
+
+	public void setCurrentPage(int page) {
+		int pages = getPageCount();
+		int next = (page < 0 || page >= pages) ? 0 : page;
+		if (next == mCurrentPage) return;
+		mCurrentPage = next;
+		applyPages();
+		notifyPageChanged();
+	}
+
+	/**
+	 * Re-apply the page filter, which is a different question in each of the two modes.
+	 *
+	 * In a game the whole visibility rule applies and {@link ControlPages#visible} owns it. In
+	 * the editor every control is shown regardless of the grabbed and menu states, so the page
+	 * is the only thing filtering, because arranging four pages of buttons stacked on top of
+	 * one another is precisely the clutter this feature exists to remove.
+	 */
+	/** Told when the page changes, so the control center's rail can follow a button press. */
+	public interface PageListener {
+		void onPageChanged();
+	}
+
+	private PageListener mPageListener;
+
+	public void setPageListener(PageListener listener) {
+		mPageListener = listener;
+	}
+
+	/**
+	 * Raised after anything that changes the pages or which one is showing.
+	 *
+	 * Needed because a page button switches without the activity being involved at all, and a
+	 * rail still highlighting the page somebody left two taps ago is worse than no rail.
+	 */
+	public void notifyPageChanged() {
+		if (mPageListener != null) mPageListener.onPageChanged();
+	}
+
+	/** Re-read every control's page membership, for the editor after it has changed one. */
+	public void refreshPages() {
+		applyPages();
+	}
+
+	private void applyPages() {
+		if (mModifiable) {
+			for (ControlInterface button : getButtonChildren()) {
+				button.setVisible(ControlPages.onPage(button.getProperties().pages, mCurrentPage));
+			}
+		} else {
+			setControlVisible(mControlVisible);
+		}
+	}
+
+	/**
+	 * Add a page, returning its index, or -1 at the cap.
+	 *
+	 * The first call makes two pages rather than one, because one page is what the layout
+	 * already had: a lone page is not a page, it is the layout.
+	 */
+	public int addPage(String firstName, String newName) {
+		if (mLayout == null) return -1;
+		if (mLayout.pageNames == null || mLayout.pageNames.isEmpty()) {
+			mLayout.pageNames = new java.util.ArrayList<>();
+			mLayout.pageNames.add(firstName);
+		}
+		if (mLayout.pageNames.size() >= ControlPages.MAX_PAGES) return -1;
+		mLayout.pageNames.add(newName);
+		setModified(true);
+		return mLayout.pageNames.size() - 1;
+	}
+
+	public void renamePage(int index, String name) {
+		if (mLayout == null || mLayout.pageNames == null) return;
+		if (index < 0 || index >= mLayout.pageNames.size()) return;
+		mLayout.pageNames.set(index, name);
+		setModified(true);
+	}
+
+	/**
+	 * Take a page out, moving every control's membership and every page button's target with it.
+	 *
+	 * The re-pointing is {@link ControlPages}' business rather than this file's, because getting
+	 * it wrong silently moves somebody's buttons onto the wrong page and that is a thing a
+	 * harness can be made to notice.
+	 */
+	public boolean removePage(int index) {
+		if (mLayout == null || mLayout.pageNames == null) return false;
+		int before = mLayout.pageNames.size();
+		if (before <= 2 || index < 0 || index >= before) return false;
+		mLayout.pageNames.remove(index);
+		for (ControlInterface button : getButtonChildren()) {
+			ControlData properties = button.getProperties();
+			properties.pages = ControlPages.afterPageRemoved(properties.pages, index, before);
+			if (properties.containsKeycode(ControlData.SPECIALBTN_PAGE)) {
+				properties.targetPage = ControlPages.targetAfterPageRemoved(properties.targetPage, index);
+			}
+		}
+		setModified(true);
+		mCurrentPage = 0;
+		applyPages();
+		return true;
+	}
+
+	/** Every page gone, which is what turning the feature back off means. */
+	public void clearPages() {
+		if (mLayout == null || mLayout.pageNames == null) return;
+		mLayout.pageNames = null;
+		for (ControlInterface button : getButtonChildren()) {
+			button.getProperties().pages = ControlPages.ALL_PAGES;
+		}
+		setModified(true);
+		mCurrentPage = 0;
+		applyPages();
 	}
 
 	public void setModifiable(boolean isModifiable) {
@@ -351,10 +512,9 @@ public class ControlLayout extends FrameLayout {
 		// layout has to be redrawn or the editor opens onto the game's transparent ground.
 		invalidate();
 		if(isModifiable){
-			// In edit mode, all controls have to be shown
-			for(ControlInterface button : getButtonChildren()){
-				button.setVisible(true);
-			}
+			// In edit mode every control is shown, except the ones belonging to another page:
+			// those are not hidden state to be revealed, they are a different screenful.
+			applyPages();
 		}
 	}
 
@@ -895,6 +1055,83 @@ public class ControlLayout extends FrameLayout {
 				Tools.showError(context, th, mListener != null);
 			}
 		}
+	}
+
+	/** The page names for the control center's rail, blank where a page has none. */
+	public java.util.List<String> pageLabels() {
+		if (mLayout == null || !mLayout.hasPages()) return java.util.Collections.emptyList();
+		java.util.List<String> labels = new java.util.ArrayList<>();
+		for (int page = 0; page < mLayout.pageCount(); page++) {
+			String name = mLayout.pageName(page);
+			labels.add(name == null ? "" : name);
+		}
+		return labels;
+	}
+
+	/**
+	 * Name a new page and add it.
+	 *
+	 * Here with the other layout dialogs rather than in either activity, because both of them
+	 * host this editor and a dialog written twice is a dialog that disagrees with itself.
+	 */
+	public void openAddPageDialog(Context context) {
+		if (mLayout == null) return;
+		if (mLayout.pageCount() >= ControlPages.MAX_PAGES && mLayout.hasPages()) {
+			android.widget.Toast.makeText(context,
+					context.getString(R.string.control_center_page_full, ControlPages.MAX_PAGES),
+					android.widget.Toast.LENGTH_SHORT).show();
+			return;
+		}
+		final EditText edit = new EditText(context);
+		edit.setSingleLine();
+		edit.setHint(context.getString(R.string.control_page_default_name, mLayout.pageCount() + 1));
+		new AlertDialog.Builder(context)
+				.setTitle(R.string.control_center_page_add)
+				.setView(edit)
+				.setPositiveButton(android.R.string.ok, (dialog, which) -> {
+					// The first page keeps the name of what the layout already was, so a layout
+					// that grows a second page does not suddenly have an unnamed first one.
+					String first = context.getString(R.string.control_page_default_name, 1);
+					int added = addPage(first, edit.getText().toString().trim());
+					if (added >= 0) setCurrentPage(added);
+					notifyPageChanged();
+				})
+				.setNegativeButton(android.R.string.cancel, null)
+				.show();
+	}
+
+	/** Rename a page, or take it away. */
+	public void openPageDialog(Context context, int index) {
+		if (mLayout == null || !mLayout.hasPages()) return;
+		if (index < 0 || index >= mLayout.pageCount()) return;
+		final EditText edit = new EditText(context);
+		edit.setSingleLine();
+		String name = mLayout.pageName(index);
+		edit.setText(name == null ? "" : name);
+		edit.setHint(context.getString(R.string.control_page_default_name, index + 1));
+		AlertDialog.Builder builder = new AlertDialog.Builder(context)
+				.setTitle(R.string.control_center_page_rename)
+				.setView(edit)
+				.setPositiveButton(android.R.string.ok, (dialog, which) -> {
+					renamePage(index, edit.getText().toString().trim());
+					notifyPageChanged();
+				})
+				.setNegativeButton(android.R.string.cancel, null);
+		// Only past two pages, because removing one of two is turning the feature off and that is
+		// a different thing to ask: it would silently put every control back on one screen.
+		if (mLayout.pageCount() > 2) {
+			builder.setNeutralButton(R.string.control_center_page_remove, (dialog, which) ->
+					new AlertDialog.Builder(context)
+							.setTitle(R.string.control_center_page_remove)
+							.setMessage(R.string.control_center_page_remove_body)
+							.setPositiveButton(android.R.string.ok, (confirm, button) -> {
+								removePage(index);
+								notifyPageChanged();
+							})
+							.setNegativeButton(android.R.string.cancel, null)
+							.show());
+		}
+		builder.show();
 	}
 
 	public void openSaveDialog(EditorExitable editorExitable) {

@@ -970,6 +970,15 @@ private fun ControlsScreen(
                 stringResource(R.string.preference_typing_preview_description),
                 store.bool("typingPreview", true)
             ) { store.put("typingPreview", it) }
+            // One switch rather than a picker, and it sits here rather than under Buttons for
+            // the same reason panning does: it is about typing. It redirects every route to a
+            // keyboard at once, because a launcher where the button and the sheet opened
+            // different keyboards would be a launcher with two keyboards.
+            SwitchRow(
+                stringResource(R.string.preference_system_keyboard_title),
+                stringResource(R.string.preference_system_keyboard_description),
+                store.bool("systemKeyboard", false)
+            ) { store.put("systemKeyboard", it) }
         }
 
         SectionLabel(stringResource(R.string.settings_section_voice))

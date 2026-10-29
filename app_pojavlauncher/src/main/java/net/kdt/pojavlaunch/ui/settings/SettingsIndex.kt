@@ -200,6 +200,11 @@ val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "text field chat world name hidden behind keyboard see typo"
     ),
     SettingEntry(
+        R.string.preference_system_keyboard_title, SettingsRoute.CONTROLS,
+        R.string.preference_system_keyboard_description, R.string.settings_section_typing,
+        "default phone gboard swiftkey ime emoji autocorrect native stock"
+    ),
+    SettingEntry(
         R.string.preference_voice_title, SettingsRoute.CONTROLS,
         R.string.preference_voice_description, R.string.settings_section_voice,
         "voice speech dictate dictation microphone mic talk chat speak", suggested = true

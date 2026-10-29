@@ -125,6 +125,10 @@ fun comparisonRows(): List<ComparisonRow> = listOf(
     // against — marking it absent would be the kind of overclaim that makes a table worthless.
     ComparisonRow(R.string.onboarding_row_gyro, Support.PARTIAL, Support.YES),
     ComparisonRow(R.string.onboarding_row_voice, Support.NO, Support.YES),
+    // "No", on auto-walk's reasoning: upstream has one layout at a time and no way to express
+    // a second set of controls, so this is a capability it has no equivalent of rather than
+    // the same one presented better.
+    ComparisonRow(R.string.onboarding_row_pages, Support.NO, Support.YES),
     ComparisonRow(R.string.onboarding_row_keyboard, Support.NO, Support.YES),
     // Its own row rather than folded into the keyboard's, because it is not part of the keyboard:
     // it answers the system one as well, which is the board most people actually meet.

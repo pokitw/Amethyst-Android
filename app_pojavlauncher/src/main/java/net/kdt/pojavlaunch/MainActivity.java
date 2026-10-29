@@ -248,6 +248,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         // the first time rather than corrected afterwards.
         applyGameViewport();
         mControlLayout.setMenuListener(this);
+        // After the menu listener and before any layout is loaded, so the rail is right from
+        // the first push rather than from the first switch.
+        mControlLayout.setPageListener(() -> mControlCenter.applyPages(
+                mControlLayout.pageLabels(), mControlLayout.getCurrentPage()));
 
         mDrawerPullButton.setOnClickListener(v -> onClickedMenu());
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);
@@ -1000,10 +1004,37 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     }
 
     @Override
+    @Override
+    public void onSelectPage(int index) {
+        mControlLayout.setCurrentPage(index);
+    }
+
+    /* The editor's half. Reachable from here too, because the control center enters editor mode
+     * in place rather than handing over to the other activity. */
+
+    @Override
+    public void onAddPage() {
+        mControlCenter.close();
+        mControlLayout.openAddPageDialog(this);
+    }
+
+    @Override
+    public void onEditPage(int index) {
+        mControlCenter.close();
+        mControlLayout.openPageDialog(this, index);
+    }
+
     public void onClickedGameKeyboard() {
         // Closed rather than left underneath: the keyboard is a shortcut past the control center,
         // so having pressed it there is no reason for the sheet to still be there afterwards.
         mControlCenter.close();
+        // The one place the choice is made, so that a control button, the control center and
+        // anything added later all open the same keyboard. Deciding it at each call site is how
+        // a launcher ends up with two keyboards that disagree about which one is the keyboard.
+        if (LauncherPreferences.PREF_SYSTEM_KEYBOARD) {
+            switchKeyboardState();
+            return;
+        }
         mGameKeyboard.open();
     }
 

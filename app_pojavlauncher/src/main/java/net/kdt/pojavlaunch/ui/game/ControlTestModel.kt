@@ -2,6 +2,7 @@ package net.kdt.pojavlaunch.ui.game
 
 import androidx.compose.runtime.Immutable
 import net.kdt.pojavlaunch.customcontrols.ControlData
+import net.kdt.pojavlaunch.customcontrols.ControlPages
 import net.kdt.pojavlaunch.customcontrols.ControlLayout
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlDrawer
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlInterface
@@ -51,10 +52,19 @@ class LayoutReport(
     val offScreen: Int = 0,
     val tiny: Int = 0,
     /** Controls that would be visible neither in play nor in a menu, so never at all. */
-    val invisible: Int = 0
+    val invisible: Int = 0,
+    /**
+     * Pages carrying no button that leads to another page, named.
+     *
+     * The weakest finding here on purpose: the control center's rail can always switch pages,
+     * so this costs a trip through a sheet rather than stranding anybody. It is still the one
+     * fact about a paged layout that is invisible until the moment it matters.
+     */
+    val stuckPages: List<String> = emptyList()
 ) {
     val healthy: Boolean
-        get() = unbound == 0 && clashes.isEmpty() && offScreen == 0 && tiny == 0 && invisible == 0
+        get() = unbound == 0 && clashes.isEmpty() && offScreen == 0 && tiny == 0 &&
+                invisible == 0 && stuckPages.isEmpty()
 }
 
 /** Anything under this many dp on either side is hard to hit on purpose. */
@@ -112,6 +122,31 @@ fun inspectLayout(layout: ControlLayout, density: Float): LayoutReport {
         .sortedByDescending { it.value }
         .map { "${keyDisplayName(it.key).ifEmpty { "key ${it.key}" }} x${it.value}" }
 
+    // Measured on the live controls, like everything else here: a page button that is hidden in
+    // game is not a way off a page however the file describes it.
+    val pageCount = layout.pageCount
+    val stuckPages = if (pageCount <= 1) emptyList() else {
+        val masks = IntArray(children.size)
+        val targets = IntArray(children.size)
+        val inGame = BooleanArray(children.size)
+        children.forEachIndexed { index, control ->
+            val data = control.properties
+            masks[index] = data.pages
+            targets[index] = if (data.containsKeycode(ControlData.SPECIALBTN_PAGE)) {
+                data.targetPage
+            } else {
+                Int.MIN_VALUE
+            }
+            inGame[index] = data.displayInGame
+        }
+        ControlPages.deadEndPages(masks, targets, inGame, pageCount)
+            .mapIndexed { index, stuck ->
+                if (!stuck) null
+                else layout.layout?.pageName(index)?.takeIf { it.isNotBlank() } ?: "${index + 1}"
+            }
+            .filterNotNull()
+    }
+
     return LayoutReport(
         controls = children.size,
         bound = bound,
@@ -119,6 +154,7 @@ fun inspectLayout(layout: ControlLayout, density: Float): LayoutReport {
         clashes = clashes,
         offScreen = offScreen,
         tiny = tiny,
-        invisible = invisible
+        invisible = invisible,
+        stuckPages = stuckPages
     )
 }

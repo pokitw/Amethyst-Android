@@ -51,6 +51,8 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 		mControlCenter.applyTestable(true);
 		mControlEditor = new ControlEditorHost(findViewById(R.id.control_editor), mControlLayout);
 		mControlLayout.setEditorHost(mControlEditor);
+		mControlLayout.setPageListener(() -> mControlCenter.applyPages(
+				mControlLayout.pageLabels(), mControlLayout.getCurrentPage()));
 
 		mPullButton = findViewById(R.id.drawer_button);
 		mPullButton.setOnClickListener(v -> mControlCenter.open());
@@ -104,6 +106,26 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 	}
 
 	/* Editor actions. The same seven the drawer used to list. */
+
+	/* Pages. Both halves live here because this activity is one of the two that host the
+	 * editor, and the dialogs themselves are ControlLayout's so the two cannot disagree. */
+
+	@Override
+	public void onSelectPage(int index) {
+		mControlLayout.setCurrentPage(index);
+	}
+
+	@Override
+	public void onAddPage() {
+		mControlCenter.close();
+		mControlLayout.openAddPageDialog(this);
+	}
+
+	@Override
+	public void onEditPage(int index) {
+		mControlCenter.close();
+		mControlLayout.openPageDialog(this, index);
+	}
 
 	@Override
 	public void onEditorAddButton() {

@@ -112,6 +112,8 @@ public class LauncherPreferences {
      * and there is no moment where this is up and the game is being looked at.
      */
     public static boolean PREF_TYPING_PREVIEW = true;
+    /** Open the system IME rather than the launcher's own board, everywhere a keyboard opens. */
+    public static boolean PREF_SYSTEM_KEYBOARD = false;
 
     /**
      * What the on-screen buttons look like: {@code layout}, {@code pocket}, or a texture pack's
@@ -175,6 +177,7 @@ public class LauncherPreferences {
         PREF_MOUSE_GRAB_FORCE = DEFAULT_PREF.getBoolean("always_grab_mouse", false);
         PREF_KEYBOARD_PANNING = DEFAULT_PREF.getBoolean("keyboardPanning", true);
         PREF_TYPING_PREVIEW = DEFAULT_PREF.getBoolean("typingPreview", true);
+        PREF_SYSTEM_KEYBOARD = DEFAULT_PREF.getBoolean("systemKeyboard", false);
         // Migrated from the switch this replaced, so nobody's buttons change appearance on
         // update: the old boolean is read once and only when the new key has never been written.
         PREF_CONTROL_STYLE = DEFAULT_PREF.getString("controlStyle",

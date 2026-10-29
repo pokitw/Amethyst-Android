@@ -105,6 +105,37 @@ for name in LAYOUTS:
           "%s: no virtual-mouse toggle survives the ungrabbed state; it is the only thing that can "
           "turn the touchpad on or off, and a GUI with no pointer is a GUI that cannot be worked"
           % name)
+    # Pages. Neither shipped layout has any today, which is exactly when a check like this is
+    # worth writing (16.35): it is green from the first run, and the moment a shipped layout
+    # grows pages, every page has to carry a button that leads somewhere else. The control
+    # center's rail can always switch, so this is not a lockout, but reaching it is a trip
+    # through a sheet and that is not a thing to do mid-fight.
+    #
+    # The landing arithmetic is a transcription of ControlPages.resolveTarget. Safe as one here
+    # because the only operator involved is % on non-negative ints, where Java and Python agree
+    # (16.26); the real class is driven by scripts/pagesim.
+    page_names = layout.get("pageNames") or []
+    if len(page_names) > 1:
+        pages = min(len(page_names), 8)
+        for page in range(pages):
+            exits = 0
+            for control in controls:
+                if -15 not in control.get("keycodes", []):
+                    continue
+                if not control.get("displayInGame", True):
+                    continue
+                mask = control.get("pages", 0)
+                if mask != 0 and not mask & (1 << page):
+                    continue
+                target = control.get("targetPage", 0)
+                landing = (page + 1) % pages if target <= 0 else target - 1
+                if landing >= pages:
+                    landing = page
+                if landing != page:
+                    exits += 1
+            check(exits > 0,
+                  "%s: page %d carries no button that leads to another page" % (name, page + 1))
+
     for control in controls:
         keys = [k for k in control.get("keycodes", []) if k != 0]
         for key in keys:

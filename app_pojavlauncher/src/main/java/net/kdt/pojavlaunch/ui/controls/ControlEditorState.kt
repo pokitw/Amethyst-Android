@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.customcontrols.ControlData
+import net.kdt.pojavlaunch.customcontrols.ControlPages
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData
 import net.kdt.pojavlaunch.customcontrols.buttons.ControlDrawer
@@ -115,6 +116,36 @@ class ControlEditorState(val button: ControlInterface) {
     var showInGame by mutableStateOf(data.displayInGame)
         private set
     var showInMenu by mutableStateOf(data.displayInMenu)
+
+    /** A sub-button is drawn by its drawer, so it has no page of its own either. */
+    val pagesEditable: Boolean = visibilityEditable
+
+    /** How many pages the layout this control belongs to has. */
+    val pageCount: Int = button.controlLayoutParent?.pageCount ?: 1
+
+    /**
+     * The layout's page names in order, blank where a page has none, empty with no pages.
+     *
+     * Raw rather than numbered here, because numbering one needs a string resource and this
+     * class has no Context: the panel fills the blanks in.
+     */
+    val pageLabels: List<String> = run {
+        val layout = button.controlLayoutParent?.layout
+        if (layout == null || pageCount <= 1) emptyList()
+        else (0 until pageCount).map { layout.pageName(it).orEmpty() }
+    }
+
+    var pageMask by mutableStateOf(data.pages)
+
+    var targetPage by mutableStateOf(data.targetPage)
+
+    /**
+     * Whether this is one of the buttons that moves between pages.
+     *
+     * Read off the live key list rather than off the data, so binding the action and seeing the
+     * row that configures it appear happen in the same gesture.
+     */
+    val isPageButton: Boolean get() = keys.contains(ControlData.SPECIALBTN_PAGE)
         private set
     var forwardLock by mutableStateOf((data as? ControlJoystickData)?.forwardLock ?: false)
         private set
@@ -245,6 +276,26 @@ class ControlEditorState(val button: ControlInterface) {
     fun applySequenceGap(value: Int) {
         sequenceGap = value
         data.sequenceGap = value
+    }
+
+    /**
+     * Tick or untick one page for this control.
+     *
+     * Deliberately does **not** re-run the layout's page filter. Unticking the page you are
+     * looking at would make the control you have selected disappear from under the panel that
+     * is editing it, taking the selection with it; the filter catches up when you switch pages,
+     * which is the moment it means something. The row's own line says how many pages it is on,
+     * so nothing about the state is hidden in the meantime.
+     */
+    fun applyPage(page: Int, on: Boolean) {
+        val mask = ControlPages.withPage(pageMask, page, on, pageCount)
+        pageMask = mask
+        data.pages = mask
+    }
+
+    fun applyTargetPage(value: Int) {
+        targetPage = value
+        data.targetPage = value
     }
 
     fun applySwipeable(value: Boolean) {

@@ -20,6 +20,7 @@ import net.kdt.pojavlaunch.GrabListener;
 import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
+import net.kdt.pojavlaunch.customcontrols.ControlPages;
 import net.kdt.pojavlaunch.customcontrols.ControlSkin;
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTexture;
 import net.kdt.pojavlaunch.customcontrols.textures.ControlTextureDrawable;
@@ -60,10 +61,22 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
 
     void sendKeyPresses(boolean isDown);
 
+    /**
+     * The second place the visibility rule lives, and the reason it is not written out here.
+     *
+     * ControlLayout re-applies the rule to every control at once; this applies it to one when
+     * the cursor's grab state changes under it. Both have to agree, and a page filter written
+     * into only one of them would mean closing an inventory quietly brought back every control
+     * from every other page. {@link ControlPages#visible} is the one copy.
+     */
     @Override
     default void onGrabState(boolean isGrabbing) {
-        if (getControlLayoutParent() != null && getControlLayoutParent().getModifiable()) return; // Disable when edited
-        setVisible(((getProperties().displayInGame && isGrabbing) || (getProperties().displayInMenu && !isGrabbing)) && getControlLayoutParent().areControlVisible());
+        ControlLayout parent = getControlLayoutParent();
+        if (parent != null && parent.getModifiable()) return; // Disable when edited
+        ControlData properties = getProperties();
+        setVisible(ControlPages.visible(properties.pages, properties.displayInGame,
+                properties.displayInMenu, isGrabbing, parent.getCurrentPage())
+                && parent.areControlVisible());
     }
 
     default ControlLayout getControlLayoutParent() {

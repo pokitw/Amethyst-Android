@@ -394,6 +394,13 @@ cheaper than a screen recorder, which composites the whole display and re-encode
     `mouseDownBuffer` still has the same shape, deliberately left alone, since no chord the
     launcher can express is decided by a `glfwGetMouseButton` poll.
 
+14. **A control's `pages` mask of 0 means every page, and that is load bearing.** Every layout
+    anyone has ever saved has no such field, so Gson gives them all zero, and zero has to be the
+    value that behaves exactly as the launcher did before pages existed. It is also why the mask
+    canonicalises back to zero whenever it covers every page: two spellings of "all" would drift
+    the first time somebody added a page. `ControlPages` owns both rules and `scripts/pagesim`
+    sweeps them.
+
 ---
 
 ## 13. Compose migration status
@@ -1800,6 +1807,74 @@ re-litigated. The reasoning lives in the commit that made the change.
   downscale stacked on somebody's own 80% inset is exactly the silent rewriting of a saved
   preference the performance-mode entry warns about.
 
+- **Pages** (`customcontrols/ControlPages.java` + `ControlData.pages` + `SPECIALBTN_PAGE`) —
+  several sets of controls in one layout, one showing at a time, with a button that moves
+  between them: building on one, bridging on another, PvP on a third. Asked for in those words,
+  and the reason is a real bind: a layout that can do everything covers the screen, and a layout
+  that leaves the screen clear cannot do everything.
+  **A page is a filter on the controls, not a second layout.** The obvious model is a list of
+  whole layouts, and it is wrong twice over: the furniture that belongs on every page (the
+  stick, the menu button, the page buttons themselves) gets duplicated per page and then drifts
+  apart the first time somebody drags one, and nothing can express "on building and PvP but not
+  bridging". So membership is a bitmask on the control, in the same spirit as `displayInMenu`,
+  and **0 means every page**, which is what every layout ever saved deserialises to (§12.14).
+  **Pages apply while the cursor is grabbed and never while a GUI is open.** The ungrabbed state
+  already draws a deliberately minimal set, and `check_layouts.py` enforces a floor of menu,
+  keyboard and mouse there precisely so a layout cannot strand somebody in a chat box. Filtering
+  that set by page as well would be a second, invisible route to the exact state that floor
+  exists to prevent, and it buys nothing: a page is about what your thumbs need while playing.
+  **The control center's rail is why no page can be a dead end.** It is the one piece of this
+  that is not optional: a page whose only switch button you forgot to place would otherwise be a
+  room with no door, and the sheet is reachable from the pull tab or a menu button, which the
+  floor already guarantees. That rail sits **above** the recording card, which is the one place
+  the launch-console-era rule "recording is the card at the top" gives way, and deliberately: a
+  safety net you have to scroll to find is not a safety net. Layouts without pages are untouched
+  and recording keeps the top on every one of them. The layout report names a page with no way
+  off it, and `check_layouts.py` asserts it for shipped layouts, written while the count was
+  zero (§16.35).
+  **The visibility rule lived in two places and only one of them was obvious.**
+  `ControlLayout.setControlVisible` re-applies it to every control at once;
+  `ControlInterface.onGrabState` applies it to one when the grab state changes underneath it.
+  A page filter written into only the first would have meant that closing an inventory quietly
+  brought back every control from every other page. Both now call `ControlPages.visible`, which
+  is the only copy.
+  **Deleting a page re-points everything that referenced one.** Masks above the hole shift down
+  so each keeps naming the page it always named, a control that lived only on the deleted page
+  lands on the page that took its place rather than on none or on all of them, and a button
+  pointing at the deleted page becomes a cycle button rather than silently pointing at whatever
+  slid into the slot. All three are in `ControlPages` where `pagesim` can drive them, because
+  getting any of them wrong moves somebody's buttons and nothing in the build would see it.
+  **`targetPage` is one based so that zero can mean "cycle".** A page button somebody has just
+  bound and not configured moves to the next page, which is what most layouts want and nobody
+  has to set; an absent field deserialises to zero and lands on exactly that.
+  **In the editor you arrange one page at a time**, because stacking four pages of buttons on
+  top of each other is the clutter this exists to remove, and a control added lands on the page
+  being looked at. Unticking a page does **not** hide the control there and then: it would make
+  the thing you have selected vanish from under the panel editing it. The filter catches up when
+  you switch, and the row says how many pages it is on in the meantime.
+  Switching works in a **test session**, which is the second exception beside hide-controls and
+  for the same reason: it is pure view code about the controls rather than about the game, and
+  trying a layout is exactly when you want to know whether its pages reach each other.
+  It gets a **comparison row**, `No` for upstream, on auto-walk's reasoning: upstream has no
+  equivalent at all. It gets **no onboarding page**: you meet it in the editor, where it is
+  turned on.
+
+- **Which keyboard a keyboard button opens** (`PREF_SYSTEM_KEYBOARD`) — a switch in the Typing
+  section that sends every route to a keyboard to the phone's own IME instead of the launcher's
+  board. Asked for directly, and both keyboards already existed: `SPECIALBTN_KEYBOARD` has
+  raised the system IME since upstream and `SPECIALBTN_GAMEKEYBOARD` opens ours.
+  **The choice is made in one place**, `MainActivity.onClickedGameKeyboard`, which is what a
+  control button, the control center and anything added later all pass through. Deciding it per
+  call site is how a launcher ends up with two keyboards that disagree about which one is the
+  keyboard, and it is the same reasoning as `setBackground()` owning the three control styles.
+  **`SPECIALBTN_KEYBOARD` is left alone.** It means the system IME, every layout ever shared
+  depends on that, and a setting that redefined it would change what somebody else's layout does.
+  The switch is about what "the keyboard" means, not about rewriting a binding.
+  The description says what the trade is in as many words: your own layout, your own autocorrect
+  and your own emoji, against more of the screen covered and no way to hold a key down for a
+  keybind. It gets **no comparison row**, because upstream has the system IME too and the
+  difference is that this one can be chosen.
+
 - **Something to look at while you wait** (`splash/SplashPicker.java` +
   `ui/common/SplashLine.kt` + `ui/game/GameLoadingHost.kt`) — a rotating line on the launch
   console, and a real loading screen over the black gap between the surface being ready and the
@@ -2223,6 +2298,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     about to add the thing that would make it non-zero. The en dash is deliberately still
     allowed: "3–16 characters" is a numeric range and correct typography, and it is not the
     tell the rule is about.
+
+36. **A rule applied to all of something and to one of it is a rule written twice.** The
+    on-screen controls' visibility is decided in `ControlLayout.setControlVisible`, which
+    re-applies it to every control when something changes globally, and again in
+    `ControlInterface.onGrabState`, which applies it to one control when the grab state changes
+    underneath it. The two were the same boolean expression, copied. Adding a page filter to
+    the obvious one would have worked perfectly until the first time somebody opened their
+    inventory, at which point every control from every other page would have come back, because
+    the second copy does not know pages exist.
+    The general shape is worth the lookout: wherever there is a `for` loop applying a rule to a
+    collection, there is often a second, per-item copy of the same rule on the path that handles
+    one item changing on its own, and it is usually in a different file and sometimes in an
+    interface's default method, which is not where anybody looks. **Grep for the predicate, not
+    for the method**, and when there are two, make them one function before adding to either.
 
 31. **A control offered only when a setting is off cannot call code that the same setting gates.**
     "Add to gallery" appeared exactly when the automatic export preference was off, and
@@ -2820,6 +2909,29 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - Opening the launcher shows a splash line **only while something is actually loading**. On an
   ordinary start there is no work to wait for and the home screen is simply there, which is the
   right outcome and does mean the line is mostly seen on a first run or behind a download.
+- A layout is capped at **eight pages**, which is a limit on the editor rather than on the
+  mask: a row of chips picked from with a thumb runs out long before an int does.
+- **Pages do not apply while a GUI is open.** Opening an inventory shows the `displayInMenu`
+  set whatever page you were on, and closing it puts you back. That is deliberate and it does
+  mean a page cannot have its own menu-state controls.
+- **Nothing on a control says which pages it is on** while you are playing. It is answered in
+  the editor, where it was set, which is the same deal slide to repeat makes.
+- A page button bound to a page that was later deleted **does nothing** rather than going
+  somewhere plausible. The layout report names it; silently sending somebody to the wrong page
+  would be worse.
+- The page a layout opens on is **always the first one** and is not saved. The page you left
+  the editor on is not a thing to launch into.
+- **Switching a page is not free of its history**: a toggled control that was latched on one
+  page is still latched when you come back, because the key is held in the game and nothing
+  here releases it. That is the same contract a hidden control already had.
+- In the editor, unticking the page you are looking at **does not hide the control until you
+  switch pages**. Hiding it immediately would take the selection out from under the panel that
+  is editing it.
+- The system keyboard switch is read **when the game process starts**, like every other in-game
+  setting, so changing it takes effect at the next launch.
+- With the phone keyboard chosen, a key **cannot be held down**. The launcher's own board can
+  latch a cap, which is the only way F3 + G is reachable; an IME sends characters, so a layout
+  that depends on latching wants the launcher's board.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -3087,6 +3199,18 @@ Before pushing:
   bag out before the first shuffle is still a permutation and still never repeats, so every
   other check passes while every cold start opens on the same line. It also bounds the tables,
   since a splash that wraps is not a splash.
+- **Run `sh scripts/pagesim/run.sh`** if page membership, page switching or page deletion
+  changed. It compiles the shipped `ControlPages` at source 8 and drives it, and every check
+  there is a form of one question: can an arrangement of pages take a control off the screen
+  that the player did not take off themselves. Two carry most of it.
+  `anOldLayoutIsUntouched` sweeps mask 0, which is what every layout ever saved deserialises
+  to, across every page count and page. `theLastPageCannotBeUnticked` covers the trap built
+  into a scheme where zero means "every page", since a control unticked everywhere would
+  otherwise canonicalise straight back onto all of them. `anOrphanLandsOnOnePageAndNotAllOfThem`
+  is there because the obvious assertion, that the control is still visible somewhere, passes
+  on the broken version too: without the guard the empty mask falls through as ALL_PAGES, so
+  the control is drawn everywhere rather than nowhere and only counting the pages tells them
+  apart.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

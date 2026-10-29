@@ -14,6 +14,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -98,6 +101,24 @@ interface ControlCenterCallbacks {
     fun onLogOutput()
     fun onForceClose()
 
+    /**
+     * Switch page, which in a game changes what is on the screen and in the editor changes
+     * which screenful is being arranged. One callback, because it is one question.
+     */
+    fun onSelectPage(index: Int)
+
+    /** Editor only: make a new page, which the first call turns a pageless layout into two of. */
+    fun onAddPage()
+
+    /**
+     * Editor only: the dialog that renames a page or takes it away.
+     *
+     * Owned by the activity rather than drawn here, because a text field wants a real dialog
+     * and the editor is the one place in this sheet where there is no game underneath for one
+     * to drop out of immersive fullscreen (12.10).
+     */
+    fun onEditPage(index: Int)
+
     fun onEditorAddButton()
     fun onEditorAddDrawer()
     fun onEditorAddJoystick()
@@ -132,6 +153,7 @@ fun ControlCenter(
     canTest: Boolean,
     recording: RecordingUiState,
     shutterOn: Boolean,
+    pages: PageUiState,
     callbacks: ControlCenterCallbacks,
     onDismiss: () -> Unit
 ) {
@@ -155,7 +177,107 @@ fun ControlCenter(
             exit = slideOutVertically(tween(240, easing = FastOutSlowInEasing)) { it } +
                     fadeOut(tween(200))
         ) {
-            Sheet(editorMode, canTest, recording, shutterOn, callbacks)
+            Sheet(editorMode, canTest, recording, shutterOn, pages, callbacks)
+        }
+    }
+}
+
+/**
+ * The layout's pages, and which one is showing.
+ *
+ * Pushed in like the recording and shutter states rather than read through a callback, because
+ * reading live state from inside a composition is how a recomposition turns into work (16.11).
+ */
+@Immutable
+data class PageUiState(val names: List<String> = emptyList(), val current: Int = 0)
+
+/**
+ * The layout's pages, as a rail.
+ *
+ * <b>It sits above the recording card, which is the one place the ledger's "recording is the
+ * card at the top" gives way</b>, and only on a layout that has pages. Two reasons. When a
+ * layout has pages, switching them is why this sheet gets opened; and more importantly this
+ * rail is the guarantee that no page can ever be a dead end, so it must not be a thing you
+ * scroll to find. Every layout without pages is untouched and recording keeps the top.
+ *
+ * In a game it switches and nothing else. Page management is the editor's, where a text field
+ * can have a real dialog without a game to drop out of immersive fullscreen behind it.
+ */
+@Composable
+private fun PagesCard(
+    pages: PageUiState,
+    editorMode: Boolean,
+    callbacks: ControlCenterCallbacks
+) {
+    val colors = MaterialTheme.colorScheme
+    // In a game there is nothing to show until a layout has pages. In the editor the card is
+    // how the first one gets made, so it is always there.
+    if (!editorMode && pages.names.size <= 1) return
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp)
+            .clip(MaterialTheme.shapes.medium)
+            .background(colors.surfaceContainerLow)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Text(
+            stringResource(R.string.control_center_pages_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = colors.onSurface
+        )
+        Text(
+            stringResource(
+                when {
+                    pages.names.size <= 1 -> R.string.control_center_pages_start
+                    editorMode -> R.string.control_center_pages_hint
+                    else -> R.string.control_center_pages_hint_game
+                }
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.onSurfaceVariant
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            pages.names.forEachIndexed { index, name ->
+                val selected = index == pages.current
+                Text(
+                    name.ifBlank { stringResource(R.string.control_page_default_name, index + 1) },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) colors.primary else colors.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(
+                            if (selected) colors.primary.copy(alpha = 0.13f)
+                            else colors.surfaceContainerHighest
+                        )
+                        .combinedClickable(
+                            onClick = { callbacks.onSelectPage(index) },
+                            // The handbook's second meaning, and the hint above says so.
+                            onLongClick = if (editorMode) {
+                                { callbacks.onEditPage(index) }
+                            } else null
+                        )
+                        .padding(horizontal = 16.dp, vertical = 13.dp)
+                )
+            }
+            if (editorMode) {
+                Text(
+                    stringResource(R.string.control_center_page_add),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = colors.primary,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(colors.primary.copy(alpha = 0.13f))
+                        .clickable { callbacks.onAddPage() }
+                        .padding(horizontal = 16.dp, vertical = 13.dp)
+                )
+            }
         }
     }
 }
@@ -166,6 +288,7 @@ private fun Sheet(
     canTest: Boolean,
     recording: RecordingUiState,
     shutterOn: Boolean,
+    pages: PageUiState,
     callbacks: ControlCenterCallbacks
 ) {
     Surface(
@@ -202,6 +325,7 @@ private fun Sheet(
                 )
                 Spacer(Modifier.height(12.dp))
                 Column(Modifier.widthIn(max = if (twoColumns) 900.dp else 620.dp)) {
+                    PagesCard(pages, editorMode, callbacks)
                     when {
                         editorMode -> EditorLayout(twoColumns, canTest, callbacks)
                         twoColumns -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

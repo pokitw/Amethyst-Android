@@ -52,6 +52,8 @@ public class ControlData {
     public static final int SPECIALBTN_VOICE = -13;
     /** A picture of the frame the game is presenting, with none of the controls in it. */
     public static final int SPECIALBTN_SCREENSHOT = -14;
+    /** Move to another page of this layout. See {@link ControlPages}. */
+    public static final int SPECIALBTN_PAGE = -15;
 
     private static ControlData[] SPECIAL_BUTTONS;
     private static List<String> SPECIAL_BUTTON_NAME_ARRAY;
@@ -113,6 +115,24 @@ public class ControlData {
      * Absent from old layouts, so Gson leaves it false and every existing button behaves exactly
      * as before.
      */
+    /**
+     * Which pages of the layout this control is drawn on, as a bitmask.
+     *
+     * Zero means every page, which is what every layout saved before pages existed
+     * deserialises to, so they all come back behaving exactly as they did. The rules are in
+     * {@link ControlPages}, where a harness can reach them.
+     */
+    public int pages;
+
+    /**
+     * For a {@link #SPECIALBTN_PAGE} button, where it goes: 0 cycles, 1 and up name a page.
+     *
+     * One based so that the zero an absent field deserialises to is the useful default rather
+     * than "always the first page": a page button somebody has just bound and not configured
+     * cycles, which is the thing most layouts want and nobody has to set.
+     */
+    public int targetPage;
+
     public boolean slideRepeat;
     /** How far the finger travels before a repeat arms, in dp. 0 means {@link #DEFAULT_SLIDE_DP}. */
     public float slideDistance;
@@ -263,6 +283,8 @@ public class ControlData {
         this.sequence = controlData.sequence;
         this.sequenceGap = controlData.sequenceGap;
         this.slideRepeat = controlData.slideRepeat;
+        this.pages = controlData.pages;
+        this.targetPage = controlData.targetPage;
         this.slideDistance = controlData.slideDistance;
         this.repeatGap = controlData.repeatGap;
     }
@@ -288,6 +310,7 @@ public class ControlData {
                     new ControlData("KEYS", new int[]{SPECIALBTN_GAMEKEYBOARD}, "${margin}", "${margin}"),
                     new ControlData("VOICE", new int[]{SPECIALBTN_VOICE}, "${margin}", "${margin}"),
                     new ControlData("SNAP", new int[]{SPECIALBTN_SCREENSHOT}, "${margin}", "${margin}"),
+                    new ControlData("PAGE", new int[]{SPECIALBTN_PAGE}, "${margin}", "${margin}"),
             };
         }
 
