@@ -60,9 +60,6 @@ import com.google.gson.JsonSyntaxException;
 import com.kdt.LoggerView;
 
 import net.kdt.pojavlaunch.customcontrols.ControlButtonMenuListener;
-import net.kdt.pojavlaunch.customcontrols.ControlData;
-import net.kdt.pojavlaunch.customcontrols.ControlDrawerData;
-import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.GameViewport;
 import net.kdt.pojavlaunch.customcontrols.CustomControls;
@@ -1132,22 +1129,24 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override public void onLogOutput() { mControlCenter.close(); openLogOutput(); }
     @Override public void onForceClose() { mControlCenter.close(); dialogForceClose(this); }
 
+    // The sheet closes first in all three: the control is placed and selected on the next
+    // layout pass, and the editor panel it opens must not come up behind a sheet on its way out.
     @Override
     public void onEditorAddButton() {
-        mControlLayout.addControlButton(new ControlData("New"));
         mControlCenter.close();
+        mControlLayout.addNewControlButton();
     }
 
     @Override
     public void onEditorAddDrawer() {
-        mControlLayout.addDrawer(new ControlDrawerData());
         mControlCenter.close();
+        mControlLayout.addNewDrawer();
     }
 
     @Override
     public void onEditorAddJoystick() {
-        mControlLayout.addJoystickButton(new ControlJoystickData());
         mControlCenter.close();
+        mControlLayout.addNewJoystick();
     }
 
     @Override public void onEditorLoad() { mControlCenter.close(); mControlLayout.openLoadDialog(); }

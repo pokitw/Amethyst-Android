@@ -885,6 +885,37 @@ re-litigated. The reasoning lives in the commit that made the change.
   needs a different refresh call and getting one wrong is invisible until a slider does nothing.
   This took `EditControlSideDialog`, `ActionRow` and its three icon buttons, and the whole
   `colorselector` package with it.
+- **Adding a control** (`customcontrols/ControlPlacement.java` + `ControlLayout.addNewControlButton`)
+  — one tap puts a control somewhere it can be seen and opens the editor on it, where it used to
+  take three and could lose the control entirely.
+  **Two controls added in a row were one control.** Every new control was written to the exact
+  centre of the screen, so the second sat perfectly on top of the first: it could not be seen,
+  the lower one could not be dragged, and nothing on screen said there were two. Then it had to
+  be found and long pressed before a key could be bound. So adding three and arranging them was
+  three trips through the sheet with a hunt in between, which is the opposite of what the one
+  action the editor exists for should cost.
+  **The first candidate is the exact centre**, and only a taken centre moves the search, outwards
+  a ring at a time on a lattice one button and one gap wide. Somebody adding one control to an
+  empty area gets the obvious answer and nothing clever; `placesim` asserts that, which is the
+  same assertion viewportsim makes about 100% being the full screen.
+  **Candidates are clamped before they are tested, not after.** A control placed past the edge in
+  the editor draws nothing and can never be selected again, which is the exact permanent loss the
+  resize grip's floor exists to prevent (§14), so containment is the property the harness sweeps
+  rather than any particular coordinate. A screen with no room left **stacks at the centre** on
+  the same reasoning: on top of something costs one drag, and somewhere nobody would look costs
+  the control.
+  **The placement is posted, and that is not a detail.** A view that has just been added has no
+  size, and the search needs the new control's own width and height as much as everybody else's;
+  read a frame early it places a zero by zero rectangle, which is free everywhere, which lands
+  back on the centre and looks exactly like the bug being fixed.
+  **Duplicating arrives at the same seam**, because `cloneButton` writes its copy to the centre
+  too and stacks identically, and a copy is made in order to be changed. One `placeAndEdit` for
+  all six ways a control can come into existence rather than a rule per call site.
+  Only the **current page** counts as occupied: a control on another page is not in the way of
+  anything, and avoiding it would push new controls into a corner for no reason the player could
+  see.
+  It gets **no onboarding page and no comparison row**: upstream adds controls too, and this is
+  the same capability costing two fewer steps.
 - **Testing a layout** (`ControlTestBridge` + `ui/game/ControlTest*.kt` + `ControlDebugHost.kt`)
   — press the controls you have just arranged, in the editor, and be told exactly what they send.
   **A real launch was built and removed**, which is the entry's most useful half. It worked the
@@ -2589,6 +2620,16 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - Testing is offered **only in the editor reached from Settings**. From inside a game the editor
   already has the game underneath it, so leaving edit mode is the test, on the world you are
   actually playing.
+- A new control's position is **searched on a lattice, so it is not the nearest free pixel**. A
+  gap that is genuinely empty but sits between lattice positions is not found, and the control
+  goes a ring further out instead. That is deliberate: the lattice is what makes two controls
+  added in a row read as a row, and a nearest-fit search would wedge them against each other.
+- Placement considers **only the current page**, and only controls, so a new control can land over
+  the game's own hotbar or crosshair, which the launcher does not model. The test session draws
+  both as a guide, which is where that is answered.
+- A control added to a **full** page lands on top of something, since there is nowhere else for it
+  to go. That is the deliberate direction, because a stacked control is one drag from being
+  fixed and an off-screen one is unrecoverable.
 - The editor's sky and grass is **a flat backdrop, not a screenshot of your world**. It answers
   the one question a dark editor could not, which is whether a translucent button stays legible
   over something bright; it is not a preview of the game, and a layout that reads well on it can
@@ -3389,6 +3430,14 @@ Before pushing:
   changed. The ungrabbed floor of menu, keyboard and mouse is asserted **per page** there, which
   is what makes it safe for pages to filter that state at all; a change that makes pages apply
   more widely has to be accompanied by a reading of that floor, not just by pagesim passing.
+- **Run `sh scripts/placesim/run.sh`** if where a newly added control lands changed. It compiles
+  the shipped `ControlPlacement` and sweeps six real landscape panels, five control sizes and
+  every count of existing controls from none to a screenful. The assertion that matters is
+  **containment**, not the coordinate: a control placed past the edge in the editor can never be
+  selected again, so the sweep asks only that the answer is wholly on screen and free where a
+  free lattice cell exists. `anEmptyScreenGetsTheExactCentre` is its companion, on viewportsim's
+  reasoning: almost every use is one control added to an empty area, and there the answer has to
+  be the plain centre. One mutation is known **not** to be caught and `run.sh` says why.
 - **Run `sh scripts/pagesim/run.sh`** if page membership, page switching or page deletion
   changed. It compiles the shipped `ControlPages` at source 8 and drives it, and every check
   there is a form of one question: can an arrangement of pages take a control off the screen

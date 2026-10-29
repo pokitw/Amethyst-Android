@@ -430,8 +430,14 @@ class ControlEditorState(val button: ControlInterface) {
     }
 
     companion object {
-        /** The name a freshly added button carries, and therefore one nobody has chosen. */
-        const val DEFAULT_NAME = "New"
+        /**
+         * The name a freshly added button carries, and therefore one nobody has chosen.
+         *
+         * Read from [ControlData.NEW_NAME] rather than written out again: the two being the same
+         * string is what lets the first key bound name the button, and two literals would drift
+         * the first time either was edited.
+         */
+        val DEFAULT_NAME: String = ControlData.NEW_NAME
 
         /** Small enough to be a corner tap target, large enough not to vanish. */
         const val MIN_SIZE = 20f

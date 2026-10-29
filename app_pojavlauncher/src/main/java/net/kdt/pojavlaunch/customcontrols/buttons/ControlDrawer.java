@@ -186,7 +186,8 @@ public class ControlDrawer extends ControlButton {
         ControlDrawerData cloneData = new ControlDrawerData(getDrawerData());
         cloneData.properties.dynamicX = "0.5 * ${screen_width}";
         cloneData.properties.dynamicY = "0.5 * ${screen_height}";
-        ((ControlLayout) getParent()).addDrawer(cloneData);
+        ControlLayout layout = (ControlLayout) getParent();
+        layout.placeAndEdit(layout.addDrawer(cloneData));
     }
 
     @Override

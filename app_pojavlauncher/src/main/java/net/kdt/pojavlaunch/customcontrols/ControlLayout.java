@@ -54,6 +54,14 @@ import java.util.HashMap;
 import java.util.List;
 
 public class ControlLayout extends FrameLayout {
+	/**
+	 * How far apart a newly added control sits from the ones already there, in dp.
+	 *
+	 * Enough that two controls read as two rather than as one with a shadow, and small enough
+	 * that a screenful still fits on the lattice {@link ControlPlacement} searches.
+	 */
+	private static final float PLACEMENT_GAP_DP = 6f;
+
 	protected CustomControls mLayout;
 	/* Accessible when inside the game by ControlInterface implementations, cached for perf. */
 	private MinecraftGLSurface mGameSurface = null;
@@ -230,13 +238,91 @@ public class ControlLayout extends FrameLayout {
 	} // loadLayout
 
 	//CONTROL BUTTON
-	public void addControlButton(ControlData controlButton) {
+	public ControlButton addControlButton(ControlData controlButton) {
 		adoptCurrentPage(controlButton);
 		mLayout.mControlDataList.add(controlButton);
-		addControlView(controlButton);
+		return addControlView(controlButton);
 	}
 
-	private void addControlView(ControlData controlButton) {
+	/**
+	 * Add a control the player has just asked for, and hand it to them ready to edit.
+	 *
+	 * Three steps became one. Every new control used to land on the exact centre of the screen,
+	 * so a second one sat perfectly on top of the first and could not be seen, dragged, or told
+	 * from a single button; and then it had to be found and long pressed before anything could be
+	 * bound to it. So the position comes from {@link ControlPlacement} and the editor opens on it
+	 * straight away, which also means the name it gets from its first key is one tap away rather
+	 * than three.
+	 */
+	public ControlButton addNewControlButton() {
+		ControlButton view = addControlButton(new ControlData(ControlData.NEW_NAME));
+		placeAndEdit(view);
+		return view;
+	}
+
+	/** As {@link #addNewControlButton()}, for a drawer. */
+	public void addNewDrawer() {
+		placeAndEdit(addDrawer(new ControlDrawerData()));
+	}
+
+	/** As {@link #addNewControlButton()}, for a joystick. */
+	public void addNewJoystick() {
+		placeAndEdit(addJoystickButton(new ControlJoystickData()));
+	}
+
+	/**
+	 * Move a freshly added control somewhere it can be seen, then select it.
+	 *
+	 * <b>Posted, because a view that has just been added has no size yet.</b> The search needs
+	 * the control's own width and height as well as everybody else's, and reading them before the
+	 * layout pass would place a zero by zero rectangle, which is free everywhere and therefore
+	 * lands back on the centre. Selecting afterwards rather than before puts the resize handles
+	 * around the final position.
+	 *
+	 * Public because duplicating a control arrives here too, from the control itself: a copy is
+	 * written at the centre by whichever clone made it, which stacks exactly as adding did, and
+	 * a copy is made in order to change it.
+	 */
+	public void placeAndEdit(final ControlInterface control) {
+		if (control == null) return;
+		control.getControlView().post(() -> {
+			placeInFreeSpot(control);
+			editControlButton(control);
+		});
+	}
+
+	/** Where a new control goes, given everything already on this page. */
+	private void placeInFreeSpot(ControlInterface control) {
+		View view = control.getControlView();
+		if (view.getWidth() <= 0 || view.getHeight() <= 0
+				|| getWidth() <= 0 || getHeight() <= 0) {
+			return;
+		}
+
+		List<float[]> taken = new ArrayList<>();
+		for (ControlInterface other : getButtonChildren()) {
+			if (other == control) continue;
+			View otherView = other.getControlView();
+			if (otherView.getWidth() <= 0 || otherView.getHeight() <= 0) continue;
+			// Only this page: a control on another one is not in the way of anything, and
+			// avoiding it would push new controls into a corner for no reason the player can see.
+			if (!ControlPages.onPage(other.getProperties().pages, mCurrentPage)) continue;
+			taken.add(new float[]{
+					otherView.getX(), otherView.getY(), otherView.getWidth(), otherView.getHeight()
+			});
+		}
+
+		float[] spot = ControlPlacement.freeSpot(getWidth(), getHeight(),
+				view.getWidth(), view.getHeight(), Tools.dpToPx(PLACEMENT_GAP_DP),
+				taken.toArray(new float[0][]));
+		view.setX(spot[0]);
+		view.setY(spot[1]);
+		// The position is stored as an expression, so moving the view is only half of it: without
+		// this the control would snap back the next time the layout refreshed its positions.
+		control.regenerateDynamicCoordinates();
+	}
+
+	private ControlButton addControlView(ControlData controlButton) {
 		final ControlButton view = new ControlButton(this, controlButton);
 
 		if (!mModifiable) {
@@ -247,16 +333,17 @@ public class ControlLayout extends FrameLayout {
 		addView(view);
 
 		setModified(true);
+		return view;
 	}
 
 	// CONTROL DRAWER
-	public void addDrawer(ControlDrawerData drawerData){
+	public ControlDrawer addDrawer(ControlDrawerData drawerData){
 		mLayout.mDrawerDataList.add(drawerData);
-		addDrawerView();
+		return addDrawerView();
 	}
 
-	private void addDrawerView(){
-		addDrawerView(null);
+	private ControlDrawer addDrawerView(){
+		return addDrawerView(null);
 	}
 
 	private ControlDrawer addDrawerView(ControlDrawerData drawerData){
@@ -304,12 +391,12 @@ public class ControlLayout extends FrameLayout {
 	}
 
 	// JOYSTICK BUTTON
-	public void addJoystickButton(ControlJoystickData data){
+	public ControlJoystick addJoystickButton(ControlJoystickData data){
 		mLayout.mJoystickDataList.add(data);
-		addJoystickView(data);
+		return addJoystickView(data);
 	}
 
-	private void addJoystickView(ControlJoystickData data){
+	private ControlJoystick addJoystickView(ControlJoystickData data){
 		ControlJoystick view = new ControlJoystick(this, data);
 
 		if (!mModifiable) {
@@ -318,7 +405,7 @@ public class ControlLayout extends FrameLayout {
 			view.setFocusableInTouchMode(false);
 		}
 		addView(view);
-
+		return view;
 	}
 
 

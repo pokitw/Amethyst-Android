@@ -223,6 +223,15 @@ public class ControlData {
         return dx * dx + dy * dy > thresholdPx * thresholdPx;
     }
 
+    /**
+     * The name a control is born with.
+     *
+     * Matched against by {@code ControlEditorState.isUnnamed}, which is what lets binding the
+     * first key name the button after it, so the two have to be the same string. Stated here
+     * rather than written out at each add site for exactly that reason.
+     */
+    public static final String NEW_NAME = "New";
+
     public ControlData() {
         this("button");
     }

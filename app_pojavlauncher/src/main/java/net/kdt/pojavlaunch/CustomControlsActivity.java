@@ -3,9 +3,6 @@ package net.kdt.pojavlaunch;
 import android.os.Bundle;
 import android.view.View;
 
-import net.kdt.pojavlaunch.customcontrols.ControlData;
-import net.kdt.pojavlaunch.customcontrols.ControlDrawerData;
-import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.prefs.LauncherPreferences;
@@ -127,22 +124,24 @@ public class CustomControlsActivity extends BaseActivity implements EditorExitab
 		mControlLayout.openPageDialog(this, index);
 	}
 
+	// The sheet closes first in all three: the control is placed and selected on the next
+	// layout pass, and the editor panel it opens must not come up behind a sheet on its way out.
 	@Override
 	public void onEditorAddButton() {
-		mControlLayout.addControlButton(new ControlData("New"));
 		mControlCenter.close();
+		mControlLayout.addNewControlButton();
 	}
 
 	@Override
 	public void onEditorAddDrawer() {
-		mControlLayout.addDrawer(new ControlDrawerData());
 		mControlCenter.close();
+		mControlLayout.addNewDrawer();
 	}
 
 	@Override
 	public void onEditorAddJoystick() {
-		mControlLayout.addJoystickButton(new ControlJoystickData());
 		mControlCenter.close();
+		mControlLayout.addNewJoystick();
 	}
 
 	@Override
