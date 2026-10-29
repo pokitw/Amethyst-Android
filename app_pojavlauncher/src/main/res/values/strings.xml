@@ -1036,10 +1036,10 @@
     <string name="control_special_mouse_back">Mouse back</string>
     <string name="control_special_mouse_forward">Mouse forward</string>
     <string name="control_special_virtual_mouse">Virtual mouse</string>
-    <string name="control_special_game_keyboard">On-screen keyboard</string>
+    <string name="control_special_game_keyboard">Keyboard</string>
     <string name="control_special_voice">Voice typing</string>
     <string name="control_special_screenshot">Take screenshot</string>
-    <string name="control_special_system_keyboard">System keyboard</string>
+    <string name="control_special_system_keyboard">System keyboard, always</string>
     <string name="control_special_menu">Control center</string>
     <string name="control_special_toggle_controls">Hide controls</string>
 
@@ -1616,6 +1616,10 @@
 	<!-- Control pages, and which keyboard a keyboard button opens. -->
 	<string name="onboarding_row_pages">Several sets of controls in one layout</string>
 	<string name="control_special_page">Switch page</string>
+	<string name="control_special_record">Start or stop recording</string>
+	<string name="control_special_shutter">Show or hide the shutter</string>
+	<string name="control_special_log_output">Game log</string>
+	<string name="control_special_quick_settings">Quick settings</string>
 	<string name="control_page_default_name">Page %1$d</string>
 	<string name="control_editor_section_pages">Pages</string>
 	<string name="control_editor_pages_title">Shown on</string>

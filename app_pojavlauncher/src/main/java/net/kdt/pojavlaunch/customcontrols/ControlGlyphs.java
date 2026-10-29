@@ -83,6 +83,10 @@ public final class ControlGlyphs {
             case ControlData.SPECIALBTN_VOICE: return R.drawable.ic_ctrl_mic;
             case ControlData.SPECIALBTN_SCREENSHOT: return R.drawable.ic_ctrl_camera;
             case ControlData.SPECIALBTN_PAGE: return R.drawable.ic_ctrl_pages;
+            case ControlData.SPECIALBTN_RECORD: return R.drawable.ic_ctrl_record;
+            case ControlData.SPECIALBTN_SHUTTER: return R.drawable.ic_ctrl_shutter;
+            case ControlData.SPECIALBTN_LOGOUTPUT: return R.drawable.ic_ctrl_log;
+            case ControlData.SPECIALBTN_QUICKSETTINGS: return R.drawable.ic_ctrl_settings;
 
             default: return 0;
         }

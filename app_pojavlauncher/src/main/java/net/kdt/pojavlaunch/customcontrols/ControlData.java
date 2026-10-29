@@ -54,6 +54,14 @@ public class ControlData {
     public static final int SPECIALBTN_SCREENSHOT = -14;
     /** Move to another page of this layout. See {@link ControlPages}. */
     public static final int SPECIALBTN_PAGE = -15;
+    /** Start or stop a recording, which the control center could do and no button could. */
+    public static final int SPECIALBTN_RECORD = -16;
+    /** Show or hide the shutter that floats over the running game. */
+    public static final int SPECIALBTN_SHUTTER = -17;
+    /** The live log over the game. */
+    public static final int SPECIALBTN_LOGOUTPUT = -18;
+    /** The in-game quick settings. */
+    public static final int SPECIALBTN_QUICKSETTINGS = -19;
 
     private static ControlData[] SPECIAL_BUTTONS;
     private static List<String> SPECIAL_BUTTON_NAME_ARRAY;
@@ -311,6 +319,10 @@ public class ControlData {
                     new ControlData("VOICE", new int[]{SPECIALBTN_VOICE}, "${margin}", "${margin}"),
                     new ControlData("SNAP", new int[]{SPECIALBTN_SCREENSHOT}, "${margin}", "${margin}"),
                     new ControlData("PAGE", new int[]{SPECIALBTN_PAGE}, "${margin}", "${margin}"),
+                    new ControlData("REC", new int[]{SPECIALBTN_RECORD}, "${margin}", "${margin}"),
+                    new ControlData("SHUTTER", new int[]{SPECIALBTN_SHUTTER}, "${margin}", "${margin}"),
+                    new ControlData("LOG", new int[]{SPECIALBTN_LOGOUTPUT}, "${margin}", "${margin}"),
+                    new ControlData("SETTINGS", new int[]{SPECIALBTN_QUICKSETTINGS}, "${margin}", "${margin}"),
             };
         }
 

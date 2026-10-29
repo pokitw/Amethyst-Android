@@ -715,6 +715,24 @@ public class ControlButton extends TextView implements ControlInterface {
                 if (isDown) getControlLayoutParent().switchPage(mProperties.targetPage);
                 break;
 
+            // All guarded on the press, like the screenshot above: sendSpecialKey runs on both
+            // edges, so an unguarded one-shot fires twice and a toggle would cancel itself.
+            case ControlData.SPECIALBTN_RECORD:
+                if (isDown) mControlLayout.notifyRecord();
+                break;
+
+            case ControlData.SPECIALBTN_SHUTTER:
+                if (isDown) mControlLayout.notifyShutter();
+                break;
+
+            case ControlData.SPECIALBTN_LOGOUTPUT:
+                if (isDown) mControlLayout.notifyLogOutput();
+                break;
+
+            case ControlData.SPECIALBTN_QUICKSETTINGS:
+                if (isDown) mControlLayout.notifyQuickSettings();
+                break;
+
             default:
                 Toast.makeText(getContext(), R.string.error_key_unsupported, Toast.LENGTH_LONG).show();
                 break;

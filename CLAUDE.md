@@ -1859,6 +1859,26 @@ re-litigated. The reasoning lives in the commit that made the change.
   equivalent at all. It gets **no onboarding page**: you meet it in the editor, where it is
   turned on.
 
+- **Everything the sheet can do, from a button** (`SPECIALBTN_RECORD`, `_SHUTTER`,
+  `_LOGOUTPUT`, `_QUICKSETTINGS`) — recording, the floating shutter, the live log and quick
+  settings are bindable now. Asked for as "screenshot, recording, keyboard and more which is
+  not available", and the audit behind it is the useful part: screenshot and both keyboards
+  already existed as actions, and **recording did not**, which made the one feature this fork
+  exists for the one thing the control center could do and a button could not.
+  **Force close is deliberately still not bindable**, and that is the only thing left out. A
+  rare, irreversible action does not get a target a thumb can find mid-fight (§3); it stays
+  last in the sheet, quiet, behind a confirmation.
+  Each routes to the method the sheet already calls, which closes the sheet first and is
+  harmless when it was never open, so there is one implementation per action rather than two
+  that can drift.
+  **The positional invariant now has a check.** `getSpecialButtons()` must stay in
+  `-(index + 1)` order, because the raw negative integer is what lands in saved layout JSON and
+  the editor converts position to keycode by arithmetic over the list: inserting one in the
+  middle silently re-points every button in every layout anybody has ever saved, with no error
+  and no way to tell afterwards what was meant. That rule was written in the javadoc and
+  enforced by nobody, across nine appended entries. `scripts/check_specials.py` reads the
+  declarations and the array and asserts it.
+
 - **Which keyboard a keyboard button opens** (`PREF_SYSTEM_KEYBOARD`) — a switch in the Typing
   section that sends every route to a keyboard to the phone's own IME instead of the launcher's
   board. Asked for directly, and both keyboards already existed: `SPECIALBTN_KEYBOARD` has
@@ -1870,6 +1890,10 @@ re-litigated. The reasoning lives in the commit that made the change.
   **`SPECIALBTN_KEYBOARD` is left alone.** It means the system IME, every layout ever shared
   depends on that, and a setting that redefined it would change what somebody else's layout does.
   The switch is about what "the keyboard" means, not about rewriting a binding.
+  **The two keyboard actions were renamed for it.** `SPECIALBTN_GAMEKEYBOARD` follows the
+  setting, so it is just "Keyboard" now rather than "On-screen keyboard", and
+  `SPECIALBTN_KEYBOARD` is "System keyboard, always" because that is exactly what it is: the
+  one binding the setting cannot redefine, which is what every shared layout depends on.
   The description says what the trade is in as many words: your own layout, your own autocorrect
   and your own emoji, against more of the screen covered and no way to hold a key down for a
   keybind. It gets **no comparison row**, because upstream has the system IME too and the
@@ -2331,6 +2355,32 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     prints: 14 calls before the fix and 24 after, which is `check_settings_calls.py`'s 183 to 43
     all over again. **Print what a check looked at, and read that number**, because a check that
     has gone half blind otherwise reports exactly the same word as one that is working.
+
+38. **An anchored replacement has to take everything grammatically attached to the anchor.**
+    Inserting new properties into `ControlEditorState` meant replacing the line
+    `var showInMenu by mutableStateOf(data.displayInMenu)`, and that property's `private set`
+    is on the line beneath it. The replacement did not consume it, so the accessor attached
+    itself to the next declaration, which was a `val`, and the build failed on "A 'val'
+    property cannot have a setter" and "Property must be initialized". **The damage was to a
+    line nobody had touched and the diff showed nothing wrong**: the new code was correct, and
+    what broke was a property three lines above it.
+    This is §16.18 in a new costume. A search for `var \w+ by mutableStateOf(` returns the
+    declaration and not the accessor glued to it, so an edit anchored on what the search
+    returned drops half a declaration. `scripts/check_kotlin_accessors.py` holds the part of
+    that a script can: a bare `set` must sit under a `var`, walking up through the continuation
+    lines of a multi-line declaration rather than reading the closing bracket as its owner.
+
+39. **A build whose log you cannot read is not a feedback loop.** Three cycles went into two
+    one-line Kotlin errors, because this container cannot reach the blob host a job's log is
+    served from: `gh run view --log-failed` gets a 403 and so does the REST logs endpoint, and
+    the only thing a failure reported was "exit code 1". Annotations come from the API
+    directly, so the build steps now pipe through `tee` and re-emit compile errors as
+    `::error::` workflow commands. The next failure named its file, line and message on the
+    first try.
+    Worth generalising: **when a tool cannot tell you why it failed, fixing that comes before
+    fixing the thing it failed on.** Guessing at a compile error costs a full cycle per guess
+    and the guesses do not converge, because each one is reasoning about the code rather than
+    reading what the compiler said.
 
 31. **A control offered only when a setting is off cannot call code that the same setting gates.**
     "Add to gallery" appeared exactly when the automatic export preference was off, and
@@ -2951,6 +3001,12 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - With the phone keyboard chosen, a key **cannot be held down**. The launcher's own board can
   latch a cap, which is the only way F3 + G is reachable; an IME sends characters, so a layout
   that depends on latching wants the launcher's board.
+- **Force close has no bindable action** and is not an oversight. Everything else the control
+  center offers can go on a button; that one stays behind a confirmation at the bottom of the
+  sheet.
+- A recording button is **a toggle with no state on it**. The button looks the same whether or
+  not a recording is running; what says so is the recording pill over the game, which is where
+  it already was.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -3236,6 +3292,14 @@ Before pushing:
   round trip for a missing annotation (§16.37). Adding the API that just failed to `MARKERS` is
   half the fix; the count it prints is the other half, because that number is what shows the
   check has stopped looking at something.
+- **Run `python3 scripts/check_specials.py`** if a special button was added, which is the one
+  change in this codebase that can corrupt every layout anybody has saved without producing an
+  error anywhere. It asserts `getSpecialButtons()` is in `-(index + 1)` order, that nothing is
+  declared and left out of the array, and that nothing is listed twice.
+- **Run `python3 scripts/check_kotlin_accessors.py`** after editing a Kotlin class full of
+  `var x by mutableStateOf(...)`, which here means the editor state holders. It asserts a bare
+  `set` sits under a `var`, which is the damage an anchored edit does when it consumes a
+  declaration and leaves the accessor beneath it behind (§16.38).
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

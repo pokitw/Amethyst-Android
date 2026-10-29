@@ -1004,6 +1004,14 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     }
 
     @Override
+    /* The control center's actions, from a button. Each routes to the method the sheet uses,
+     * which already closes the sheet first and is harmless when it was never open. */
+
+    @Override public void onClickedRecord() { onToggleRecording(); }
+    @Override public void onClickedShutter() { onToggleShutter(); }
+    @Override public void onClickedLogOutput() { onLogOutput(); }
+    @Override public void onClickedQuickSettings() { onQuickSettings(); }
+
     @Override
     public void onSelectPage(int index) {
         mControlLayout.setCurrentPage(index);

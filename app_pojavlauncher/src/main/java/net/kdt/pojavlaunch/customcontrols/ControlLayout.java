@@ -978,6 +978,18 @@ public class ControlLayout extends FrameLayout {
 	public void notifyScreenshot() {
 		if(mMenuListener != null) mMenuListener.onClickedScreenshot();
 	}
+	public void notifyRecord() {
+		if(mMenuListener != null) mMenuListener.onClickedRecord();
+	}
+	public void notifyShutter() {
+		if(mMenuListener != null) mMenuListener.onClickedShutter();
+	}
+	public void notifyLogOutput() {
+		if(mMenuListener != null) mMenuListener.onClickedLogOutput();
+	}
+	public void notifyQuickSettings() {
+		if(mMenuListener != null) mMenuListener.onClickedQuickSettings();
+	}
 
 	/** Cached getter for perf purposes */
 	public MinecraftGLSurface getGameSurface(){

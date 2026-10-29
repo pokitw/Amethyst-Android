@@ -37,4 +37,24 @@ public interface ControlButtonMenuListener {
 
     /** Capture the frame being presented. Raised on the press only, so it is not a frame late. */
     void onClickedScreenshot();
+
+    /*
+     * The rest of what the control center can do, from a button.
+     *
+     * Everything the sheet offers is now bindable except force close, which is left out on
+     * purpose: a rare, irreversible action does not get a target you can hit with a thumb
+     * mid-fight (3). It stays where it is, last in the sheet and behind a confirmation.
+     */
+
+    /** Start a recording, or stop the one that is running. */
+    void onClickedRecord();
+
+    /** Show or hide the floating shutter. */
+    void onClickedShutter();
+
+    /** The live log over the running game. */
+    void onClickedLogOutput();
+
+    /** The in-game quick settings. */
+    void onClickedQuickSettings();
 }

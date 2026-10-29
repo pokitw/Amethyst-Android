@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!--
+        The floating shutter, which is a button that sits on the screen rather than a camera:
+        a frame with a disc inside it, so it is not mistaken for the screenshot glyph next to it.
+    -->
+    <path android:pathData="M4,3H20A2,2 0 0 1 22,5V19A2,2 0 0 1 20,21H4A2,2 0 0 1 2,19V5A2,2 0 0 1 4,3ZM4,6V18H20V6Z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M12,8A4,4 0 1 1 12,16A4,4 0 1 1 12,8Z" android:fillColor="#FFFFFF"/>
+</vector>

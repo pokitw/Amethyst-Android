@@ -116,6 +116,7 @@ class ControlEditorState(val button: ControlInterface) {
     var showInGame by mutableStateOf(data.displayInGame)
         private set
     var showInMenu by mutableStateOf(data.displayInMenu)
+        private set
 
     /** A sub-button is drawn by its drawer, so it has no page of its own either. */
     val pagesEditable: Boolean = visibilityEditable
@@ -136,8 +137,10 @@ class ControlEditorState(val button: ControlInterface) {
     }
 
     var pageMask by mutableStateOf(data.pages)
+        private set
 
     var targetPage by mutableStateOf(data.targetPage)
+        private set
 
     /**
      * Whether this is one of the buttons that moves between pages.
@@ -146,7 +149,7 @@ class ControlEditorState(val button: ControlInterface) {
      * row that configures it appear happen in the same gesture.
      */
     val isPageButton: Boolean get() = keys.contains(ControlData.SPECIALBTN_PAGE)
-        private set
+
     var forwardLock by mutableStateOf((data as? ControlJoystickData)?.forwardLock ?: false)
         private set
     var absoluteTracking by mutableStateOf((data as? ControlJoystickData)?.absolute ?: false)

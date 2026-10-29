@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!--
+        Sliders rather than a gear. A gear at thumb size is a ring of teeth that turn to mush
+        when the shape is filled, and these are what the screen being opened is made of anyway.
+    -->
+    <path android:pathData="M3,5.5H9V8H3ZM13,5.5H21V8H13Z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M11,3H12.5A1,1 0 0 1 13.5,4V9.5A1,1 0 0 1 12.5,10.5H11A1,1 0 0 1 10,9.5V4A1,1 0 0 1 11,3Z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M3,16H11V18.5H3ZM15,16H21V18.5H15Z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M17,13.5H18.5A1,1 0 0 1 19.5,14.5V20A1,1 0 0 1 18.5,21H17A1,1 0 0 1 16,20V14.5A1,1 0 0 1 17,13.5Z" android:fillColor="#FFFFFF"/>
+</vector>

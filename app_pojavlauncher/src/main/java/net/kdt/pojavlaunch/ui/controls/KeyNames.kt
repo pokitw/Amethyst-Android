@@ -86,10 +86,14 @@ private val SPECIAL_ACTIONS: List<SpecialAction> by lazy {
         ControlData.SPECIALBTN_GAMEKEYBOARD to R.string.control_special_game_keyboard,
         ControlData.SPECIALBTN_VOICE to R.string.control_special_voice,
         ControlData.SPECIALBTN_SCREENSHOT to R.string.control_special_screenshot,
+        ControlData.SPECIALBTN_RECORD to R.string.control_special_record,
+        ControlData.SPECIALBTN_SHUTTER to R.string.control_special_shutter,
         ControlData.SPECIALBTN_KEYBOARD to R.string.control_special_system_keyboard,
         ControlData.SPECIALBTN_MENU to R.string.control_special_menu,
         ControlData.SPECIALBTN_TOGGLECTRL to R.string.control_special_toggle_controls,
-        ControlData.SPECIALBTN_PAGE to R.string.control_special_page
+        ControlData.SPECIALBTN_PAGE to R.string.control_special_page,
+        ControlData.SPECIALBTN_LOGOUTPUT to R.string.control_special_log_output,
+        ControlData.SPECIALBTN_QUICKSETTINGS to R.string.control_special_quick_settings
     )
     ordered.map { (keycode, labelRes) ->
         SpecialAction(
