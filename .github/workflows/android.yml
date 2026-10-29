@@ -83,8 +83,17 @@ jobs:
       # inherit, and a failure there used to take the debug APK down with it.
       - name: Build Debug .apk
         run: |
-          # Build the launcher
-          gradle :app_pojavlauncher:assembleDebug
+          # The compile errors are re-emitted as workflow commands, which become annotations.
+          # A job's log is served from blob storage that not every network can reach, and when
+          # it cannot the only thing a failed build says is "exit code 1"; annotations come
+          # from the REST API instead, so this is the difference between a readable failure and
+          # guessing at one. It changes nothing about what gets built.
+          set -o pipefail
+          if ! gradle :app_pojavlauncher:assembleDebug 2>&1 | tee build-debug.log; then
+            grep -E '^e: |error: |^FAILURE: |^Caused by: ' build-debug.log \
+              | head -40 | sed 's/^/::error::/'
+            exit 1
+          fi
           mv app_pojavlauncher/build/outputs/apk/debug/app_pojavlauncher-debug.apk out/app-debug.apk
 
       - name: Gen md5sums
@@ -101,8 +110,12 @@ jobs:
         # Skipped on forks without the signing secret, rather than failing the whole run.
         if: env.GPLAY_KEYSTORE_PASSWORD != ''
         run: |
-          # Build the launcher
-          gradle :app_pojavlauncher:assembleRelease
+          set -o pipefail
+          if ! gradle :app_pojavlauncher:assembleRelease 2>&1 | tee build-release.log; then
+            grep -E '^e: |error: |^FAILURE: |^Caused by: ' build-release.log \
+              | head -40 | sed 's/^/::error::/'
+            exit 1
+          fi
           mv app_pojavlauncher/build/outputs/apk/release/app_pojavlauncher-release.apk out/app-release.apk
 
       - name: Gen md5sums
