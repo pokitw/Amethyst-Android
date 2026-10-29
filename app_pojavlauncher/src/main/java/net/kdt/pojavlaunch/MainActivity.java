@@ -250,8 +250,14 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mControlLayout.setMenuListener(this);
         // After the menu listener and before any layout is loaded, so the rail is right from
         // the first push rather than from the first switch.
-        mControlLayout.setPageListener(() -> mControlCenter.applyPages(
-                mControlLayout.pageLabels(), mControlLayout.getCurrentPage()));
+        mControlLayout.setPageListener(() -> {
+            mControlCenter.applyPages(mControlLayout.pageLabels(), mControlLayout.getCurrentPage());
+            // hasMenuButton() is answered for the current page, so the pull tab has to be
+            // re-asked on every switch: a page with no menu button of its own needs the tab
+            // back, and that is the only route to the sheet it has.
+            mDrawerPullButton.setVisibility(
+                    mControlLayout.hasMenuButton() ? View.GONE : View.VISIBLE);
+        });
 
         mDrawerPullButton.setOnClickListener(v -> onClickedMenu());
         drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED);

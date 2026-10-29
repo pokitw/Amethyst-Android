@@ -68,6 +68,12 @@ def evaluate(expression, width_px, height_px, screen_w, screen_h, scale, density
     return eval(expression, {"__builtins__": {}}, {})
 
 
+def on_page(mask, page):
+    """A transcription of ControlPages.onPage: 0 means every page (12.14). Driven for real by
+    scripts/pagesim; safe to restate here because the only operator is a bitwise and."""
+    return mask == 0 or bool(mask & (1 << page))
+
+
 def controls_of(layout):
     """Every positioned control: plain buttons, drawer handles, joysticks."""
     out = list(layout.get("mControlDataList", []))
@@ -86,25 +92,35 @@ for name in LAYOUTS:
     check(layout.get("scaledAt") == 100, "%s: shipped layouts are authored at 100%%" % name)
 
     controls = controls_of(layout)
-    menu_visible = [c for c in layout.get("mControlDataList", []) if c.get("displayInMenu")]
-    check(any(-9 in c.get("keycodes", []) for c in menu_visible),
-          "%s: no menu button survives the ungrabbed state; every GUI ungrabs the cursor and "
-          "the pull tab hides when a layout has its own menu button, so this strands the player"
-          % name)
-    check(any(-1 in c.get("keycodes", []) or -12 in c.get("keycodes", [])
-              for c in menu_visible),
-          "%s: no keyboard survives the ungrabbed state, so chat opens and cannot be typed into"
-          % name)
-    # A pointer is the third thing a GUI needs, and the one the first draft of Bedrock.json left
-    # out. SPECIALBTN_VIRTUALMOUSE on a control button is the only route to MainActivity.toggleMouse
-    # in the whole launcher, so a layout without one cannot summon the cursor and, worse, cannot
-    # dismiss it either: with "virtual mouse at start" on, the touchpad comes up at surface-ready
-    # and stays up for the session, and while it is up InGUIEventProcessor skips the tap-to-position
-    # path that would otherwise have made menus usable without it.
-    check(any(-5 in c.get("keycodes", []) for c in menu_visible),
-          "%s: no virtual-mouse toggle survives the ungrabbed state; it is the only thing that can "
-          "turn the touchpad on or off, and a GUI with no pointer is a GUI that cannot be worked"
-          % name)
+    page_names = layout.get("pageNames") or []
+    page_total = min(max(len(page_names), 1), 8)
+
+    # The ungrabbed floor, asserted per page. Pages filter both visibility states, so the set a
+    # GUI draws is the displayInMenu controls *on the page the player is on*, and a layout whose
+    # menu button lives only on page 1 strands anybody who opens a chest from page 3.
+    for page in range(page_total):
+        menu_visible = [c for c in layout.get("mControlDataList", [])
+                        if c.get("displayInMenu") and on_page(c.get("pages", 0), page)]
+        where = name if page_total == 1 else "%s page %d" % (name, page + 1)
+        check(any(-9 in c.get("keycodes", []) for c in menu_visible),
+              "%s: no menu button survives the ungrabbed state; every GUI ungrabs the cursor and "
+              "the pull tab hides when a layout has its own menu button, so this strands the player"
+              % where)
+        check(any(-1 in c.get("keycodes", []) or -12 in c.get("keycodes", [])
+                  for c in menu_visible),
+              "%s: no keyboard survives the ungrabbed state, so chat opens and cannot be typed into"
+              % where)
+        # A pointer is the third thing a GUI needs, and the one the first draft of Bedrock.json
+        # left out. SPECIALBTN_VIRTUALMOUSE on a control button is the only route to
+        # MainActivity.toggleMouse in the whole launcher, so a layout without one cannot summon
+        # the cursor and, worse, cannot dismiss it either: with "virtual mouse at start" on, the
+        # touchpad comes up at surface-ready and stays up for the session, and while it is up
+        # InGUIEventProcessor skips the tap-to-position path that would otherwise have made menus
+        # usable without it.
+        check(any(-5 in c.get("keycodes", []) for c in menu_visible),
+              "%s: no virtual-mouse toggle survives the ungrabbed state; it is the only thing "
+              "that can turn the touchpad on or off, and a GUI with no pointer is a GUI that "
+              "cannot be worked" % where)
     # Pages. Neither shipped layout has any today, which is exactly when a check like this is
     # worth writing (16.35): it is green from the first run, and the moment a shipped layout
     # grows pages, every page has to carry a button that leads somewhere else. The control
@@ -114,9 +130,8 @@ for name in LAYOUTS:
     # The landing arithmetic is a transcription of ControlPages.resolveTarget. Safe as one here
     # because the only operator involved is % on non-negative ints, where Java and Python agree
     # (16.26); the real class is driven by scripts/pagesim.
-    page_names = layout.get("pageNames") or []
-    if len(page_names) > 1:
-        pages = min(len(page_names), 8)
+    if page_total > 1:
+        pages = page_total
         for page in range(pages):
             exits = 0
             for control in controls:
@@ -124,8 +139,7 @@ for name in LAYOUTS:
                     continue
                 if not control.get("displayInGame", True):
                     continue
-                mask = control.get("pages", 0)
-                if mask != 0 and not mask & (1 << page):
+                if not on_page(control.get("pages", 0), page):
                     continue
                 target = control.get("targetPage", 0)
                 landing = (page + 1) % pages if target <= 0 else target - 1

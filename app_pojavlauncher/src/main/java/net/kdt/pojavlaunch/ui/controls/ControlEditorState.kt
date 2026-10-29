@@ -107,6 +107,8 @@ class ControlEditorState(val button: ControlInterface) {
         private set
     var slideRepeat by mutableStateOf(data.slideRepeat)
         private set
+    var holdRepeat by mutableStateOf(data.holdRepeat)
+        private set
     // Through the same defaults the button reads, so the panel opens showing the value that would
     // actually be used rather than a zero that means "whatever the code decides".
     var slideDistance by mutableStateOf(ControlData.slideDistanceDp(data.slideDistance))
@@ -260,6 +262,7 @@ class ControlEditorState(val button: ControlInterface) {
         if (value) {
             if (sequence) applySequence(false)
             if (slideRepeat) applySlideRepeat(false)
+            if (holdRepeat) applyHoldRepeat(false)
         }
         // The toggle overlay is tinted differently from the press flash, and that colour is
         // chosen in setProperties.
@@ -273,6 +276,7 @@ class ControlEditorState(val button: ControlInterface) {
         if (value) {
             if (isToggle) applyToggle(false)
             if (slideRepeat) applySlideRepeat(false)
+            if (holdRepeat) applyHoldRepeat(false)
         }
     }
 
@@ -304,13 +308,19 @@ class ControlEditorState(val button: ControlInterface) {
     fun applySwipeable(value: Boolean) {
         isSwipeable = value
         data.isSwipeable = value
-        if (value && slideRepeat) applySlideRepeat(false)
+        if (value) {
+            if (slideRepeat) applySlideRepeat(false)
+            if (holdRepeat) applyHoldRepeat(false)
+        }
     }
 
     fun applyPassThrough(value: Boolean) {
         passThrough = value
         data.passThruEnabled = value
-        if (value && slideRepeat) applySlideRepeat(false)
+        if (value) {
+            if (slideRepeat) applySlideRepeat(false)
+            if (holdRepeat) applyHoldRepeat(false)
+        }
     }
 
     /**
@@ -335,8 +345,29 @@ class ControlEditorState(val button: ControlInterface) {
             if (sequence) applySequence(false)
             if (isSwipeable) applySwipeable(false)
             if (passThrough) applyPassThrough(false)
+            if (holdRepeat) applyHoldRepeat(false)
         }
         showSlideRing()
+    }
+
+    /**
+     * Turn a button into one that repeats for as long as it is held.
+     *
+     * The same exclusions as [applySlideRepeat], plus that one: both ways of repeating on the
+     * same button would arm twice on one press, and the two differ only in whether the repeat is
+     * asked for by a gesture. Written here as well as in the button so the switches visibly move.
+     */
+    fun applyHoldRepeat(value: Boolean) {
+        holdRepeat = value
+        data.holdRepeat = value
+        data.repeatGap = repeatGap
+        if (value) {
+            if (isToggle) applyToggle(false)
+            if (sequence) applySequence(false)
+            if (isSwipeable) applySwipeable(false)
+            if (passThrough) applyPassThrough(false)
+            if (slideRepeat) applySlideRepeat(false)
+        }
     }
 
     fun applySlideDistance(value: Float) {

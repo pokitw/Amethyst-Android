@@ -82,6 +82,9 @@ public class ControlButton extends TextView implements ControlInterface {
      */
     private static final int REPEAT_ALPHA = 150;
 
+    /** What a latched, repeating or current-page button is drawn at, however faint it is set. */
+    private static final float LATCH_MIN_ALPHA = 0.85f;
+
     private final Paint mRectPaint = new Paint();
     /** The accent wash a repeating button wears. Separate from {@link #mRectPaint}, which is the
      * press flash on an ordinary button and the latch tint on a toggle. */
@@ -96,6 +99,15 @@ public class ControlButton extends TextView implements ControlInterface {
     private Drawable mGlyph;
 
     protected boolean mIsToggled = false;
+
+    /**
+     * Whether this page button points at the page that is showing.
+     *
+     * Drawn like a latch, which turns a row of page buttons into a row of tabs with the current
+     * one lit. That is the whole of the page indicator, and it costs no view and no overlay:
+     * the controls that switch pages are the controls best placed to say which one you are on.
+     */
+    private boolean mOnCurrentPage = false;
     protected boolean mIsPointerOutOfBounds = false;
 
     /** Whether the hold on this button has turned into a dictation that still has to be ended. */
@@ -160,6 +172,13 @@ public class ControlButton extends TextView implements ControlInterface {
         setText(mGlyph == null ? properties.name : "");
         applyContentTone();
         fitTextSize(properties);
+        // A page button's label is the page, not the name, so it has to be put back after any
+        // property change: this is the one control whose text is decided by the layout rather
+        // than by its own data, and the editor calls through here on every edit.
+        ControlLayout parent = getControlLayoutParent();
+        if (parent != null) {
+            applyPage(parent.getCurrentPage(), parent.pageDisplayName(parent.getCurrentPage()), parent);
+        }
     }
 
     /** The launcher's accent, from the theme, which is where the controls' one colour lives. */
@@ -246,13 +265,14 @@ public class ControlButton extends TextView implements ControlInterface {
             mGlyph.setBounds(left, top, left + size, top + size);
             mGlyph.draw(canvas);
         }
-        if (!(mIsToggled || mRepeating || (!mProperties.isToggle && isActivated()))) return;
+        if (!(mIsToggled || mRepeating || mOnCurrentPage
+                || (!mProperties.isToggle && isActivated()))) return;
 
         // A repeat outranks the press flash under it. The flash is already steady rather than
         // blinking — sendRepeatEdge deliberately leaves the activated state alone, because a
         // press state driven at twenty a second is a strobe — so without this the button would
         // wear the ordinary held look and say nothing about what it is doing.
-        Paint paint = mRepeating ? mRepeatPaint : mRectPaint;
+        Paint paint = (mRepeating || mOnCurrentPage) ? mRepeatPaint : mRectPaint;
 
         // Over a texture the highlight has to wear the artwork's silhouette, not a rounded
         // rectangle: mComputedRadius is the layout's own corner percentage, which is exactly the
@@ -264,7 +284,7 @@ public class ControlButton extends TextView implements ControlInterface {
         // would light the button twice.
         Drawable background = getBackground();
         if (background instanceof ControlTextureDrawable) {
-            if (mIsToggled || mRepeating) {
+            if (mIsToggled || mRepeating || mOnCurrentPage) {
                 ((ControlTextureDrawable) background)
                         .drawOverlay(canvas, paint.getColor(), paint.getAlpha());
             }
@@ -346,6 +366,9 @@ public class ControlButton extends TextView implements ControlInterface {
                     sendKeyPresses(true);
                 }
                 scheduleDictation();
+                // After the keys and after the dictation schedule: the cycle picks up from a key
+                // that is already down, and beginRepeat cancels the dictation this just booked.
+                armHoldRepeat();
                 break;
 
             case MotionEvent.ACTION_UP: // 1
@@ -420,9 +443,73 @@ public class ControlButton extends TextView implements ControlInterface {
         // And a repeat, which is the same hazard: this is the one path that cancels it without an
         // ACTION_UP behind it, so whichever edge the cycle was left on has to be given back here
         // or the key stays down in the game with nothing remaining that could release it.
-        if(mRepeating && mRepeatDown) sendRepeatEdge(false);
+        if(mRepeating){
+            if(mRepeatDown) sendRepeatEdge(false);
+            // And whatever the run was holding the whole time. Nothing else is going to: the
+            // ACTION_UP that would have released it is never coming, because the view is gone.
+            for(int keycode : KeyCombo.order(KeyCombo.sustained(mProperties.keycodes), false)){
+                sendSingleKey(keycode, false);
+            }
+        }
         stopRepeat();
         super.onDetachedFromWindow();
+    }
+
+    /**
+     * A page button is labelled with the page it is about, never with the stack-of-cards glyph.
+     *
+     * Four buttons wearing the same generic icon say nothing, and "which page" is the entire
+     * content of this control: a button that goes to PvP should read PvP, and a cycle button
+     * should read where you are, because that is the question somebody mid-game is asking.
+     */
+    @Override
+    public void applyPage(int page, String currentName, ControlLayout layout) {
+        if (!mProperties.containsKeycode(ControlData.SPECIALBTN_PAGE)) {
+            // It may have been one a moment ago: a button edited from a page switch into
+            // something else must not keep wearing the current-page wash.
+            if (mOnCurrentPage) {
+                mOnCurrentPage = false;
+                refreshLatchAlpha();
+                invalidate();
+            }
+            return;
+        }
+        int target = mProperties.targetPage;
+        boolean onCurrent = target > 0 && target - 1 == page;
+        String label = target > 0 ? layout.pageDisplayName(target - 1) : currentName;
+        boolean changed = onCurrent != mOnCurrentPage;
+        mOnCurrentPage = onCurrent;
+        mGlyph = null;
+        if (!label.equals(getText().toString())) {
+            setText(label);
+            fitTextSize(mProperties);
+        } else if (changed) {
+            invalidate();
+        }
+        refreshLatchAlpha();
+    }
+
+    /**
+     * A latched button is drawn more opaque than its own setting, which is the only way the
+     * state can survive one.
+     *
+     * The highlight is drawn inside the view, so the view's alpha multiplies it: at the 20%
+     * opacity people actually use over a game, a latch was a 20% wash over a 20% button and
+     * read as nothing at all. Raising the whole view while it is held is the one change that is
+     * independent of what the opacity happens to be, and it reverts to the author's own value
+     * the moment the state clears.
+     */
+    private void refreshLatchAlpha() {
+        // Not in the editor. There the view alpha is deliberately left at 1 whatever the control's
+        // opacity says (ControlLayout.addControlView only applies it when the layout is not
+        // modifiable), so a button set to 20% can still be seen while it is being arranged.
+        // Writing an alpha here would take that away for every button that was ever latched.
+        ControlLayout parent = getControlLayoutParent();
+        if (parent != null && parent.getModifiable()) return;
+
+        boolean held = mIsToggled || mRepeating || mOnCurrentPage;
+        float resting = mProperties == null ? 1f : mProperties.opacity;
+        setAlpha(held ? Math.max(resting, LATCH_MIN_ALPHA) : resting);
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
@@ -430,6 +517,7 @@ public class ControlButton extends TextView implements ControlInterface {
         //returns true a the toggle system is triggered
         if(mProperties.isToggle){
             mIsToggled = !mIsToggled;
+            refreshLatchAlpha();
             invalidate();
             sendKeyPresses(mIsToggled);
             return true;
@@ -560,10 +648,10 @@ public class ControlButton extends TextView implements ControlInterface {
     private final Runnable mRepeatAdvance = this::advanceRepeat;
 
     /**
-     * Whether this button is one a slide may turn into a repeat.
+     * The exclusions both ways of repeating share.
      *
-     * The four exclusions are enforced in the editor as well, where turning this on visibly turns
-     * them off. They are repeated here because a layout file is a file: it can be hand-edited, and
+     * They are enforced in the editor as well, where turning a repeat on visibly turns them off.
+     * They are repeated here because a layout file is a file: it can be hand-edited, and
      * it can be shared by someone whose launcher wrote it before a rule existed. A button carrying
      * a contradiction stays an ordinary button, which is the failure that cannot surprise anybody.
      *
@@ -576,26 +664,61 @@ public class ControlButton extends TextView implements ControlInterface {
      */
     private boolean canRepeat(){
         ControlData p = getProperties();
-        return p.slideRepeat && !p.isToggle && !p.sequence && !p.isSwipeable && !p.passThruEnabled;
+        return !p.isToggle && !p.sequence && !p.isSwipeable && !p.passThruEnabled;
+    }
+
+    /** Whether a slide on this button may turn into a repeat. */
+    private boolean canSlideRepeat(){
+        return getProperties().slideRepeat && canRepeat();
+    }
+
+    /**
+     * Whether merely holding this button repeats it.
+     *
+     * Also exclusive with {@link ControlData#slideRepeat}: one of them asks for the repeat with a
+     * gesture and the other does not, so a button carrying both would arm twice on the same press
+     * and there is no behaviour a switch label could promise. The editor turns each off when the
+     * other goes on; this is the guard for a file that was hand-edited or written elsewhere.
+     */
+    private boolean canHoldRepeat(){
+        ControlData p = getProperties();
+        return p.holdRepeat && !p.slideRepeat && canRepeat();
     }
 
     /** Start repeating if the finger has slid far enough since it went down. */
     private void maybeArmRepeat(float x, float y){
-        if(mRepeating || !canRepeat()) return;
+        if(mRepeating || !canSlideRepeat()) return;
         float threshold = Tools.dpToPx(ControlData.slideDistanceDp(getProperties().slideDistance));
         if(!ControlData.pastSlideThreshold(x - mDownX, y - mDownY, threshold)) return;
 
+        // The one confirmation that it armed. Everything else about this gesture is invisible
+        // until the button starts firing, and a thumb mid-clutch is not looking at the button.
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        beginRepeat();
+    }
+
+    /**
+     * Start repeating because the button went down, for a button that is only ever a repeat.
+     *
+     * No haptic, unlike the slide: there is no moment of arming to confirm, so a tick here would
+     * fire on every single press of a bridging button and be felt a hundred times a minute.
+     */
+    private void armHoldRepeat(){
+        if(mRepeating || !canHoldRepeat()) return;
+        beginRepeat();
+    }
+
+    /** The cycle itself, however it was asked for. */
+    private void beginRepeat(){
         mRepeating = true;
         // The key went down when the finger did and is still down, so the cycle picks up from
         // there: the first thing owed is a release, half a gap from now, and from then on the
         // spacing is regular.
         mRepeatDown = true;
-        // A hold that has become a slide is no longer a hold, so a dictation waiting behind it
+        // A press that has become a repeat is no longer a hold, so a dictation waiting behind it
         // must not still be counting down.
         endDictation();
-        // The one confirmation that it armed. Everything else about this gesture is invisible
-        // until the button starts firing, and a thumb mid-clutch is not looking at the button.
-        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        refreshLatchAlpha();
         invalidate();
         postDelayed(mRepeatAdvance, ControlData.repeatHalfGapMs(getProperties().repeatGap));
     }
@@ -626,6 +749,7 @@ public class ControlButton extends TextView implements ControlInterface {
         if(!mRepeating) return;
         mRepeating = false;
         mRepeatDown = false;
+        refreshLatchAlpha();
         invalidate();
     }
 
@@ -637,9 +761,11 @@ public class ControlButton extends TextView implements ControlInterface {
      * {@link #onDraw(Canvas)} says what is happening instead, once.
      */
     private void sendRepeatEdge(boolean isDown){
-        // The same ordering as an ordinary press, for the same reason: a repeating button that
-        // holds a modifier has to hold it around each strike rather than beside it.
-        for(int keycode : KeyCombo.order(mProperties.keycodes, isDown)){
+        // Only what the clock is meant to strike. The modifiers of a combination went down with
+        // the press and stay down until the finger comes off, which is what makes a button
+        // carrying Shift and place a bridging button rather than a stutter; KeyCombo.cycled owns
+        // that division and falls back to every key for a button that holds nothing else.
+        for(int keycode : KeyCombo.order(KeyCombo.cycled(mProperties.keycodes), isDown)){
             sendSingleKey(keycode, isDown);
         }
     }

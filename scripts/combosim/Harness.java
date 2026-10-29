@@ -31,6 +31,9 @@ public class Harness {
         nothingIsLostOrInvented();
         orderWithinAGroupIsTheAuthors();
         edgeCases();
+        theRepeatHoldsWhatTheComboHolds();
+        aRepeatAlwaysHasSomethingToStrike();
+        theTwoHalvesPartitionTheButton();
 
         System.out.println(sChecks + " checks");
         if (!FAILURES.isEmpty()) {
@@ -214,6 +217,92 @@ public class Harness {
         check(!KeyCombo.isCombination(new int[]{A, B, NONE, NONE}),
                 "two ordinary keys were called a combination");
         check(!KeyCombo.isCombination(null), "null was called a combination");
+    }
+
+    /**
+     * Speed bridging, which is the whole reason this division exists.
+     *
+     * Shift and place, held: the Shift has to stay down for the entire run, because a Shift that
+     * comes up between strikes is a player who has stopped sneaking and walks off the block. The
+     * place key is the one the clock strikes.
+     */
+    private static void theRepeatHoldsWhatTheComboHolds() {
+        int[] bridging = new int[]{SHIFT_L, B, NONE, NONE};
+        check(Arrays.equals(new int[]{SHIFT_L}, KeyCombo.sustained(bridging)),
+                "the modifier of a bridging button was not held: "
+                        + Arrays.toString(KeyCombo.sustained(bridging)));
+        check(Arrays.equals(new int[]{B}, KeyCombo.cycled(bridging)),
+                "the struck key of a bridging button was wrong: "
+                        + Arrays.toString(KeyCombo.cycled(bridging)));
+
+        // Whichever slots they are in, because the editor fills them in whatever order the author
+        // works in and that is exactly what the ordering bug above was.
+        int[] other = new int[]{B, NONE, SHIFT_L, NONE};
+        check(Arrays.equals(new int[]{SHIFT_L}, KeyCombo.sustained(other)),
+                "slot order decided which key was held");
+        check(Arrays.equals(new int[]{B}, KeyCombo.cycled(other)),
+                "slot order decided which key was struck");
+
+        // An ordinary one-key repeat is unchanged: nothing held, that key struck.
+        int[] place = new int[]{B, NONE, NONE, NONE};
+        check(KeyCombo.sustained(place).length == 0, "a plain button held something");
+        check(Arrays.equals(new int[]{B}, KeyCombo.cycled(place)), "a plain button struck nothing");
+    }
+
+    /**
+     * The degenerate case, which has to be handled in KeyCombo and not left to the caller.
+     *
+     * A button of nothing but modifiers has no non-modifier to strike, and sustaining all of them
+     * would leave the clock with nothing to send: a repeat that does nothing, twenty times a
+     * second, which looks exactly like the feature being broken rather than like a button being
+     * held. So everything cycles there.
+     */
+    private static void aRepeatAlwaysHasSomethingToStrike() {
+        int[] modifiersOnly = new int[]{SHIFT_L, CTRL_L, NONE, NONE};
+        check(KeyCombo.sustained(modifiersOnly).length == 0,
+                "a button of only modifiers sustained some of them and had nothing left to strike");
+        check(Arrays.equals(new int[]{SHIFT_L, CTRL_L}, KeyCombo.cycled(modifiersOnly)),
+                "a button of only modifiers did not strike all of them: "
+                        + Arrays.toString(KeyCombo.cycled(modifiersOnly)));
+
+        // And the property that matters, swept: any button with a bound key has a key to strike.
+        int[] keys = new int[]{NONE, A, B, SHIFT_L, CTRL_L, CAPS, F3, -12};
+        for (int a : keys) for (int b : keys) for (int c : keys) for (int d : keys) {
+            int[] slots = new int[]{a, b, c, d};
+            if (bound(slots).length == 0) continue;
+            check(KeyCombo.cycled(slots).length > 0,
+                    "nothing to strike for " + Arrays.toString(slots));
+        }
+    }
+
+    /**
+     * The two halves are a partition, for every input.
+     *
+     * Checked as a property rather than per case because the failure is silent in both
+     * directions: a key in neither half is a key the game never sees, and a key in both is one
+     * sent twice and released once, which leaves it down in the game forever.
+     */
+    private static void theTwoHalvesPartitionTheButton() {
+        int[] keys = new int[]{NONE, A, B, SHIFT_L, CTRL_L, NUM, F3};
+        for (int a : keys) for (int b : keys) for (int c : keys) for (int d : keys) {
+            int[] slots = new int[]{a, b, c, d};
+            int[] expected = bound(slots);
+            int[] got = new int[KeyCombo.sustained(slots).length + KeyCombo.cycled(slots).length];
+            int at = 0;
+            // Author order within each half, so concatenating the halves and sorting is the only
+            // honest comparison; the halves themselves are order checked above.
+            for (int keycode : KeyCombo.sustained(slots)) got[at++] = keycode;
+            for (int keycode : KeyCombo.cycled(slots)) got[at++] = keycode;
+            int[] sortedExpected = expected.clone();
+            int[] sortedGot = got.clone();
+            Arrays.sort(sortedExpected);
+            Arrays.sort(sortedGot);
+            check(Arrays.equals(sortedExpected, sortedGot),
+                    "the halves of " + Arrays.toString(slots) + " are "
+                            + Arrays.toString(got) + " not " + Arrays.toString(expected));
+        }
+        check(KeyCombo.cycled(null).length == 0, "null produced keys to strike");
+        check(KeyCombo.sustained(null).length == 0, "null produced keys to hold");
     }
 
     /* ------------------------------------------------------------------ plumbing */

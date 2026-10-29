@@ -11,7 +11,7 @@
 #
 # Mutations this is known to catch:
 #   - onPage returning false for an unknown page    -> outOfRangeShowsRatherThanHides
-#   - visible() filtering the ungrabbed branch too  -> theMenuSetIsNeverFilteredByPage
+#   - visible() NOT filtering the ungrabbed branch   -> theMenuSetIsFilteredByPageToo
 #   - dropping the mask == ALL_PAGES short circuit  -> anOldLayoutIsUntouched
 #   - dropping the resolved == full canonicalisation-> tickingEveryPageIsTheSameAsAll
 #   - dropping the resolved == 0 guard              -> theLastPageCannotBeUnticked

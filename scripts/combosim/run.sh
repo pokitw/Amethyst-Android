@@ -26,6 +26,15 @@
 #   * a key bound twice is deduplicated                        (the layout stops doing what it says)
 #   * specials are hoisted like modifiers                      (a special fires before the key it
 #                                                               was meant to follow)
+#   * the repeat holds nothing                                 (speed bridging releases Shift
+#                                                               between strikes, so the player
+#                                                               stops sneaking and falls)
+#   * the repeat holds everything                               (a modifier-only button has
+#                                                               nothing left to strike and the
+#                                                               repeat silently does nothing)
+#   * the two halves of the repeat division overlap or lose a
+#     key                                                       (a key sent twice and released
+#                                                               once stays down in the game)
 set -e
 
 HERE=$(cd "$(dirname "$0")" && pwd)

@@ -1000,6 +1000,8 @@
     <string name="control_editor_slide_repeat">Slide to repeat</string>
     <string name="control_editor_slide_repeat_description">Tap it for one press, exactly as now. Hold it and slide, and it keeps pressing until you lift your thumb, which is what clutching and bridging need. Turns off stay pressed, press in order, release on slide and pass through, since each of those already uses the press or the slide.</string>
     <string name="control_editor_slide_distance">How far to slide</string>
+    <string name="control_editor_hold_repeat">Hold to repeat</string>
+    <string name="control_editor_hold_repeat_description">Just holding it keeps pressing, and letting go stops. Bind Shift and place for speed bridging: the Shift stays held for the whole run and only the place key repeats, so you keep sneaking the entire time. Turns off slide to repeat, stay pressed, press in order, release on slide and pass through.</string>
     <string name="control_editor_repeat_speed">Repeat speed</string>
     <string name="control_editor_swipe">Release when you slide off</string>
     <string name="control_editor_swipe_description">Sliding your thumb off the button lets the key up, so you can run your finger across a row of them.</string>

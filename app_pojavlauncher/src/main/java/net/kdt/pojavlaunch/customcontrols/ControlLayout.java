@@ -221,8 +221,11 @@ public class ControlLayout extends FrameLayout {
 		setModified(sanitizedModified);
 		mButtons = null;
 		getButtonChildren(); // Force refresh
-		// The first push, so a rail opens showing the layout that was just loaded rather than
-		// whatever the one before it had.
+		// Both, and in this order. The editor calls setModifiable(true) before any layout is
+		// loaded, so without applying the filter here the controls of every page stay on screen
+		// until the page is changed, and changing it to the page already showing returns early:
+		// the symptom was a layout that only looked right after switching away and back.
+		applyPages();
 		notifyPageChanged();
 	} // loadLayout
 
@@ -432,6 +435,12 @@ public class ControlLayout extends FrameLayout {
 	}
 
 	private void applyPages() {
+		// Before the visibility pass, so a page button that is about to be hidden is still
+		// labelled correctly if it comes back.
+		String current = pageDisplayName(mCurrentPage);
+		for (ControlInterface button : getButtonChildren()) {
+			button.applyPage(mCurrentPage, current, this);
+		}
 		if (mModifiable) {
 			for (ControlInterface button : getButtonChildren()) {
 				button.setVisible(ControlPages.onPage(button.getProperties().pages, mCurrentPage));
@@ -439,6 +448,13 @@ public class ControlLayout extends FrameLayout {
 		} else {
 			setControlVisible(mControlVisible);
 		}
+	}
+
+	/** A page's own name, or its number where it has none. Never null. */
+	public String pageDisplayName(int page) {
+		String name = mLayout == null ? null : mLayout.pageName(page);
+		if (name != null && !name.trim().isEmpty()) return name.trim();
+		return getContext().getString(R.string.control_page_default_name, page + 1);
 	}
 
 	/**
@@ -946,9 +962,19 @@ public class ControlLayout extends FrameLayout {
 	}
 
 
+	/**
+	 * Whether a menu button is reachable right now, which decides the drawer pull tab.
+	 *
+	 * <b>Page aware</b>, and that is what makes it safe for pages to filter the ungrabbed state
+	 * too: a layout whose menu button lives only on page one would otherwise leave every other
+	 * page with no route to the control center at all, which is the one failure this whole
+	 * feature must not be able to produce. On a page without one the tab comes back.
+	 */
 	public boolean hasMenuButton() {
 		for(ControlInterface controlInterface : getButtonChildren()){
-			for (int keycode : controlInterface.getProperties().keycodes) {
+			ControlData properties = controlInterface.getProperties();
+			if (!ControlPages.onPage(properties.pages, mCurrentPage)) continue;
+			for (int keycode : properties.keycodes) {
 				if (keycode == ControlData.SPECIALBTN_MENU) return true;
 			}
 		}

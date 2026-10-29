@@ -118,6 +118,70 @@ public final class KeyCombo {
         return reversed;
     }
 
+    /**
+     * The keys a repeat strikes on its clock, as opposed to the ones it keeps held.
+     *
+     * This is the whole of speed bridging, and the reason it is one rule and not two features.
+     * A bridging button is Shift and place: the Shift has to stay down for the entire run, because
+     * the moment it comes up the player is no longer sneaking and walks off the block they were
+     * standing on, and that is not a mistake they can recover from. The place key is the one that
+     * has to be struck over and over. So a repeat holds what the combination holds and strikes
+     * what it strikes, which is the same division {@link #order(int[], boolean)} already makes
+     * for a single press, applied over time.
+     *
+     * <p><b>A button of nothing but modifiers cycles all of them.</b> That is the degenerate case
+     * and it has to be handled here rather than left to the caller: sustaining everything would
+     * leave a repeat with nothing to send, which is a button that does nothing at twenty times a
+     * second and looks exactly like a broken feature. {@link #isCombination(int[])} is the test,
+     * so the two answers cannot disagree about what a combination is.
+     *
+     * @return a fresh array in author order; never null, and never empty for a button with a key
+     */
+    public static int[] cycled(int[] keycodes) {
+        return partition(keycodes, false);
+    }
+
+    /**
+     * The keys a repeat holds down for the whole run, which is the modifiers of a combination.
+     *
+     * Empty for a button that is not a combination, so the ordinary slide-to-repeat case is
+     * unchanged: one key, struck on the clock, with nothing held beside it.
+     */
+    public static int[] sustained(int[] keycodes) {
+        return partition(keycodes, true);
+    }
+
+    /**
+     * One half of the repeat division. Written once so the two halves cannot overlap or lose a key:
+     * every bound slot is in exactly one of them, for any input.
+     */
+    private static int[] partition(int[] keycodes, boolean wantModifiers) {
+        if (keycodes == null) return new int[0];
+        boolean combination = isCombination(keycodes);
+
+        int count = 0;
+        for (int keycode : keycodes) {
+            if (keycode == NO_KEY) continue;
+            if (!combination) {
+                if (!wantModifiers) count++;
+            } else if (isModifier(keycode) == wantModifiers) {
+                count++;
+            }
+        }
+
+        int[] picked = new int[count];
+        int at = 0;
+        for (int keycode : keycodes) {
+            if (keycode == NO_KEY) continue;
+            if (!combination) {
+                if (!wantModifiers) picked[at++] = keycode;
+            } else if (isModifier(keycode) == wantModifiers) {
+                picked[at++] = keycode;
+            }
+        }
+        return picked;
+    }
+
     /** Whether this button sends a modifier alongside something else, which is the case that broke. */
     public static boolean isCombination(int[] keycodes) {
         if (keycodes == null) return false;

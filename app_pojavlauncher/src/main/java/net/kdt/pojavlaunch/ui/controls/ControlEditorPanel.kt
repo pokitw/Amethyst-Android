@@ -245,9 +245,18 @@ fun ControlEditorPanel(
                                 format = { "${it.roundToInt()} dp" },
                                 onValueChange = state::applySlideDistance
                             )
-                            // Presses a second as well as milliseconds, because that is the
-                            // number a player has an opinion about; the floor is one game tick,
-                            // which is as fast as Minecraft can see a click at all.
+                        }
+                        SwitchRow(
+                            stringResource(R.string.control_editor_hold_repeat),
+                            stringResource(R.string.control_editor_hold_repeat_description),
+                            state.holdRepeat,
+                            onCheckedChange = state::applyHoldRepeat
+                        )
+                        // One speed for one feature, shown under whichever of the two asked for
+                        // it. Presses a second as well as milliseconds, because that is the
+                        // number a player has an opinion about; the floor is one game tick,
+                        // which is as fast as Minecraft can see a click at all.
+                        if (state.slideRepeat || state.holdRepeat) {
                             LiveSlider(
                                 title = stringResource(R.string.control_editor_repeat_speed),
                                 value = state.repeatGap.toFloat(),

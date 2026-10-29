@@ -1818,11 +1818,34 @@ re-litigated. The reasoning lives in the commit that made the change.
   apart the first time somebody drags one, and nothing can express "on building and PvP but not
   bridging". So membership is a bitmask on the control, in the same spirit as `displayInMenu`,
   and **0 means every page**, which is what every layout ever saved deserialises to (§12.14).
-  **Pages apply while the cursor is grabbed and never while a GUI is open.** The ungrabbed state
-  already draws a deliberately minimal set, and `check_layouts.py` enforces a floor of menu,
-  keyboard and mouse there precisely so a layout cannot strand somebody in a chat box. Filtering
-  that set by page as well would be a second, invisible route to the exact state that floor
-  exists to prevent, and it buys nothing: a page is about what your thumbs need while playing.
+  **Pages apply in both states, and the first version got that wrong.** It filtered only the
+  grabbed one, on the reasoning that the ungrabbed set is already minimal so filtering it could
+  only strand somebody. That is true of a layout with one page and false of the layouts this
+  feature exists for: four pages each carrying their own menu controls meant opening a chest
+  showed the union of all four, which is the screenful pages were built to remove, arriving at
+  the worst moment. It was the first thing reported.
+  The stranding the first version was guarding against is now covered where it actually lives.
+  `ControlLayout.hasMenuButton` is page aware, so the **drawer pull tab comes back on a page
+  with no menu button of its own**, and the control center is reachable from it; and
+  `check_layouts.py`'s floor of menu, keyboard and mouse is asserted **per page** rather than
+  per layout. A guard belongs next to the thing it guards rather than spread into a rule about
+  drawing, which is also why `pagesim`'s check in that area had to be inverted rather than
+  deleted: it was asserting the old behaviour, so it would have failed, which is a harness
+  working.
+  **The page a layout opens on has to be applied, not assumed.** The second half of the same
+  report was that the first page showed every control until you switched away and back.
+  `loadLayout` pushed the rail and never ran the filter, and switching to the page already
+  showing returns early, so the one page nobody had left was the one page that was never
+  filtered. It now applies the filter at load, which is the same fix shape as 16.36: the rule
+  has to run on the path where nothing changed as well as on the path where something did.
+  **A page button is the page indicator**, which is why there is no separate one. It wears the
+  name of the page it goes to rather than a stack-of-cards glyph, a cycle button wears the name
+  of the page you are on, and a button pointing at the current page is drawn latched. A row of
+  them is a row of tabs with the current one lit, for the cost of no view and no overlay, and
+  the controls that switch pages are the ones best placed to say which page you are on. The
+  label is put back in `setProperties` as well as on a switch, because that is the one control
+  whose text comes from the layout rather than from its own data and the editor calls through
+  there on every edit.
   **The control center's rail is why no page can be a dead end.** It is the one piece of this
   that is not optional: a page whose only switch button you forgot to place would otherwise be a
   room with no door, and the sheet is reachable from the pull tab or a menu button, which the
@@ -1832,6 +1855,16 @@ re-litigated. The reasoning lives in the commit that made the change.
   and recording keeps the top on every one of them. The layout report names a page with no way
   off it, and `check_layouts.py` asserts it for shipped layouts, written while the count was
   zero (§16.35).
+  **A latched control is drawn at a floor opacity rather than at its own**, which this feature
+  forced and which is worth more than it cost. The highlight is drawn inside the view, so the
+  view's alpha multiplies it: at the 20% people actually use over a game, a latch was a 20%
+  wash over a 20% button and read as nothing at all, and a lit page button in that state would
+  have been an indicator nobody could see. Raising the whole view while the state is held is
+  the one change that is independent of what the opacity happens to be, and it reverts to the
+  author's own value the moment the state clears. It covers toggles and repeats too, where the
+  same complaint was already true and had simply never been written down. **Not in the editor**,
+  where the view alpha is deliberately left at 1 whatever the control says so that a faint
+  button can still be arranged.
   **The visibility rule lived in two places and only one of them was obvious.**
   `ControlLayout.setControlVisible` re-applies it to every control at once;
   `ControlInterface.onGrabState` applies it to one when the grab state changes underneath it.
@@ -1858,6 +1891,38 @@ re-litigated. The reasoning lives in the commit that made the change.
   It gets a **comparison row**, `No` for upstream, on auto-walk's reasoning: upstream has no
   equivalent at all. It gets **no onboarding page**: you meet it in the editor, where it is
   turned on.
+
+- **Speed bridging on one button** (`ControlData.holdRepeat` + `KeyCombo.cycled`/`sustained`)
+  — hold it to keep placing, let go to stop, with Shift held down for the whole run. Asked for
+  in those words: one button carrying shift and place, where holding activates it and releasing
+  automatically stops.
+  **It is one rule, not a second repeat feature.** Slide to repeat already exists and already
+  repeats a button; what it cannot do is repeat a *combination*, because `sendRepeatEdge` struck
+  every bound key, so a shift and place button released the shift between strikes. The player
+  stops sneaking for a fraction of a second, every strike, and walks off the block they are
+  standing on. So the division between what a repeat **holds** and what it **strikes** became a
+  definition of its own: modifiers are sustained for the whole run and the rest rides the clock,
+  which is the same partition `KeyCombo.order` already makes for a single press, applied over
+  time. Slide to repeat gets the fix for free, which is right, because bridging by sliding was
+  already one of the things it was sold on.
+  **A button of nothing but modifiers cycles all of them**, and that degenerate case belongs in
+  `KeyCombo` rather than in the caller: sustaining everything leaves the clock with nothing to
+  send, which is a button doing nothing twenty times a second and looks exactly like a broken
+  feature rather than like a button being held.
+  **The gesture is nothing at all**, which is the difference from slide to repeat and not a
+  lesser version of it. That one is a button whose ordinary tap has to survive, so the repeat
+  has to be asked for; this is a button that exists to repeat, so asking would be asking twice.
+  The two are mutually exclusive for the same reason the other four behaviours are, enforced in
+  the editor where the switches visibly move and again in `canHoldRepeat` where a hand-edited
+  file lands. There is also **no haptic**: there is no moment of arming to confirm, and a tick
+  on every press of a bridging button would be felt a hundred times a minute.
+  The speed slider is **one control shown under whichever mode asked for it**, since it is one
+  number for one behaviour, and it floors at one game tick like every other repeat here. The
+  field is additive, so old layouts deserialise untouched.
+  It gets **no onboarding page**, on slide to repeat's precedent: you meet it in the editor.
+  It gets **no comparison row** of its own, because slide to repeat's row already covers "a
+  button that keeps firing" and splitting one capability across two rows is how a table stops
+  being worth reading.
 
 - **Everything the sheet can do, from a button** (`SPECIALBTN_RECORD`, `_SHUTTER`,
   `_LOGOUTPUT`, `_QUICKSETTINGS`) — recording, the floating shutter, the live log and quick
@@ -2400,6 +2465,25 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     the build able to see it. Found by an adversarial review told to look for behaviour rather
     than compile errors; no harness could have, because the gate is a preference read at runtime.
 
+40. **A filter that runs when something changes has to run for the state you start in.** Pages
+    applied their filter from the page-switch path, and switching to the page already showing
+    returns early, so page one was the one page that was never filtered: a layout opened showing
+    every control from every page, and looked correct the moment you switched away and back. The
+    report said exactly that, and it is the hardest shape of bug to see in a diff, because the
+    code that is missing is a call on the path where **nothing happened**.
+    The general form, which §16.36 is the other half of: a rule reached only from a change
+    handler is a rule with no initial condition, and the two places to look are the load path and
+    any early return that means "already in that state". Both are paths whose whole point is that
+    they do nothing, which is why neither reads as a place a rule belongs.
+    It arrived with a second finding of the same kind and in the same feature, which is the part
+    worth generalising from. The visibility rule had been written to filter the grabbed state and
+    not the ungrabbed one, and the argument for that was sound **about a layout with one page** and
+    wrong about every layout the feature exists for, where each page carries its own menu controls
+    and a GUI drew the union of all of them. **A rule reasoned about the shape you already have is
+    a rule tested against the wrong input.** The check that would have caught it existed and was
+    asserting the old behaviour, so inverting it was the first step of the fix rather than an
+    afterthought: a harness disagreeing with a correction is a harness doing its job.
+
 ---
 
 ## 17. Known limitations
@@ -2550,6 +2634,15 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A slide-to-repeat button **stops the moment the finger comes off**, and cannot be latched. That
   is deliberate rather than missing: it is the line between a control scheme and an autoclicker,
   and it is also the only arrangement in which the feature cannot be left running by accident.
+  **Hold to repeat is the same** and for the same reason.
+- A repeat **holds the modifiers and strikes the rest**, which is what makes shift and place a
+  bridging button. It does mean a button of nothing but modifiers strikes all of them instead,
+  since there would otherwise be nothing to send, and that a repeat cannot be told to hold one
+  of two ordinary keys: modifier is the only division it knows, because it is the only one the
+  protocol states.
+- **Hold to repeat starts with no gesture and no warning.** Any press of the button is a run, so
+  a button that was also wanted as a single tap wants slide to repeat instead. Which one a button
+  has is answered in the editor, where it was turned on.
 - The slide ring in the editor is **centred on the control and the real gesture is not**. It
   measures from wherever the thumb went down, so a press near one edge reaches the threshold
   sooner on that side than the ring suggests. The ring answers how far the distance is against
@@ -2985,11 +3078,18 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
   right outcome and does mean the line is mostly seen on a first run or behind a download.
 - A layout is capped at **eight pages**, which is a limit on the editor rather than on the
   mask: a row of chips picked from with a thumb runs out long before an int does.
-- **Pages do not apply while a GUI is open.** Opening an inventory shows the `displayInMenu`
-  set whatever page you were on, and closing it puts you back. That is deliberate and it does
-  mean a page cannot have its own menu-state controls.
-- **Nothing on a control says which pages it is on** while you are playing. It is answered in
-  the editor, where it was set, which is the same deal slide to repeat makes.
+- **Pages apply while a GUI is open too**, so a page needs its own menu-state controls or it
+  has none: opening an inventory on page 3 shows the `displayInMenu` controls that are on page 3
+  and nothing else. The drawer pull tab comes back on a page with no menu button, which is the
+  floor, and `check_layouts.py` asserts menu, keyboard and mouse per page for shipped layouts.
+  A hand-made layout is not checked by anything, so a page with no pointer on it is a GUI that
+  has to be worked by the pull tab.
+- **Nothing on an ordinary control says which pages it is on** while you are playing. It is
+  answered in the editor, where it was set, which is the same deal slide to repeat makes. A page
+  *button* says where it goes, and is lit when that is where you are, which is the indicator.
+- A **cycle** page button says which page you are on rather than where it will take you, because
+  it cannot know: the next page depends on where you are. Four cycle buttons therefore all read
+  the same thing, which is correct and is why a layout wanting tabs binds them to pages.
 - A page button bound to a page that was later deleted **does nothing** rather than going
   somewhere plausible. The layout report names it; silently sending somebody to the wrong page
   would be worse.
@@ -3186,6 +3286,12 @@ Before pushing:
   would have passed on the broken build. Also run
   `python3 scripts/combosim/check_agreement.py`, which compares `KeyCombo.isModifier` against
   `CallbackBridge.setModifiers` as declarations rather than re-implementing either.
+  combosim also owns the repeat's hold-or-strike division, which is speed bridging. Two of its
+  checks there are the ones worth keeping: a swept assertion that the two halves **partition**
+  the button, because a key in neither is a key the game never sees and a key in both is one
+  sent twice and released once, which leaves it down forever; and that **every** button with a
+  bound key has something to strike, which is what catches the degenerate all-modifier case
+  rather than leaving it to be found by a repeat that silently does nothing.
 - **Run `sh scripts/presencesim/run.sh`** if the Discord presence card changed. It compiles the
   shipped `PresenceCard` at source 8 and checks what it would publish. Two failures matter and
   both are permanent once seen by a stranger: a field naming the wrong Minecraft version, and a
@@ -3279,6 +3385,10 @@ Before pushing:
   bag out before the first shuffle is still a permutation and still never repeats, so every
   other check passes while every cold start opens on the same line. It also bounds the tables,
   since a splash that wraps is not a splash.
+- **Run `python3 scripts/check_layouts.py` as well as pagesim** if the page visibility rule
+  changed. The ungrabbed floor of menu, keyboard and mouse is asserted **per page** there, which
+  is what makes it safe for pages to filter that state at all; a change that makes pages apply
+  more widely has to be accompanied by a reading of that floor, not just by pagesim passing.
 - **Run `sh scripts/pagesim/run.sh`** if page membership, page switching or page deletion
   changed. It compiles the shipped `ControlPages` at source 8 and drives it, and every check
   there is a form of one question: can an arrangement of pages take a control off the screen

@@ -65,17 +65,21 @@ public final class ControlPages {
     /**
      * The whole of when a control is drawn, in one expression.
      *
-     * <p><b>Pages apply while the cursor is grabbed and never while a GUI is open.</b> The
-     * ungrabbed state already shows a deliberately minimal set, and {@code check_layouts.py}
-     * enforces a floor of menu, keyboard and mouse there precisely so that a layout cannot
-     * strand the player in a chat box with no way out (§17). Filtering that set by page as well
-     * would be a second, invisible way to reach exactly the state that floor exists to prevent,
-     * and it would buy nothing: a page is about what your thumbs need while you are playing.
+     * <p><b>Pages apply in both states, and the first version got that wrong.</b> The reasoning
+     * then was that the ungrabbed set is already minimal, so filtering it could only strand
+     * somebody. That is true of a layout with one page and false of the layouts this feature
+     * exists for: four pages each carrying their own menu controls means opening a chest showed
+     * the union of all four at once, which is precisely the screenful of buttons pages were
+     * built to get rid of, arriving at the worst moment.
+     *
+     * <p>The stranding it was guarding against is covered where it actually lives instead:
+     * {@code ControlLayout.hasMenuButton} is page aware, so the drawer pull tab comes back on a
+     * page that has no menu button of its own, and the control center's rail is reachable from
+     * it. A guard belongs next to the thing it guards, not spread into a rule about drawing.
      */
     public static boolean visible(int mask, boolean displayInGame, boolean displayInMenu,
                                   boolean grabbing, int page) {
-        if (!grabbing) return displayInMenu;
-        return displayInGame && onPage(mask, page);
+        return (grabbing ? displayInGame : displayInMenu) && onPage(mask, page);
     }
 
     /**

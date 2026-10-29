@@ -13,7 +13,7 @@ public class Drive {
 
     public static void main(String[] args) {
         anOldLayoutIsUntouched();
-        theMenuSetIsNeverFilteredByPage();
+        theMenuSetIsFilteredByPageToo();
         tickingEveryPageIsTheSameAsAll();
         theLastPageCannotBeUnticked();
         aTickSurvivesARoundTrip();
@@ -51,15 +51,30 @@ public class Drive {
         }
     }
 
-    /** Pages apply while grabbed and never while a GUI is open. */
-    private static void theMenuSetIsNeverFilteredByPage() {
-        int onPageZeroOnly = ControlPages.withPage(0, 1, false, 4);
-        for (int page = 0; page < 4; page++) {
-            check(ControlPages.visible(onPageZeroOnly, true, true, false, page),
-                    "a menu control was filtered by page " + page);
+    /**
+     * Pages apply in both states.
+     *
+     * The first version filtered only the grabbed one, and the consequence was the bug that got
+     * reported: four pages each carrying their own menu controls meant opening a chest showed
+     * the union of all four. This asserts the correction in the direction that broke, which is
+     * that an ungrabbed control off the current page is not drawn.
+     */
+    private static void theMenuSetIsFilteredByPageToo() {
+        int onPageZeroOnly = onlyPage(0, 4);
+        check(ControlPages.visible(onPageZeroOnly, true, true, false, 0),
+                "a menu control on the current page was hidden");
+        for (int page = 1; page < 4; page++) {
+            check(!ControlPages.visible(onPageZeroOnly, true, true, false, page),
+                    "a menu control from another page was drawn on page " + page);
+            check(!ControlPages.visible(onPageZeroOnly, true, true, true, page),
+                    "a page filter did not apply while grabbed on page " + page);
         }
-        check(!ControlPages.visible(onPageZeroOnly, true, true, true, 1),
-                "a page filter did not apply while grabbed");
+        // And the two states still differ on the flags themselves, which is the thing pages
+        // must not have quietly taken over.
+        check(!ControlPages.visible(0, true, false, false, 0),
+                "a control marked in-game only was drawn in a menu");
+        check(!ControlPages.visible(0, false, true, true, 0),
+                "a control marked menu only was drawn in game");
     }
 
     private static void tickingEveryPageIsTheSameAsAll() {

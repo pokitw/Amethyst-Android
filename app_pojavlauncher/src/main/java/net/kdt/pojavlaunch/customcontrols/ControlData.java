@@ -123,6 +123,31 @@ public class ControlData {
      * Absent from old layouts, so Gson leaves it false and every existing button behaves exactly
      * as before.
      */
+    public boolean slideRepeat;
+    /** How far the finger travels before a repeat arms, in dp. 0 means {@link #DEFAULT_SLIDE_DP}. */
+    public float slideDistance;
+    /** Milliseconds between repeated presses. 0 means the default; one game tick is the floor. */
+    public int repeatGap;
+    /**
+     * Keep firing for as long as the button is held, with no gesture and no latch.
+     *
+     * Asked for as speed bridging: one button carrying Shift and place, held to sneak and spam
+     * placing, released to stop. Every other way to get that is two thumbs or a toggle to turn
+     * off afterwards, and on a ledge neither is available.
+     *
+     * The division between what is held and what is struck is {@link KeyCombo#cycled(int[])}:
+     * modifiers stay down for the whole run and the rest is struck on {@link #repeatGap}. That
+     * is the half that makes it bridging rather than a stutter, because a Shift released between
+     * strikes is a player walking off the block.
+     *
+     * Distinct from {@link #slideRepeat} rather than a mode of it: that one is a button whose
+     * ordinary tap must survive, so the repeat has to be asked for by a gesture. This one is a
+     * button that exists to repeat, so asking would be asking twice.
+     *
+     * Absent from old layouts, so Gson leaves it false and every existing button behaves exactly
+     * as before.
+     */
+    public boolean holdRepeat;
     /**
      * Which pages of the layout this control is drawn on, as a bitmask.
      *
@@ -141,11 +166,6 @@ public class ControlData {
      */
     public int targetPage;
 
-    public boolean slideRepeat;
-    /** How far the finger travels before a repeat arms, in dp. 0 means {@link #DEFAULT_SLIDE_DP}. */
-    public float slideDistance;
-    /** Milliseconds between repeated presses. 0 means the default; one game tick is the floor. */
-    public int repeatGap;
     private float width;         //Dp instead of Px now
     private float height;        //Dp instead of Px now
 
@@ -295,6 +315,7 @@ public class ControlData {
         this.targetPage = controlData.targetPage;
         this.slideDistance = controlData.slideDistance;
         this.repeatGap = controlData.repeatGap;
+        this.holdRepeat = controlData.holdRepeat;
     }
 
     public static ControlData[] getSpecialButtons() {

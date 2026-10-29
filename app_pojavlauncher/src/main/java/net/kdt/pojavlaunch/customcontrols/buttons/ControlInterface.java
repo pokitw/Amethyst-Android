@@ -62,6 +62,18 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
     void sendKeyPresses(boolean isDown);
 
     /**
+     * The layout's page changed underneath this control.
+     *
+     * A no-op for everything that is not a page button. It exists on the interface rather than
+     * behind an instanceof in the layout because the layout already walks every child and a
+     * second walk testing types would be a second place to forget something.
+     *
+     * @param page        the page now showing
+     * @param currentName that page's name, already numbered where it has none
+     */
+    default void applyPage(int page, String currentName, ControlLayout layout) {}
+
+    /**
      * The second place the visibility rule lives, and the reason it is not written out here.
      *
      * ControlLayout re-applies the rule to every control at once; this applies it to one when
@@ -72,7 +84,9 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
     @Override
     default void onGrabState(boolean isGrabbing) {
         ControlLayout parent = getControlLayoutParent();
-        if (parent != null && parent.getModifiable()) return; // Disable when edited
+        // Null as well as modifiable: every branch below reads the parent, and a control that is
+        // not in a layout has nothing to be visible in.
+        if (parent == null || parent.getModifiable()) return; // Disable when edited
         ControlData properties = getProperties();
         setVisible(ControlPages.visible(properties.pages, properties.displayInGame,
                 properties.displayInMenu, isGrabbing, parent.getCurrentPage())
