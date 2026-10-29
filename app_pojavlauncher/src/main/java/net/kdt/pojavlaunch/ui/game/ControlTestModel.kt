@@ -125,7 +125,7 @@ fun inspectLayout(layout: ControlLayout, density: Float): LayoutReport {
     // Measured on the live controls, like everything else here: a page button that is hidden in
     // game is not a way off a page however the file describes it.
     val pageCount = layout.pageCount
-    val stuckPages = if (pageCount <= 1) emptyList() else {
+    val stuckPages: List<String> = if (pageCount <= 1) emptyList() else {
         val masks = IntArray(children.size)
         val targets = IntArray(children.size)
         val inGame = BooleanArray(children.size)

@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -203,6 +204,7 @@ data class PageUiState(val names: List<String> = emptyList(), val current: Int =
  * In a game it switches and nothing else. Page management is the editor's, where a text field
  * can have a real dialog without a game to drop out of immersive fullscreen behind it.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PagesCard(
     pages: PageUiState,
@@ -244,8 +246,13 @@ private fun PagesCard(
         ) {
             pages.names.forEachIndexed { index, name ->
                 val selected = index == pages.current
+                val label = if (name.isBlank()) {
+                    stringResource(R.string.control_page_default_name, index + 1)
+                } else {
+                    name
+                }
                 Text(
-                    name.ifBlank { stringResource(R.string.control_page_default_name, index + 1) },
+                    label,
                     style = MaterialTheme.typography.labelLarge,
                     color = if (selected) colors.primary else colors.onSurfaceVariant,
                     maxLines = 1,

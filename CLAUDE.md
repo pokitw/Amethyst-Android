@@ -2313,6 +2313,25 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     interface's default method, which is not where anybody looks. **Grep for the predicate, not
     for the method**, and when there are two, make them one function before adding to either.
 
+37. **An experimental Compose API is a CI-only failure that is decidable here.** A call to
+    `combinedClickable` or `ModalBottomSheet` looks exactly like a call to a stable API, and
+    without it being opted into, the build fails three minutes into CI with "this declaration
+    needs opt-in". It has now cost two cycles: `ModalBottomSheet` on the world sheet, and
+    `combinedClickable` on the control center's page rail, where every other use site in this
+    codebase had the annotation and the new one did not. Nothing about the call site says it is
+    different, which is why reading the diff does not catch it and why `scripts/check_compose_optin.py`
+    now reproduces the rule. **The fix for the next one is the annotation and a line in
+    `MARKERS`**, because a check that only knows the two APIs that have already bitten is a
+    check that will be written again.
+    The first draft of it could not see the bug it was written for, which is the half worth
+    keeping. Its word boundary was `(?<![A-Za-z0-9_.])`, excluding a leading dot to avoid
+    matching a qualified name, and `.combinedClickable(` is **exactly** how a `Modifier`
+    extension is always called. So it caught `ModalBottomSheet`, which is called bare, and
+    passed cleanly on the file that had failed CI an hour earlier. The tell was the count it
+    prints: 14 calls before the fix and 24 after, which is `check_settings_calls.py`'s 183 to 43
+    all over again. **Print what a check looked at, and read that number**, because a check that
+    has gone half blind otherwise reports exactly the same word as one that is working.
+
 31. **A control offered only when a setting is off cannot call code that the same setting gates.**
     "Add to gallery" appeared exactly when the automatic export preference was off, and
     `GalleryExport.publish` returns false early when that preference is off, so the button could
@@ -3211,6 +3230,12 @@ Before pushing:
   on the broken version too: without the guard the empty mask falls through as ALL_PAGES, so
   the control is drawn everywhere rather than nowhere and only counting the pages tells them
   apart.
+- **Run `python3 scripts/check_compose_optin.py`** whenever new Compose is written, and
+  always after a build fails on an opt-in. It reproduces Kotlin's "this declaration needs
+  opt-in" for the experimental APIs this project uses, which is otherwise a three minute CI
+  round trip for a missing annotation (§16.37). Adding the API that just failed to `MARKERS` is
+  half the fix; the count it prints is the other half, because that number is what shows the
+  check has stopped looking at something.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release
