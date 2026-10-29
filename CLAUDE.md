@@ -411,6 +411,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | In-game control center | **Compose** | `ui/game/`, hosted by `MainActivity` **and** `CustomControlsActivity` |
 | On-screen keyboard · voice overlay | **Compose** | `ui/game/`, each with its own bottom-anchored `ComposeView` |
 | Typing preview | **Compose** | `ui/game/TypingPreviewHost.kt`, its own top-anchored `ComposeView` |
+| Game loading screen | **Compose** | `ui/game/GameLoadingHost.kt`, hosted by `MainActivity`; up only until the first frame |
 | Control layout editor menu | **Compose** | The control center in editor mode; the buttons it edits stay custom views |
 | Control editor panel · key picker | **Compose** | `ui/controls/`, driven by `ControlLayout.setEditorHost` |
 | Sign-in chooser | **Compose** | `ui/auth/`, hosted by `SelectAuthFragment.kt` |
@@ -1799,6 +1800,53 @@ re-litigated. The reasoning lives in the commit that made the change.
   downscale stacked on somebody's own 80% inset is exactly the silent rewriting of a saved
   preference the performance-mode entry warns about.
 
+- **Something to look at while you wait** (`splash/SplashPicker.java` +
+  `ui/common/SplashLine.kt` + `ui/game/GameLoadingHost.kt`) — a rotating line on the launch
+  console, and a real loading screen over the black gap between the surface being ready and the
+  game's first frame. Asked for as "keep dopamine high" across the three waits this launcher
+  has.
+  **The three waits are one wait at three lengths**, which is why there is one idiom and not
+  three. A player who meets a different device at each of them is being told three times that
+  these are three different programs. So the launcher getting ready, a version downloading and
+  the JVM starting all carry a line from the same table, drawn the same way.
+  **The splash line is the one piece of Minecraft personality that is pure copy.** It is the
+  yellow text beside the title screen logo, which has said "Also try Terraria!" since 2010, and
+  it breaks none of §4's rules because a line of text is never "gaming" chrome: no glow, no
+  neon, nothing that would look out of place next to Google Photos. It also costs nothing from
+  the motion budget (§8), which the black screen needs for the one thing that does move.
+  **On the launch console it sits below the timeline and visibly outside it.** Every line above
+  it is the downloader's own report, and that entry's standing rule is that nothing is invented;
+  a decorative line dressed as a stage would be exactly the fake progress the console was built
+  to refuse. Below, quieter, one line, no tick: it is plainly not a stage.
+  **The black screen's honest half is the log.** `Logger` is already streaming the game's own
+  output to whatever asks, so the last line it printed is a free, true answer to the only
+  question anybody has while the screen is black, which is whether this is working or dead. It
+  is dim and monospace on purpose: evidence that work is happening rather than something to
+  read. Nothing on that screen is invented, which is the same bargain the console makes.
+  **Three ways out, because being wrong locks somebody out of their game.** A full screen
+  `ComposeView` over the surface swallows every touch the game is waiting for (§12.9), so this
+  one goes when the first frame is presented, when the player taps it, and when a deadline
+  passes. The deadline is **short when there is no signal and long when there is**: with a frame
+  counter answering, a cold modpack can legitimately take minutes and the counter will end it
+  first; with no counter there is nothing to end it, so the overlay has eight seconds and then
+  gets out of the way even if what is underneath is still black. That asymmetry is the whole
+  safety argument.
+  **The first frame is counted in `pojavSwapBuffers`**, which is the single function both the
+  EGL bridge and OSMesa are reached through, so the zink path and the gl4es path answer
+  identically with nothing shared between them. `GameFrames` latches off after one failure and
+  returns -1 forever, because this is read on the launch path where nothing may throw (§16.15)
+  and the overlay has its own way out regardless.
+  **The order is a shuffle bag, not a random pick.** Over a thirty second wait with four lines
+  shown, random repeats often enough to notice, and a rotating line that looks broken is worse
+  than no line. `SplashPicker` is plain Java so `scripts/splashsim` drives the shipped class,
+  and the property it exists to check is the **seam**: a bag is fine by construction, and the
+  only place a repeat can happen is between the last line of one order and the first of the
+  next, about one time in N, which is often enough to be seen and rare enough to survive a
+  casual test.
+  It gets **no onboarding page and no comparison row**, on the opening's precedent: a loading
+  screen is presentation rather than capability, and the table is only worth reading because it
+  is edited.
+
 - **Two keys on one button** (`customcontrols/KeyCombo.java` + the dispatch-time key state in
   `jni/input_bridge_v3.c`) — a button bound to Shift and F3 opened the debug overlay and never the
   profiler chart, in either binding order, every time. Reported with the half that solved it: the
@@ -2162,6 +2210,19 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     than where it was built.** Worth asking of any id built by stripping a suffix, lowercasing, or
     normalising whitespace. The repair is to rename only the rows that actually clash, so the
     stability the stripping was for survives everywhere it was not the problem.
+
+35. **A rule with no check is a rule that is already broken somewhere.** §15 has banned em
+    dashes in user-facing copy since it was written, and the only thing enforcing it was
+    whoever was reading the diff. Adding fifty two lines of splash and tip copy in one commit
+    is exactly the change that slips one through, so the ban went into `check_strings.py` as a
+    hard failure. The point worth keeping is what made that possible: the file had **zero**
+    em dashes when the check was written, so it was green from the first run. A check added to
+    a file that already fails it is a check somebody has to suppress before they can use it,
+    which is §16.32's lesson about an aapt warning thirteen inherited strings already carry.
+    **Write the check at the moment the count is zero**, which is usually the moment you are
+    about to add the thing that would make it non-zero. The en dash is deliberately still
+    allowed: "3–16 characters" is a numeric range and correct typography, and it is not the
+    tell the rule is about.
 
 31. **A control offered only when a setting is off cannot call code that the same setting gates.**
     "Add to gallery" appeared exactly when the automatic export preference was off, and
@@ -2743,6 +2804,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - **Neither the import dialog nor the world sheet is driven by a harness.** Both are Kotlin, so
   §16.25 applies: the splice under the sheet is Java and checked, and the screens over it are
   read rather than executed.
+- The loading screen is up **only until the first presented frame**, which is the title screen
+  and not a world: loading a save afterwards is Minecraft's own progress bar, behind the game's
+  own window, and nothing here can show anything during it.
+- It shows **the last line the game logged**, which is not a stage and not a percentage. A mod
+  that logs nothing for twenty seconds leaves the same line sitting there, which is honest and
+  does look like a stall. There is nothing better available: no part of the JVM's startup
+  reports progress to the launcher.
+- **Where `GameFrames` cannot read the frame counter the screen lasts eight seconds**, which on
+  a slow device is far less than the wait. That is the deliberate direction: an overlay with no
+  way of knowing when the game has drawn must not be the thing standing between a player and
+  their game.
+- The splash table is **not translated**. New strings go in `values/strings.xml` only and the
+  translations are upstream's (§15), so every language sees the English lines.
+- Opening the launcher shows a splash line **only while something is actually loading**. On an
+  ordinary start there is no work to wait for and the home screen is simply there, which is the
+  right outcome and does mean the line is mostly seen on a first run or behind a download.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -3003,6 +3080,13 @@ Before pushing:
   It brute forces every pixel of several images through `mapPoint`/`unmapPoint` and back, which
   is the only honest check for a transform whose failures (a mirrored limb, a crop from the wrong
   corner) are invisible in source and obvious in a picture.
+- **Run `sh scripts/splashsim/run.sh`** if the splash ordering or either copy table changed. It
+  compiles the shipped `SplashPicker` at source 8 and drives it, and the check that matters is
+  `neverTwiceInARow`, because a bag is correct by construction and the only repeat possible is
+  at the seam between two of them. `theFirstLineVariesByLaunch` is its companion: handing the
+  bag out before the first shuffle is still a permutation and still never repeats, so every
+  other check passes while every cold start opens on the same line. It also bounds the tables,
+  since a splash that wraps is not a splash.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

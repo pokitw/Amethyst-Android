@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import net.kdt.pojavlaunch.R
+import net.kdt.pojavlaunch.ui.common.rememberRotatingLine
 import net.kdt.pojavlaunch.ui.theme.Success70
 
 /**
@@ -81,6 +82,7 @@ import net.kdt.pojavlaunch.ui.theme.Success70
 @Composable
 fun LaunchConsole(profile: GameProfile?, progress: LaunchProgress, modifier: Modifier = Modifier) {
     val reduced = rememberReducedMotion()
+    val splash = rememberRotatingLine(R.array.splash_lines)
     val determinate = progress.percent >= 0
     val accent = MaterialTheme.colorScheme.primary
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -224,6 +226,19 @@ fun LaunchConsole(profile: GameProfile?, progress: LaunchProgress, modifier: Mod
                 }
             }
         }
+        // Below the timeline and visibly not part of it, which is the only way a joke can sit on
+        // this card at all: every line above it is the downloader's own report (§14), and a
+        // decorative line that looked like a stage would be the invented progress this card was
+        // built to refuse. It is here because a wait with nothing to read is longer than a wait
+        // with something to read, and that is worth one quiet line.
+        Spacer(Modifier.height(14.dp))
+        Text(
+            splash,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

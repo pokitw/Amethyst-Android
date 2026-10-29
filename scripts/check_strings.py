@@ -11,6 +11,7 @@ difference between a check that gets run and one that gets skipped:
 
   * FAIL on a bare ' in a string body. That is a compile error; it must be \\'.
     This is the one that actually bit, six times in one commit.
+  * FAIL on an em dash. Not aapt's rule, this project's: section 15 of the handbook.
   * WARN on several non-positional %conversions in one string. aapt warns rather
     than refusing, and thirteen strings inherited from upstream have it, so failing
     here would mean a check that is red before anybody touches anything. It is
@@ -44,7 +45,9 @@ def main():
     problems = []
     warnings = []
     checked = 0
-    for element in root:
+    # iter() rather than the root's own children: a <string-array>'s items are nested, and
+    # a bare apostrophe in one of those is the same aapt error as in any other string.
+    for element in root.iter():
         if element.tag not in ('string', 'item'):
             continue
         name = element.get('name') or '(item)'
@@ -55,6 +58,12 @@ def main():
         checked += 1
         if unescaped(text, "'"):
             problems.append(name + ': bare apostrophe, write \\\'')
+        # Section 15 has banned these in user-facing copy since it was written, and nothing
+        # enforced it. Written at the moment the count was zero, so it is green on the first
+        # run: a check a file already fails is one somebody suppresses instead of using.
+        # The en dash is deliberately allowed, "3-16 characters" being a numeric range.
+        if '\u2014' in text:
+            problems.append(name + ': em dash; a full stop, a comma or a colon says the same')
         found = CONVERSION.findall(text)
         positional = [f for f in found if f[0]]
         if len(found) > 1 and len(positional) != len(found):

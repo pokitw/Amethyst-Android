@@ -84,6 +84,7 @@ import net.kdt.pojavlaunch.recorder.RecorderPreferences;
 import net.kdt.pojavlaunch.recorder.RecorderService;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.ui.controls.ControlEditorHost;
+import net.kdt.pojavlaunch.ui.game.GameLoadingHost;
 import net.kdt.pojavlaunch.ui.game.ControlCenterCallbacks;
 import net.kdt.pojavlaunch.ui.game.ControlCenterHost;
 import net.kdt.pojavlaunch.ui.game.ControlDebugHost;
@@ -236,6 +237,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         bindService(gameServiceIntent, this, 0);
     }
 
+    private GameLoadingHost mGameLoading;
+
     protected void initLayout(int resId) {
         setContentView(resId);
         bindValues();
@@ -288,6 +291,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
 
             mControlCenter.setRecordingSummary(describeRecordingSettings());
+
+            // Up before the surface listener fires, because the black screen starts the moment
+            // the JVM is handed the window and the point of this is to cover exactly that.
+            mGameLoading = new GameLoadingHost(findViewById(R.id.game_loading), version);
+            mGameLoading.start();
 
             final String finalVersion = version;
             minecraftGLView.setSurfaceReadyListener(() -> {
@@ -491,6 +499,10 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Idempotent, and here as well as on the way out of the loading screen itself: the log
+        // listener it holds turns a native callback on for every line the game prints, and an
+        // activity that went away mid-load would otherwise leave it on for the session.
+        if (mGameLoading != null) mGameLoading.finish();
         CallbackBridge.removeGrabListener(touchpad);
         CallbackBridge.removeGrabListener(minecraftGLView);
         CallbackBridge.removeGrabListener(mTypingGrabListener);

@@ -238,8 +238,24 @@ EXTERNAL_API void pojavSetWindowHint(int hint, int value) {
     }
 }
 
+/**
+ * Frames handed to the compositor, for GameFrames.presented().
+ *
+ * Counted here and not in either bridge because both of them are reached through this one
+ * function, so "has the game drawn anything yet" has the same answer on the EGL path and on
+ * OSMesa with nothing shared between them. Plain volatile int: the only reader wants to know
+ * whether it is still zero, so a torn read of a counter that only ever grows cannot mislead it.
+ */
+static volatile int frames_presented = 0;
+
 EXTERNAL_API void pojavSwapBuffers() {
     br_swap_buffers();
+    frames_presented++;
+}
+
+JNIEXPORT jint JNICALL
+Java_net_kdt_pojavlaunch_GameFrames_nativePresented(ABI_COMPAT JNIEnv *env, ABI_COMPAT jclass clazz) {
+    return (jint) frames_presented;
 }
 
 

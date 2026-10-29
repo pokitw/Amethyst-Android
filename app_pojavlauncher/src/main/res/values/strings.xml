@@ -1551,4 +1551,65 @@
     <string name="preference_gallery_copy_all_there">All %1$d are already in your gallery</string>
     <string name="preference_gallery_copy_unavailable">Could not open that folder</string>
     <string name="preference_gallery_copy_result">%1$d copied, %2$d already there, %3$d failed</string>
+
+	<!-- Loading screens: the splash line, and the tips beside it. -->
+	<string name="loading_tip_label">Tip</string>
+	<string name="loading_starting">Starting Minecraft %1$s</string>
+	<string name="loading_waiting">The game is starting up. This is the slow part.</string>
+	<string-array name="splash_lines">
+		<item>Also try Terraria!</item>
+		<item>100% pure amethyst</item>
+		<item>Translating OpenGL, one call at a time</item>
+		<item>A real JVM, in your pocket</item>
+		<item>Now with fewer white flashes</item>
+		<item>Blocks: still square</item>
+		<item>Zink or swim</item>
+		<item>Spelunking in Android/data</item>
+		<item>Four facets, no gradients</item>
+		<item>The hotbar is down there somewhere</item>
+		<item>Loading the loading screen</item>
+		<item>Little endian, like the PCM</item>
+		<item>Still not a screen recorder</item>
+		<item>Warming up the thumbs</item>
+		<item>No neon was used in this launcher</item>
+		<item>One accent colour, used sparingly</item>
+		<item>Long press everything</item>
+		<item>Feeding the chunks</item>
+		<item>Sharpening the pickaxe</item>
+		<item>Stacking to 64</item>
+		<item>Chunky, in a good way</item>
+		<item>Herding the mobs</item>
+		<item>Diamonds live near the bottom now</item>
+		<item>Tell them it was the lag</item>
+		<item>Some assembly required</item>
+		<item>Buttons are draggable, you know</item>
+		<item>Holding the phone sideways since 2009</item>
+		<item>Counting the facets</item>
+		<item>Do not pet the creeper</item>
+		<item>gl4es, but politely</item>
+		<item>Mining the manifest</item>
+		<item>Rendering at a reasonable resolution</item>
+		<item>Thumbs at the ready</item>
+		<item>Compiling your shaders, maybe</item>
+	</string-array>
+	<string-array name="loading_tips">
+		<item>Long press any control button to open the editor for it.</item>
+		<item>Slide and hold a button to make it fire over and over.</item>
+		<item>Double tap a direction on the movement stick to keep walking that way.</item>
+		<item>The control center is the menu button, or the tab at the edge of the screen.</item>
+		<item>A recording captures the game only, so notifications never land in it.</item>
+		<item>A screenshot from the control center leaves the on-screen controls out of it.</item>
+		<item>Game files can add a mod, a world or a pack without a file manager.</item>
+		<item>The log viewer can search the session you just played.</item>
+		<item>Settings has a search box, and it scrolls to the row it finds.</item>
+		<item>Shaders need Sodium, and Sodium needs a renderer that can do OpenGL 3.3.</item>
+		<item>Your skin can be drawn and applied without leaving the launcher.</item>
+		<item>A clip can be trimmed and cut in the launcher, with no loss of quality.</item>
+		<item>Turn on the gallery copy and captures show up in your photos app.</item>
+		<item>A texture pack can give the buttons a Bedrock face.</item>
+		<item>Shrink the reachable game area if the hotbar sits outside what you can see.</item>
+		<item>Two controls bound to one key show up in the layout report.</item>
+		<item>A button can send up to four keys, in order, a set gap apart.</item>
+		<item>The editor draws a bright world behind your buttons, so you can see what reads.</item>
+	</string-array>
 </resources>

@@ -235,6 +235,18 @@
 			android:layout_height="match_parent"
 			android:visibility="gone"/>
 
+		<!--
+			The loading screen, over everything because while the game has not drawn a frame
+			there is nothing underneath worth seeing. GONE unless it is showing, like every
+			other full-screen ComposeView here: visible it sits in front of every touch the
+			game is waiting for.
+		-->
+		<androidx.compose.ui.platform.ComposeView
+			android:id="@+id/game_loading"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:visibility="gone"/>
+
 		<com.kdt.LoggerView
 			android:id="@+id/mainLoggerView"
 			android:layout_width="match_parent"
