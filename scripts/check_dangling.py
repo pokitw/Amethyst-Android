@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""A `private set` must belong to a `var`, and an orphaned one is a CI-only error.
+"""A modifier left behind by an edit attaches itself to whatever came next.
+
+Two shapes, one mistake, both of which cost a CI cycle in the same session.
 
 Written after an anchored replacement in ControlEditorState.kt consumed the line
 `var showInMenu by mutableStateOf(...)` and not the `private set` indented beneath it. The
@@ -8,10 +10,16 @@ on "A 'val' property cannot have a setter" and "Property must be initialized" th
 into CI. Nothing about the diff looked wrong: the new code was correct and the damage was to a
 line nobody had touched.
 
-That is 16.18 in a new costume. A search for `var x by mutableStateOf(` finds the declaration
-and not the accessor glued to it, so an edit anchored on what the search returned is an edit
-that silently drops half of a declaration. The general rule is to include everything
-grammatically attached to an anchor; this check is the part of that rule a script can hold.
+The second was the same thing in Java: an anchored replacement took
+`public void onClickedGameKeyboard() {` and not the `@Override` above it, so that annotation
+slid down in front of the next method, which already had one, and javac refused with
+"Override is not a repeatable annotation interface".
+
+That is 16.18 in a new costume, twice. A search for `var x by mutableStateOf(` or for a method
+signature finds the declaration and not the modifier glued above or below it, so an edit
+anchored on what the search returned silently drops half of a declaration, and the damage is to
+a line the diff never shows. The general rule is to include everything grammatically attached
+to an anchor; this check is the part of that rule a script can hold.
 """
 import os
 import re
@@ -48,11 +56,56 @@ def owner_of(lines, index):
     return None
 
 
+BLANK_OR_COMMENT = re.compile(r"^\s*(//|\*|/\*|$)")
+ANNOTATION_LINE = re.compile(r"^\s*@(\w+)\s*$")
+
+
+# Named rather than "any annotation", because some genuinely repeat and a check that is wrong
+# about one of those is a check somebody turns off.
+NOT_REPEATABLE = ("Override", "Composable", "Keep", "JvmStatic")
+
+
+def java_problems(path, lines, relative):
+    """An annotation must reach its declaration without passing a copy of itself.
+
+    A comment or a blank line between the annotation and the declaration is legal Java and is
+    also exactly what an orphan looks like, so the thing worth refusing is the duplicate the
+    compiler refuses: two of the same annotation arriving at one declaration.
+    """
+    found = []
+    for index, line in enumerate(lines):
+        match = ANNOTATION_LINE.match(line)
+        if not match or match.group(1) not in NOT_REPEATABLE:
+            continue
+        for i in range(index + 1, min(index + 12, len(lines))):
+            ahead = lines[i]
+            if BLANK_OR_COMMENT.match(ahead):
+                continue
+            name = match.group(1)
+            second = ANNOTATION_LINE.match(ahead)
+            if second and second.group(1) == name:
+                found.append(
+                    "%s:%d a second @%s reaches the same declaration. One of them was left "
+                    "behind by an edit that took a declaration and not the annotation above "
+                    "it." % (relative, index + 1, name))
+            elif ahead.strip().startswith("@" + name + " "):
+                found.append(
+                    "%s:%d @%s is followed by a declaration that already carries one"
+                    % (relative, index + 1, name))
+            break
+    return found
+
+
 def main():
     problems = []
     checked = 0
     for folder, _dirs, files in os.walk(SRC):
         for name in sorted(files):
+            path = os.path.join(folder, name)
+            if not name.endswith(".java") and not name.endswith(".kt"):
+                continue
+            lines = open(path, encoding="utf-8").read().split("\n")
+            problems.extend(java_problems(path, lines, os.path.relpath(path, ROOT)))
             if not name.endswith(".kt"):
                 continue
             path = os.path.join(folder, name)
@@ -84,7 +137,7 @@ def main():
         print("FAIL " + problem)
     if problems:
         sys.exit(1)
-    print("ok: %d property accessor(s), every one on a property that can have it" % checked)
+    print("ok: %d Kotlin accessor(s) placed, and no stranded @Override" % checked)
 
 
 main()

@@ -1003,7 +1003,6 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mControlCenter.open();
     }
 
-    @Override
     /* The control center's actions, from a button. Each routes to the method the sheet uses,
      * which already closes the sheet first and is harmless when it was never open. */
 
@@ -1032,6 +1031,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         mControlLayout.openPageDialog(this, index);
     }
 
+    @Override
     public void onClickedGameKeyboard() {
         // Closed rather than left underneath: the keyboard is a shortcut past the control center,
         // so having pressed it there is no reason for the sheet to still be there afterwards.

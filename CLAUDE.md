@@ -2364,11 +2364,16 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     property cannot have a setter" and "Property must be initialized". **The damage was to a
     line nobody had touched and the diff showed nothing wrong**: the new code was correct, and
     what broke was a property three lines above it.
-    This is §16.18 in a new costume. A search for `var \w+ by mutableStateOf(` returns the
-    declaration and not the accessor glued to it, so an edit anchored on what the search
-    returned drops half a declaration. `scripts/check_kotlin_accessors.py` holds the part of
-    that a script can: a bare `set` must sit under a `var`, walking up through the continuation
-    lines of a multi-line declaration rather than reading the closing bracket as its owner.
+    **It then happened again in Java, in the same session.** An anchored replacement took
+    `public void onClickedGameKeyboard() {` and not the `@Override` above it, so the annotation
+    slid down in front of the next method, which already had one, and javac refused with
+    "Override is not a repeatable annotation interface" two commits later.
+    This is §16.18 in a new costume, twice. A search for `var \w+ by mutableStateOf(` or for a
+    method signature returns the declaration and not the modifier glued above or below it, so
+    an edit anchored on what the search returned drops half a declaration, and **the damage is
+    always to a line the diff does not show**. `scripts/check_dangling.py` holds the part a
+    script can: a bare `set` must sit under a `var`, and a non-repeatable annotation must reach
+    its declaration without passing a copy of itself.
 
 39. **A build whose log you cannot read is not a feedback loop.** Three cycles went into two
     one-line Kotlin errors, because this container cannot reach the blob host a job's log is
@@ -3296,10 +3301,11 @@ Before pushing:
   change in this codebase that can corrupt every layout anybody has saved without producing an
   error anywhere. It asserts `getSpecialButtons()` is in `-(index + 1)` order, that nothing is
   declared and left out of the array, and that nothing is listed twice.
-- **Run `python3 scripts/check_kotlin_accessors.py`** after editing a Kotlin class full of
-  `var x by mutableStateOf(...)`, which here means the editor state holders. It asserts a bare
-  `set` sits under a `var`, which is the damage an anchored edit does when it consumes a
-  declaration and leaves the accessor beneath it behind (§16.38).
+- **Run `python3 scripts/check_dangling.py`** after any edit anchored on a declaration line,
+  which is most of them. It catches the two shapes of modifier an anchored replacement strands:
+  a bare `set` that no longer sits under a `var`, and a non-repeatable annotation that reaches
+  a declaration already carrying one. Both are compile errors whose damage is to a line the
+  diff does not show (§16.38).
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release
