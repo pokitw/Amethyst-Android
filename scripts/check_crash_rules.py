@@ -20,6 +20,16 @@ KOTLIN = ROOT / (
 
 # (name, expected_rule_id_or_None, log_excerpt)
 FIXTURES = [
+    # The launcher's own line, written by JREUtils.loadGraphicsLibrary when the chosen renderer
+    # will not dlopen. The EGL noise underneath it is deliberate: it is what a real log from this
+    # path looks like, and it is exactly what the generic "renderer" rule matches, so this fixture
+    # is the one that proves the specific verdict wins. Without the ordering the player is told to
+    # try another renderer, which is the one thing that cannot help them.
+    ("renderer_fallback_wins_over_generic", "renderer_fallback",
+     "Amethyst-Android: renderer fallback: opengles_mobileglues could not be loaded on this "
+     "device (libmobileglues.so), the game is running on gl4es instead\n"
+     "[00:00:02] [Render thread/ERROR]: eglMakeCurrent failed\n"
+     "GLFW error 65542: EGL: Failed to create context\n"),
     ("heap_oom", "memory",
      "java.lang.OutOfMemoryError: Java heap space\n"
      "\tat net.minecraft.class_2818.<init>(class_2818.java:112)\n"),

@@ -1344,6 +1344,9 @@
     <string name="crash_mod_broken_explanation">A mod tried to hook into game code that isn\'t there, usually because it was built for a different Minecraft or loader version.</string>
     <string name="crash_mod_broken_advice">Update or remove the mod named in the log line below. After changing Minecraft versions, every mod needs a matching build.</string>
 
+	<string name="crash_renderer_fallback_title">The renderer could not be loaded</string>
+	<string name="crash_renderer_fallback_explanation">The renderer this profile asked for would not load on this device, so the game ran on gl4es instead. gl4es is the oldest and most compatible translator, and it is well below what recent Minecraft versions need, which is why the screen stayed black. This is also why changing the renderer appeared to make no difference: whichever one you picked, the game was still running on gl4es.</string>
+	<string name="crash_renderer_fallback_advice">The log line above names the renderer that failed to load. On an Adreno GPU, Zink is the one to try next; on anything else, MobileGlues. If the same line comes back for every renderer, no renderer in this build loads on this device, and that log line is the thing worth reporting.</string>
     <string name="crash_renderer_title">The graphics driver failed</string>
     <string name="crash_renderer_explanation">The renderer couldn\'t create or keep an OpenGL context on this device.</string>
     <string name="crash_renderer_advice">Pick a different Renderer in Settings → Performance. It\'s saved per profile, so trying each one is safe.</string>

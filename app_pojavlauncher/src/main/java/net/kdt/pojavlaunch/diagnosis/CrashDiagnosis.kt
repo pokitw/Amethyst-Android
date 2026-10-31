@@ -97,6 +97,19 @@ object CrashDiagnosis {
             R.string.crash_memory_native_title, R.string.crash_memory_native_explanation,
             R.string.crash_memory_native_advice
         ),
+        // Before the general renderer rule, and this is the one case where the order genuinely
+        // matters rather than merely being tidy: a fallback produces the same EGL and GL noise
+        // further down that the rule below matches, so the generic verdict would win and its
+        // advice is "try another renderer", which is exactly the thing that cannot work here.
+        // The marker is the launcher's own line from JREUtils.loadGraphicsLibrary, so it can
+        // never appear in a log for any other reason.
+        Rule(
+            "renderer_fallback",
+            "renderer fallback:",
+            R.string.crash_renderer_fallback_title,
+            R.string.crash_renderer_fallback_explanation,
+            R.string.crash_renderer_fallback_advice
+        ),
         Rule(
             "renderer",
             "eglMakeCurrent|EGL_BAD|Could not create context|does not appear to support OpenGL|GLFW error|libGL error",

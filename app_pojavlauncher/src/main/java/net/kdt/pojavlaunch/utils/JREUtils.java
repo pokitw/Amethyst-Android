@@ -547,6 +547,18 @@ public class JREUtils {
 
         if (!dlopen(renderLibrary) && !dlopen(findInLdLibPath(renderLibrary))) {
             Log.e("RENDER_LIBRARY","Failed to load renderer " + renderLibrary + ". Falling back to Krypton Wrapper");
+            // And into the log the player can read, because logcat is not that and this
+            // substitution is otherwise completely silent. Three things make it worth a line of
+            // its own. It happens *after* Tools.printLauncherInfo has already written the
+            // renderer into the header, so every bug report from this path names a renderer the
+            // game never used. gl4es is two whole GL versions below what a modern Minecraft
+            // asks for, so the result is a black screen and a crash rather than a slower game.
+            // And it fires for whichever renderer was chosen, so changing the setting changes
+            // nothing: the player tries all of them, gets the same crash each time, and nothing
+            // anywhere tells them their choice is not being honoured.
+            Logger.appendToLog("Amethyst-Android: renderer fallback: " + LOCAL_RENDERER
+                    + " could not be loaded on this device (" + renderLibrary
+                    + "), the game is running on gl4es instead");
             LOCAL_RENDERER = "opengles2";
             renderLibrary = "libng_gl4es.so";
             dlopen(NATIVE_LIB_DIR + "/libng_gl4es.so");

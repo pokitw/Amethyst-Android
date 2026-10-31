@@ -1786,6 +1786,32 @@ re-litigated. The reasoning lives in the commit that made the change.
   It is **prose in settings rows**, not a document: same ground, same search index, no second
   vocabulary. It gets **no comparison row**, because honesty is not a capability.
 
+- **The renderer that was not the renderer** (`JREUtils.loadGraphicsLibrary` + the
+  `renderer_fallback` crash rule) — reported as a new Minecraft version crashing to a black
+  screen, and "it blames all renderers that I select", which is the half that solved it.
+  **`loadGraphicsLibrary` silently substitutes gl4es when the chosen renderer will not dlopen.**
+  As a last resort that is reasonable. As a silence it is the worst kind this launcher has.
+  Three things compound: it happens *after* `Tools.printLauncherInfo` has written the renderer
+  into the log header, so every bug report from this path **names a renderer the game never
+  used**; gl4es is two whole GL versions below what a recent Minecraft asks for, so the result is
+  a black screen and a crash rather than a slower game; and it fires for whichever renderer was
+  picked, so the player changes the setting, gets the identical crash, and concludes the launcher
+  is blaming the renderer. The only trace was a `Log.e` to logcat, which a player cannot see and
+  a shared log does not contain.
+  **The fix is a line in the log, not a change of behaviour.** 16.19's lesson, applied before
+  rather than after: a failure that cannot be reproduced here is worth the code that makes it
+  explain itself. The fallback now writes its own line through `Logger.appendToLog`, which is the
+  file the in-app viewer reads and a share sends.
+  **The crash rule for it is declared before the general renderer rule**, and that order is load
+  bearing rather than tidy: a fallback leaves the same EGL and GLFW noise further down that the
+  generic rule matches, and the generic rule's advice is "try another renderer", which is exactly
+  the thing that cannot work when the renderer is being swapped out from under them.
+  `check_crash_rules.py`'s fixture carries the marker line *and* that noise, so it fails if the
+  order is reversed.
+  **One marker, two files, and a check that they agree.** The launcher writes `renderer
+  fallback:` and the crash screen matches on it; `check_renderer_env.py` asserts the fallback
+  still reports itself and that the two spellings are the same, because a rename on either side
+  alone is a line written and never read, with nothing in the build to see it.
 - **Taking what is worth taking from upstream** (`scripts/check_renderer_env.py`,
   `check_log_formats.py`, `check_ported_fixes.py`) — 21 commits landed upstream between
   2026-08-27 and 2026-09-22, all by one maintainer, and nothing since. Five were ported, three
@@ -2527,6 +2553,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     a rule tested against the wrong input.** The check that would have caught it existed and was
     asserting the old behaviour, so inverting it was the first step of the fix rather than an
     afterthought: a harness disagreeing with a correction is a harness doing its job.
+
+41. **A silent fallback makes every setting above it a lie.** The renderer picker offers four
+    choices; `loadGraphicsLibrary` quietly replaced any of them with gl4es when the library would
+    not load, and said so only to logcat. The player's experience is a setting that does nothing:
+    they try all four, get the same black screen, and reasonably conclude the launcher is blaming
+    the renderer for something else. Worse for anyone trying to help them, the log header had
+    already recorded the renderer they *chose*, so the one artefact a bug report carries named a
+    renderer the game never ran.
+    The general form is worth the lookout: **a fallback that changes what a setting means has to
+    report itself in the same place the setting is reported**, and "the same place" means the
+    artefact a user can actually hand over, not a log stream only a developer attached to the
+    device can read. The tell in a report is a setting the user says they changed with no effect,
+    which is the shape that points at a value being overridden rather than at the value being
+    wrong.
+    It also stacks with 16.28: a verdict about a layer has to name what it is standing on, and
+    here the launcher was standing on a different layer than the one it named.
 
 ---
 
@@ -3420,6 +3462,11 @@ Before pushing:
   `loadGraphicsLibrary`, since that ordering is what makes one line enough, and that the FSR
   picker is gone from all five places it lived: the value array was inverted (0,4,3,2,1), so a
   half removal mis-maps quality levels rather than failing.
+  It also owns the **renderer fallback**, which is structural and says so: nothing there loads a
+  library or starts a game. What it asserts is that the fallback still writes its own line to the
+  game log, and that the marker it writes is the marker the `renderer_fallback` crash rule reads.
+  Those are two files holding one definition, and a rename on either side alone is a line written
+  and never read.
 - **Run `python3 scripts/check_log_formats.py`** if anything under `jni/` logs. It counts printf
   conversions against arguments in every LOG call, which is the class of bug `sdl_hook.c` shipped:
   two `%p` and one argument, reading an uninitialised vararg slot at every launch. `-Wformat`

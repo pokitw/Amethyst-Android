@@ -134,6 +134,50 @@ def main():
               "(0,4,3,2,1), so a partial removal mis-maps quality levels rather than failing."
               % (where, token, path.name))
 
+    # ------------------------------------------------------------------ renderer fallback
+    #
+    # loadGraphicsLibrary silently substitutes gl4es when the chosen renderer will not dlopen.
+    # That is a reasonable last resort and a terrible silence: it happens after the log header has
+    # already named the renderer the player chose, so every bug report from this path names a
+    # renderer the game never used, and because it fires for whichever renderer was picked, the
+    # player changes the setting, gets the same crash, and has nothing to go on.
+    #
+    # Structural, and said plainly: nothing here loads a library or starts a game. What it asserts
+    # is that the fallback still reports itself, and that the marker it writes is the marker the
+    # crash rule reads. Those are two files, and one definition split across two files that must
+    # agree is the drift this check exists to prevent.
+    jre = (ROOT / "app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/utils/"
+                  "JREUtils.java").read_text(encoding="utf-8")
+    diagnosis = (ROOT / "app_pojavlauncher/src/main/java/net/kdt/pojavlaunch/diagnosis/"
+                        "CrashDiagnosis.kt").read_text(encoding="utf-8")
+
+    MARKER = "renderer fallback:"
+    fallback = re.search(
+        r'if \(!dlopen\(renderLibrary\).*?LOCAL_RENDERER = "opengles2";', jre, re.S)
+    check(fallback is not None,
+          "the renderer fallback in loadGraphicsLibrary has moved or gone; this check cannot see "
+          "whether it still reports itself")
+    if fallback is not None:
+        check("Logger.appendToLog" in fallback.group(0),
+              "the renderer fallback no longer writes to the game log, so a player whose chosen "
+              "renderer will not load gets a black screen and a crash with nothing anywhere "
+              "saying their choice was not honoured")
+        check(MARKER in fallback.group(0),
+              "the renderer fallback's log line no longer carries the %r marker the crash rule "
+              "matches on" % MARKER)
+
+    check('"%s"' % MARKER in diagnosis,
+          "the renderer_fallback crash rule no longer matches %r, so the launcher writes the line "
+          "and the crash screen cannot read it" % MARKER)
+    # And the specific verdict has to come first: a fallback leaves the same EGL noise further
+    # down that the generic renderer rule matches, and that rule's advice is "try another
+    # renderer", which is the one thing that cannot help here.
+    specific = diagnosis.find('"renderer_fallback"')
+    generic = diagnosis.find('"renderer"', 0 if specific < 0 else specific + 1)
+    check(specific >= 0 and generic > specific,
+          "the renderer_fallback rule must be declared before the generic renderer rule, or the "
+          "generic verdict wins and tells the player to try the thing that cannot work")
+
     print("%d checks" % checks)
     for failure in failures:
         print("FAIL: " + failure)
