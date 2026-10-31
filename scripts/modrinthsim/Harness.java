@@ -4,6 +4,7 @@
 package net.kdt.pojavlaunch.modloaders.modpacks.api;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import net.kdt.pojavlaunch.utils.DownloadUtils;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Drives the shipped Modrinth parsing against fixtures.
@@ -155,6 +157,7 @@ public class Harness {
         check(ModInstall.safeName("sodium-fabric-1.0.jar").equals("sodium-fabric-1.0.jar"),
                 "an ordinary name should be left alone");
 
+        hashLookupChecks();
         progressChecks();
 
         System.out.println("checked " + files.size() + " parsed versions, "
@@ -179,6 +182,50 @@ public class Harness {
      * at the real total rather than stopping short of it, because a throttle that drops the
      * last partial step leaves a bar that never fills.
      */
+    /**
+     * The hash lookup's response, which is the one shape that is keyed rather than listed.
+     *
+     * Two things are worth checking and neither is the happy path. The key has to come back
+     * <b>lower cased</b>, because the caller looks a local file's own hash up in this map and hex
+     * arrives in whichever case a server chose; and an entry whose version will not parse has to
+     * be <b>left out</b> rather than returned half-built, because absent means "identify this jar
+     * the slow way" and a half-built entry would mean "install this".
+     */
+    private static void hashLookupChecks() {
+        JsonObject response = new JsonObject();
+        JsonObject version = new JsonObject();
+        version.addProperty("id", "vABC");
+        version.addProperty("project_id", "pSODIUM");
+        version.addProperty("version_number", "0.5.8");
+        version.addProperty("version_type", "release");
+        JsonArray files = new JsonArray();
+        JsonObject file = new JsonObject();
+        file.addProperty("url", "https://cdn.modrinth.com/sodium-0.5.8.jar");
+        file.addProperty("filename", "sodium-0.5.8.jar");
+        file.addProperty("primary", true);
+        file.addProperty("size", 900);
+        JsonObject hashes = new JsonObject();
+        hashes.addProperty("sha1", "2222222222222222222222222222222222222222");
+        file.add("hashes", hashes);
+        files.add(file);
+        version.add("files", files);
+        // Modrinth keys the response by the hash that was asked about, and nothing promises the
+        // case it comes back in.
+        response.add("AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111", version);
+
+        // An entry with no files at all: a version this parser cannot use.
+        response.add("BBBB2222BBBB2222BBBB2222BBBB2222BBBB2222", new JsonObject());
+
+        Map<String, ModrinthMods.File> found = ModrinthMods.parseHashLookup(response);
+        check(found.size() == 1, "expected one usable entry, got " + found.size());
+        check(found.containsKey("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"),
+                "the key was not lower cased, so no local hash will ever find it: " + found.keySet());
+        ModrinthMods.File hit = found.get("aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111");
+        check(hit != null && "pSODIUM".equals(hit.projectId),
+                "the project the file belongs to was lost");
+        check(ModrinthMods.parseHashLookup(null).isEmpty(), "a null response was not empty");
+    }
+
     private static void progressChecks() throws Exception {
         java.io.File folder = java.nio.file.Files.createTempDirectory("modinstall").toFile();
         folder.deleteOnExit();

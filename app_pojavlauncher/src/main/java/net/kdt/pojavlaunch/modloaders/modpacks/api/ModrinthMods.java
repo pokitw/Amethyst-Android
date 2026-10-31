@@ -90,6 +90,19 @@ public final class ModrinthMods {
      */
     @Nullable
     private static String fetch(@NonNull String url) {
+        return fetch(url, null);
+    }
+
+    /**
+     * As above, POSTing a JSON body when there is one.
+     *
+     * The body is threaded through the one method rather than given a copy of its own, because
+     * what is worth sharing is not the connection setup but the <b>failure mapping</b>: a 429 is a
+     * rate limit, anything else outside 2xx is a server fault and a throw is being offline, and
+     * two copies of that would drift the first time one of them was corrected.
+     */
+    @Nullable
+    private static String fetch(@NonNull String url, @Nullable String body) {
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) new URL(url).openConnection();
@@ -97,6 +110,16 @@ public final class ModrinthMods {
             connection.setReadTimeout(TIMEOUT_MS);
             connection.setRequestProperty("User-Agent", USER_AGENT);
             connection.setRequestProperty("Accept", "application/json");
+            if (body != null) {
+                connection.setRequestMethod("POST");
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", "application/json");
+                byte[] bytes = body.getBytes("UTF-8");
+                connection.setFixedLengthStreamingMode(bytes.length);
+                try (java.io.OutputStream output = connection.getOutputStream()) {
+                    output.write(bytes);
+                }
+            }
             int code = connection.getResponseCode();
             if (code == 429) {
                 lastFailure = Failure.RATE_LIMITED;
@@ -122,7 +145,16 @@ public final class ModrinthMods {
 
     @Nullable
     private static JsonElement getJson(@NonNull String url) {
-        String body = fetch(url);
+        return parse(fetch(url), url);
+    }
+
+    @Nullable
+    private static JsonElement postJson(@NonNull String url, @NonNull String requestBody) {
+        return parse(fetch(url, requestBody), url);
+    }
+
+    @Nullable
+    private static JsonElement parse(@Nullable String body, @NonNull String url) {
         if (body == null) return null;
         try {
             return JsonParser.parseString(body);
@@ -433,6 +465,82 @@ public final class ModrinthMods {
                 withQuery(BASE + "/project/" + projectId + "/version", params));
         return parseVersions(response != null && response.isJsonArray()
                 ? response.getAsJsonArray() : null);
+    }
+
+    /**
+     * How many hashes go in one request.
+     *
+     * Modrinth takes a list and the whole point of the endpoint is to send one, but a folder can
+     * hold hundreds of jars and a request body nobody has bounded is a request that fails on
+     * exactly the folders this feature exists for. Batched, so a large folder is a handful of
+     * requests rather than one that may be refused.
+     */
+    private static final int HASH_BATCH = 100;
+
+    /**
+     * Which Modrinth version each of these files is, by sha1.
+     *
+     * The <b>fast path</b> for working out what a folder of jars actually is: one request answers
+     * for a hundred of them, against one search and one version list per jar otherwise. A file's
+     * hash is an exact identity, which is what makes this worth having at all, and the response is
+     * keyed by the hash that was sent, so nothing here has to compare anything.
+     *
+     * <p>It is written as an optimisation and not as a dependency, deliberately. This endpoint
+     * cannot be exercised from the build container at all, like the rest of this client
+     * (§17), so a missing or renamed path has to degrade rather than take the feature with it:
+     * every hash it does not answer for is one the caller identifies the slow way, through the
+     * search and version-list calls the mod browser has been using all along. Being wrong here
+     * costs requests, not correctness.
+     *
+     * @param sha1s the local files' hashes, in any case
+     * @return hash (lower case) to the version that file belongs to; absent where unknown
+     */
+    @NonNull
+    public static Map<String, File> versionsByHash(@Nullable List<String> sha1s) {
+        Map<String, File> found = new HashMap<>();
+        if (sha1s == null || sha1s.isEmpty()) return found;
+
+        List<String> batch = new ArrayList<>();
+        for (String sha1 : sha1s) {
+            if (!isSet(sha1)) continue;
+            batch.add(sha1.trim().toLowerCase(Locale.ROOT));
+            if (batch.size() >= HASH_BATCH) {
+                found.putAll(lookUpHashes(batch));
+                batch = new ArrayList<>();
+            }
+        }
+        if (!batch.isEmpty()) found.putAll(lookUpHashes(batch));
+        return found;
+    }
+
+    @NonNull
+    private static Map<String, File> lookUpHashes(@NonNull List<String> batch) {
+        JsonArray hashes = new JsonArray();
+        for (String sha1 : batch) hashes.add(sha1);
+        JsonObject body = new JsonObject();
+        body.add("hashes", hashes);
+        body.addProperty("algorithm", "sha1");
+
+        JsonElement response = postJson(BASE + "/version_files", body.toString());
+        return parseHashLookup(GsonJsonUtils.getJsonObjectSafe(response));
+    }
+
+    /**
+     * Parse a hash lookup's response. Split out so the fixture harness can drive it.
+     *
+     * The keys are the hashes that were asked about and the values are whole version objects, so
+     * the existing version parser does the work; a key whose value will not parse is simply left
+     * out, which puts that jar on the slow path rather than giving it a wrong answer.
+     */
+    @NonNull
+    static Map<String, File> parseHashLookup(@Nullable JsonObject response) {
+        Map<String, File> found = new HashMap<>();
+        if (response == null) return found;
+        for (Map.Entry<String, JsonElement> entry : response.entrySet()) {
+            File file = parseVersion(GsonJsonUtils.getJsonObjectSafe(entry.getValue()));
+            if (file != null) found.put(entry.getKey().toLowerCase(Locale.ROOT), file);
+        }
+        return found;
     }
 
     /** One exact version, for a dependency that named the version rather than the project. */

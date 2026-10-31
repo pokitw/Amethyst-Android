@@ -909,6 +909,34 @@
     </plurals>
     <string name="content_mod_problems_action">Turn them off</string>
     <string name="content_mod_problems_hint">Turning one off keeps the file, so you can put it back. Where there are two copies of the same mod, the newest is kept on.</string>
+    <string name="content_mod_problems_move">Move them to this version</string>
+    <string name="content_migrate_title">Move mods to %1$s</string>
+    <string name="content_migrate_hint">Every jar is matched to the exact file it came from, then the same mod is fetched for this version. Nothing is written until you tap Move.</string>
+    <string name="content_migrate_shared">This profile and the one these mods came from read the same folder, so only one version can be set up at a time. The old files are switched off rather than deleted, and you can switch them back on from this screen.</string>
+    <string name="content_migrate_checking">Checking %1$d of %2$d</string>
+    <string name="content_migrate_getting">Getting %1$s</string>
+    <string name="content_migrate_section_move">Moving</string>
+    <string name="content_migrate_section_already">Already on this version</string>
+    <string name="content_migrate_section_none">No build for this version</string>
+    <string name="content_migrate_section_unknown">Could not be identified</string>
+    <string name="content_migrate_change">%1$s to %2$s</string>
+    <string name="content_migrate_already_value">Already built for %1$s</string>
+    <string name="content_migrate_none_value">Newest build is %1$s</string>
+    <string name="content_migrate_none_unknown">Nothing published for %1$s</string>
+    <string name="content_migrate_unknown_value">No matching file on Modrinth</string>
+    <string name="content_migrate_unknown_hint">Left exactly as they are. A jar built by hand, or from anywhere other than Modrinth, cannot be matched to a project, so nothing is guessed about it.</string>
+    <plurals name="content_migrate_action">
+        <item quantity="one">Move %1$d mod</item>
+        <item quantity="other">Move %1$d mods</item>
+    </plurals>
+    <string name="content_migrate_nothing">Nothing to move</string>
+    <string name="content_migrate_empty">Nothing here could be matched to a build for this version.</string>
+    <plurals name="content_migrate_done">
+        <item quantity="one">%1$d mod moved</item>
+        <item quantity="other">%1$d mods moved</item>
+    </plurals>
+    <string name="content_migrate_some_failed">%1$d could not be downloaded</string>
+    <string name="content_migrate_offline">Modrinth could not be reached, so nothing was changed.</string>
     <plurals name="content_mod_turned_off">
         <item quantity="one">%1$d mod turned off</item>
         <item quantity="other">%1$d mods turned off</item>
