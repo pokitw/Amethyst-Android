@@ -65,8 +65,22 @@ private val LOADERS = listOf(
  * which is not a Minecraft version, has never existed, and would have filtered every NeoForge
  * profile's search down to nothing while looking like it was working. The id is split into
  * segments by the format each loader writes and each candidate segment is matched whole.
+ *
+ * <b>The leading major number is not pinned to 1.</b> It was, and that is an assumption about
+ * Mojang's naming held in a regex with nothing checking it: a profile on a version numbered any
+ * other way read as having no Minecraft version at all, which silently switches off the mod
+ * browser's version filter, the mod compatibility check and anything else built on this. The
+ * failure is quiet by design (a null means "do not filter" rather than "filter wrongly"), which
+ * is exactly why it would not have been noticed. Anchoring is what keeps this safe without
+ * knowing the scheme: a candidate has to be a dotted version in its entirety, so a build number
+ * like "1614" or "47" is still not one.
+ *
+ * A leading `0.` is refused, because the one id shape that could offer one is a Fabric id whose
+ * trailing Minecraft version is missing, where the loader version would be read as the game's.
+ * Minecraft has never had a 0.x release: everything before 1.0 is named (`b1.7.3`, `a1.2.6`,
+ * `rd-132211`, `inf-20100618`) and matches nothing here either way.
  */
-private val MC_VERSION = Regex("""1\.\d{1,2}(\.\d{1,2})?""")
+private val MC_VERSION = Regex("""(?!0\.)\d{1,4}(\.\d{1,3}){1,2}""")
 
 /**
  * Read on the main thread, like every other reader of [LauncherProfiles] (see handbook, 12.7):

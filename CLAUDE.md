@@ -2889,6 +2889,11 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - The mod check is **the mod's own word for itself**, so a jar tagged wrongly is judged wrongly and
   a jar that declares nothing is not judged at all. It reads what four metadata formats state; it
   cannot run the mod.
+- The Minecraft version is read from the profile's version id by **shape, not from a list**, so a
+  version numbered in a way the matcher does not recognise reads as no version at all. That is the
+  safe direction (a null means the filter is not applied rather than applied wrongly) and it is
+  silent, which is what made the old `1.`-only pattern worth a check: every feature built on
+  `ModTarget` goes quiet together and none of them says why.
 - It says nothing about **snapshots and pre-releases**. `ModTarget` only recognises plain releases,
   and `VersionPredicate` refuses to order a version with a suffix, so a snapshot profile checks
   nothing rather than condemning everything. That is the safe direction and it does mean the
@@ -3330,6 +3335,16 @@ Before pushing:
   shipped `GameViewport` and sweeps every percent and anchor across six real panels. The check
   that matters most is that **100% is byte-for-byte the full screen**, because every player who
   never opens the setting depends on that and a rounding error there would ship to all of them.
+- **Run `python3 scripts/check_mc_versions.py`** if the Minecraft version matcher in
+  `ui/mods/ModTarget.kt` changed. The pattern is pulled out of the shipped Kotlin and re-run in
+  Python, which is `check_crash_rules.py`'s idiom and is safe here because the regex subset is
+  shared and there is no arithmetic to inherit (16.26). It used to require a leading `1.`, which
+  is an assumption about Mojang's naming held in a regex with nothing checking it; the widening
+  rests on two things upstream of the matcher, so the check asserts those as well as the accept
+  and reject sets: NeoForge ids must still never reach the matcher (every one of them carries a
+  dotted build number that now looks exactly like a version), and the match must stay
+  whole-segment. The mutation that matters is restoring the old pattern, which *is* the shipped
+  bug.
 - **Run `python3 scripts/check_joystick_directions.py`** if auto-walk's tap-to-direction geometry
   changed. It checks the eight compass points, the dead zone's boundary, and a tolerance band
   around each cardinal rather than only its exact centre, because a formula that drops the
