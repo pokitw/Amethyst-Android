@@ -1786,6 +1786,48 @@ re-litigated. The reasoning lives in the commit that made the change.
   It is **prose in settings rows**, not a document: same ground, same search index, no second
   vocabulary. It gets **no comparison row**, because honesty is not a capability.
 
+- **Moving a mod set to another version** (`modmigrate/ModMigration.java` +
+  `ui/content/ModMigrateRunner.kt` + `ModMigrateSheet.kt`) — the mods a profile runs on one
+  Minecraft version, fetched for another, from the card that already says they will not load.
+  **Identity is proved by hash and never inferred from a name**, which is the whole feature.
+  Modrinth reports a sha1 for every file it serves and this client already parses it, so a local
+  jar whose hash appears among a candidate project's versions *came from* that project. The mod
+  browser's "already installed" tick is a guess for a reason that does not apply here (its search
+  response carries no file name), and the two must not be confused: a jar that cannot be proved is
+  reported as unidentified and offered to a search, never installed. That is the mod checker's
+  "UNKNOWN never CONFLICTS" applied to writing files, and the asymmetry is the same, only worse:
+  a missed migration leaves somebody where they already were, and a wrong one puts a mod they
+  never chose in their folder under a name they will later trust.
+  **Running it twice has to be a no-op**, and that is the check the harness is built around. After
+  a move the jar on disk *is* one of the target's own builds, so a second run that did not notice
+  would re-download everything and disable what the first run installed: the setup is destroyed
+  rather than merely not improved. `migratesim` asserts it by replanning with the installed file
+  standing in for the local one, which is exactly the state the folder is then in.
+  **Two profiles share one mods folder**, because a null `gameDir` resolves to the one shared
+  game directory and that is every profile the loader installer makes. So this is not a copy and
+  cannot leave both versions working: it switches the set, and the old jars are **switched off
+  rather than deleted**, using the `.disabled` suffix the mod checker and the duplicate check
+  already model as absent from the game and present on disk. The sheet says so in a sentence,
+  because nobody would guess it.
+  **Install, then disable, and only when the names differ.** The order is not interchangeable: a
+  download that fails must leave the player where they started rather than with a folder missing a
+  mod. And where the target's file carries the same name, the download has already replaced it, so
+  disabling by that name afterwards would rename the jar that had just been installed and take the
+  mod out of the game. That is the one failure this cannot have, so `disablesOld` is in the planner
+  and is swept.
+  **A release is preferred even over a newer prerelease**, because somebody moving a working set is
+  asking for it to keep working; only a project with nothing stable for the target offers its
+  newest beta, and the row says which.
+  **The bulk hash lookup is an optimisation, not a dependency.** One request answers for a hundred
+  jars against a search and a version list each otherwise, but it cannot be exercised from the
+  build container any more than the rest of this client can, so every hash it does not answer for
+  falls through to the search-then-prove route the mod browser has always used. Being wrong about
+  that endpoint costs requests rather than correctness, which is the only honest way to use an
+  unrunnable call (16.23).
+  **It lives on the "will not load" card** rather than in a screen of its own, and that placement
+  is the design: the card appears exactly when the mods in the folder are for another version,
+  which is exactly when this is the answer. It is offered **first**, above "turn them off", because
+  it is the fix somebody wants and turning them off is what they settle for.
 - **The renderer that was not the renderer** (`JREUtils.loadGraphicsLibrary` + the
   `renderer_fallback` crash rule) — reported as a new Minecraft version crashing to a black
   screen, and "it blames all renderers that I select", which is the half that solved it.
@@ -3151,6 +3193,20 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - **A rename changes the folder as well, and the two can still disagree.** The name in
   `level.dat` is what Minecraft shows and is what the rename succeeds or fails on; the folder
   follows unless something is already using that name, in which case it is left as it was.
+- Moving a mod set **only moves what Modrinth served**. A jar built by hand, taken from
+  CurseForge, or from anywhere whose bytes Modrinth does not have is reported as unidentified and
+  left alone, because the only exact identity a jar has is its hash. A player who installed a
+  non-primary file of a version (a sources jar beside the mod) is in the same position.
+- It is offered **only from the "will not load" card**, so a folder whose mods all claim to
+  support the new version has no offer even when newer builds exist. That is "update my mods",
+  which is a different question from "move them to another version" and is not built.
+- The plan costs **a request or two per mod** on the slow path, and Modrinth rate limits per IP.
+  A folder of hundreds of jars that the bulk hash lookup cannot answer for may be reported as
+  rate limited part way through, which shows as rows that could not be identified rather than as
+  a failure.
+- **Dependencies come from the installer, not the plan.** `ModInstall` walks each moved mod's
+  required dependencies at the target version, so Fabric API arrives at the right one; the plan
+  does not list them in advance, because what is coming is not known until the graph is walked.
 - The duplicate mod check reads **declared mod ids only**. A jar whose metadata will not parse
   is not compared against anything, two versions of a mod that declares different ids in each
   are not a duplicate, and a `.disabled` copy is not counted, because it is not in the game.
@@ -3377,6 +3433,14 @@ Before pushing:
   shipped `GameViewport` and sweeps every percent and anchor across six real panels. The check
   that matters most is that **100% is byte-for-byte the full screen**, because every player who
   never opens the setting depends on that and a rounding error there would ship to all of them.
+- **Run `sh scripts/migratesim/run.sh`** if anything about moving a mod set between Minecraft
+  versions changed. It compiles the shipped `ModMigration` at source 8 and drives it; neither
+  failure it guards against is visible, since a wrong identity installs a mod nobody chose
+  cleanly and a wrong disable takes a working mod out of the game and reads as the new version
+  having broken it. `runningItTwiceChangesNothing` is the keystone and the mutation that matters:
+  dropping the already-on-this-version check makes a second run re-download everything and
+  disable what the first run installed. Eight mutations fail it, including both disable guards
+  and identity falling back to a name.
 - **Run `python3 scripts/check_mc_versions.py`** if the Minecraft version matcher in
   `ui/mods/ModTarget.kt` changed. The pattern is pulled out of the shipped Kotlin and re-run in
   Python, which is `check_crash_rules.py`'s idiom and is safe here because the regex subset is

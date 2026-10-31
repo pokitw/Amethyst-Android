@@ -15,7 +15,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.kdt.pojavlaunch.modmigrate.ModMigration
 import net.kdt.pojavlaunch.ui.content.ContentItem
+import net.kdt.pojavlaunch.ui.content.MigrateOutcome
+import net.kdt.pojavlaunch.ui.content.MigrationPlan
+import net.kdt.pojavlaunch.ui.content.ModMigrateSheet
+import net.kdt.pojavlaunch.ui.content.applyMigration
+import net.kdt.pojavlaunch.ui.content.planMigration
 import net.kdt.pojavlaunch.ui.content.applyModCompat
 import net.kdt.pojavlaunch.ui.content.countModProblems
 import net.kdt.pojavlaunch.ui.content.modsToTurnOff
@@ -170,6 +176,13 @@ class ContentActivity : BaseActivity() {
     private var managingFile: File? = null
     private var worldBusy by mutableStateOf(false)
 
+    /* ------------------------------------------------------------------ moving a mod set */
+    private var migrateTarget by mutableStateOf<ModMigration.Target?>(null)
+    private var migratePlan by mutableStateOf<MigrationPlan?>(null)
+    private var migrateOutcome by mutableStateOf<MigrateOutcome?>(null)
+    private var migrateStatus by mutableStateOf<String?>(null)
+    private var migrateBusy by mutableStateOf(false)
+
     private val pickFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) importFile(uri)
     }
@@ -206,7 +219,11 @@ class ContentActivity : BaseActivity() {
                         searching = lowered.isNotEmpty(),
                         filtered = filter != null,
                         modProblems = countModProblems(items),
-                        firstMissing = firstMissingMod(items)
+                        firstMissing = firstMissingMod(items),
+                        // Both halves, because a migration needs a version to aim at and a
+                        // loader to filter by: with either missing there is nothing to plan and
+                        // the offer must not appear.
+                        migrateVersion = modTarget?.mcVersion?.takeIf { modTarget?.loaderId != null }
                     ),
                     query = query,
                     onQuery = { query = it },
@@ -225,8 +242,21 @@ class ContentActivity : BaseActivity() {
                     onOpenFolder = { openPath(gameDir) },
                     onDisableBrokenMods = ::disableBrokenMods,
                     onFindMissingMod = ::browseFor,
+                    onMigrateMods = ::openMigrate,
                     onBack = ::finish
                 )
+                migrateTarget?.let { target ->
+                    ModMigrateSheet(
+                        targetVersion = target.mcVersion,
+                        plan = migratePlan?.plan,
+                        sameFolder = target.sameFolder,
+                        status = migrateStatus,
+                        outcome = migrateOutcome,
+                        busy = migrateBusy,
+                        onMove = ::runMigration,
+                        onDismiss = ::closeMigrate
+                    )
+                }
                 managing?.let { world ->
                     WorldSheet(
                         details = world,
@@ -559,6 +589,84 @@ class ContentActivity : BaseActivity() {
      * that a mouse makes the follow-up cheap. Off rather than deleted, always, because the verdict
      * is the launcher's reading of somebody else's metadata and being wrong must stay undoable.
      */
+    /**
+     * Work out what moving this mod set to the profile's version would do.
+     *
+     * Opened from the "will not load" card, which is the one place it belongs: that card appears
+     * exactly when the mods in the folder are for another version, which is exactly when this is
+     * the answer. Turning them off is what the card offered before and is what you settle for.
+     */
+    private fun openMigrate() {
+        if (migrateBusy) return
+        val profileTarget = modTarget ?: return
+        val mcVersion = profileTarget.mcVersion ?: return
+        val loaderId = profileTarget.loaderId ?: return
+
+        migratePlan = null
+        migrateOutcome = null
+        migrateBusy = true
+        migrateStatus = getString(R.string.content_migrate_checking, 0, 0)
+        lifecycleScope.launch {
+            val folder = File(gameDir, "mods")
+            // Built on the IO thread because the shared-folder answer is a canonical path, and
+            // the sheet needs the target before it can say anything, so it is stored rather than
+            // recomputed.
+            val target = withContext(Dispatchers.IO) {
+                val destination = profileTarget.modsFolder ?: folder
+                val same = runCatching { folder.canonicalPath == destination.canonicalPath }
+                    .getOrDefault(true)
+                ModMigration.Target(mcVersion, loaderId, same)
+            }
+            migrateTarget = target
+            val planned = withContext(Dispatchers.IO) {
+                planMigration(folder, target) { progress ->
+                    // Once per jar, which is tens of hops and not thousands: ModInstall already
+                    // throttles the byte-level reports at its own end (16.30).
+                    runOnUiThread {
+                        migrateStatus = getString(
+                            R.string.content_migrate_checking, progress.done, progress.total
+                        )
+                    }
+                }
+            }
+            migrateBusy = false
+            migrateStatus = null
+            migratePlan = planned
+        }
+    }
+
+    /** Carry the plan out, then re-read the folder, because what is in it has changed. */
+    private fun runMigration() {
+        val target = migrateTarget ?: return
+        val planned = migratePlan ?: return
+        if (migrateBusy) return
+        migrateBusy = true
+        lifecycleScope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                applyMigration(File(gameDir, "mods"), target, planned) { progress ->
+                    runOnUiThread {
+                        migrateStatus = getString(R.string.content_migrate_getting, progress.name)
+                    }
+                }
+            }
+            migrateBusy = false
+            migrateStatus = null
+            migrateOutcome = outcome
+            // The list, the fingerprints and the compatibility verdicts are all about files that
+            // have just been replaced, so the folder is read again rather than patched: what the
+            // screen should show is whatever is in it now.
+            reload()
+        }
+    }
+
+    private fun closeMigrate() {
+        if (migrateBusy) return
+        migrateTarget = null
+        migratePlan = null
+        migrateOutcome = null
+        migrateStatus = null
+    }
+
     private fun disableBrokenMods() {
         // One definition of what to switch off, in ContentCompat beside the duplicate check
         // that complicates it. The rule is not "every row with a warning": where a mod has two

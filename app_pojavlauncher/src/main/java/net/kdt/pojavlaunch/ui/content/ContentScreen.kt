@@ -100,7 +100,16 @@ class ContentState(
      * Only one, and deliberately: the offer is a search, and a search takes one thing. Somebody
      * missing three dependencies gets the first, installs it, and the count goes down by one.
      */
-    val firstMissing: String? = null
+    val firstMissing: String? = null,
+    /**
+     * The Minecraft version a mod set could be moved to, or null when there is nothing to move to.
+     *
+     * Null wherever the launcher could not work the profile's version out, which is the honest
+     * state rather than an edge case: the offer has to disappear there, because a migration with
+     * no target version cannot be planned and a control that does nothing is the one thing a
+     * settings surface must never show.
+     */
+    val migrateVersion: String? = null
 )
 
 /**
@@ -138,6 +147,7 @@ fun ContentScreen(
     onOpenFolder: () -> Unit,
     onDisableBrokenMods: () -> Unit,
     onFindMissingMod: (String) -> Unit,
+    onMigrateMods: () -> Unit,
     onBack: () -> Unit
 ) {
     var confirming by remember { mutableStateOf<ContentItem?>(null) }
@@ -205,8 +215,10 @@ fun ContentScreen(
                     ModProblemCard(
                         count = state.modProblems,
                         missing = state.firstMissing,
+                        migrateVersion = state.migrateVersion,
                         onDisable = onDisableBrokenMods,
-                        onFind = onFindMissingMod
+                        onFind = onFindMissingMod,
+                        onMigrate = onMigrateMods
                     )
                 }
             }
@@ -734,8 +746,10 @@ private fun AddChoice(iconRes: Int, labelRes: Int, onClick: () -> Unit) {
 private fun ModProblemCard(
     count: Int,
     missing: String?,
+    migrateVersion: String?,
     onDisable: () -> Unit,
-    onFind: (String) -> Unit
+    onFind: (String) -> Unit,
+    onMigrate: () -> Unit
 ) {
     Column {
         Spacer(Modifier.height(18.dp))
@@ -772,6 +786,20 @@ private fun ModProblemCard(
                     modifier = Modifier
                         .clip(CircleShape)
                         .clickable { onFind(missing) }
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                )
+            }
+            // First, because it is the fix somebody actually wants: these mods are for another
+            // version and the same mods exist for this one. Turning them off is what you settle
+            // for, which is why it keeps its place below rather than losing it.
+            if (migrateVersion != null) {
+                Text(
+                    stringResource(R.string.content_mod_problems_move),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(onClick = onMigrate)
                         .padding(horizontal = 12.dp, vertical = 9.dp)
                 )
             }
