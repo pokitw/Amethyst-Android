@@ -77,6 +77,7 @@ class HomeActions(
     val onControls: () -> Unit = {},
     val onRecordings: () -> Unit = {},
     val onSkins: () -> Unit = {},
+    val onClients: () -> Unit = {},
     val onInstall: () -> Unit = {},
     val onInstallWithArguments: () -> Unit = {},
     val onFiles: () -> Unit = {},
@@ -428,15 +429,25 @@ private fun ManageSection(recordingCount: Int, actions: HomeActions) {
                     onClick = actions.onFiles
                 )
             }
-            // Full width rather than a fifth square in a ragged row. Skins are the one thing
-            // here that is entirely a picture, so the tile that opens them has room to be one.
-            Tile(
-                R.drawable.ic_x_skin,
-                stringResource(R.string.skin_home_tile),
-                stringResource(R.string.skin_home_tile_sub),
-                Modifier.fillMaxWidth(),
-                onClick = actions.onSkins
-            )
+            // A third pair rather than two full-width rows: Clients arrived after Skins had the
+            // row to itself, and an even grid keeps every tile the same weight, which is the
+            // point of the grid (handbook 3).
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tile(
+                    R.drawable.ic_x_skin,
+                    stringResource(R.string.skin_home_tile),
+                    stringResource(R.string.skin_home_tile_sub),
+                    Modifier.weight(1f),
+                    onClick = actions.onSkins
+                )
+                Tile(
+                    R.drawable.ic_x_clients,
+                    stringResource(R.string.home_tile_clients),
+                    stringResource(R.string.home_tile_clients_sub),
+                    Modifier.weight(1f),
+                    onClick = actions.onClients
+                )
+            }
         }
     }
 }

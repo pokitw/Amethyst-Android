@@ -170,6 +170,16 @@
             android:process=":launcher"/>
 
         <!--
+            Installing a third-party client. Launcher process: it downloads into the client's own
+            folder and hands over to the game activity exactly as the vanilla download does.
+        -->
+        <activity
+            android:name=".ClientsActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:label="@string/clients_title"
+            android:process=":launcher"/>
+
+        <!--
             The skin editor. Launcher process, and nothing to do with the game: a skin is applied
             to a Mojang profile over the network, not written into the game folder.
         -->

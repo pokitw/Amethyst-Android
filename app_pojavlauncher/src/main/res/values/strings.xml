@@ -1677,4 +1677,25 @@
 	<string name="control_report_page_stuck">Page %1$s has no button that leads to another page. The control center can still switch pages.</string>
 	<string name="preference_system_keyboard_title">Use the phone keyboard</string>
 	<string name="preference_system_keyboard_description">Open the keyboard you type everywhere else with, instead of the one built into the launcher. Your own layout, your own autocorrect, your own emoji. It covers more of the screen and cannot hold a key down for a keybind.</string>
+
+    <!-- Clients -->
+    <string name="home_tile_clients">Clients</string>
+    <string name="home_tile_clients_sub">Lunar Client</string>
+    <string name="clients_title">Clients</string>
+    <string name="clients_subtitle">Lunar Client, running on this phone</string>
+    <string name="clients_status_title">What works today</string>
+    <string name="clients_status_body">Lunar runs here with its mods, its HUD and its Fabric bundle. Its own menus, the ones it draws as web pages, are blank for now: the engine that draws them is being rebuilt for Android. Versions before 1.13 are not available yet.</string>
+    <string name="clients_section_version">VERSION</string>
+    <string name="clients_version">Minecraft version</string>
+    <string name="clients_module">Runs with</string>
+    <string name="clients_loading">Asking Lunar which versions it offers</string>
+    <string name="clients_load_failed">Could not reach Lunar</string>
+    <string name="clients_retry">Try again</string>
+    <string name="clients_network_error">Something went wrong. Check your connection and try again.</string>
+    <string name="clients_unavailable_title">Not available yet</string>
+    <string name="clients_unavailable_body">%1$s run on LWJGL 2, which Lunar changes in a way this build cannot follow yet.</string>
+    <string name="clients_install_play">Install and play</string>
+    <string name="clients_play">Play</string>
+    <string name="clients_starting">Getting ready</string>
+    <string name="clients_install_incomplete">This client is not fully installed. Open Clients and press Install and play again.</string>
 </resources>

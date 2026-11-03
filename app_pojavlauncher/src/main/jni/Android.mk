@@ -65,6 +65,13 @@ LOCAL_LDFLAGS := -z global
 include $(BUILD_SHARED_LIBRARY)
 #endif
 
+# Stands in for the x86 web engine binding Lunar Client ships, so the client can start on ARM.
+# Named exactly as the client asks System.loadLibrary for it.
+include $(CLEAR_VARS)
+LOCAL_MODULE := WebOSR-Binding
+LOCAL_SRC_FILES := clients/webosr_binding.c
+include $(BUILD_SHARED_LIBRARY)
+
 include $(CLEAR_VARS)
 LOCAL_MODULE := pojavexec_awt
 LOCAL_SRC_FILES := \

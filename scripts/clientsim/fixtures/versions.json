@@ -1,0 +1,34 @@
+{
+  "branchReset": false,
+  "recommendedLibraries": [],
+  "versions": [
+    {
+      "id": "1.21",
+      "name": "Tricky Trials",
+      "default": true,
+      "images": {"icon": "https://example.invalid/icon.png"},
+      "subversions": [
+        {
+          "id": "1.21.8",
+          "default": true,
+          "assets": {"id": "26", "url": "https://example.invalid/26.json", "sha1": "1111111111111111111111111111111111111111"},
+          "modules": [
+            {"id": "lunar-noOF", "default": false, "name": "Plain", "description": "Without extra mods.", "loaders": ["ichor"]},
+            {"id": "fabric", "default": true, "name": "With Fabric", "description": "Bundled Fabric mods.", "loaders": ["ichor", "fabric"]}
+          ]
+        },
+        {"id": "1.21.4", "modules": [{"id": "lunar"}]},
+        {"modules": [{"id": "orphan"}]},
+        "not an object"
+      ]
+    },
+    {"name": "no id, skipped", "subversions": []},
+    {
+      "id": "1.8",
+      "name": "Bountiful",
+      "subversions": [
+        {"id": "1.8.9", "assets": {"id": "1.8"}, "modules": [{"id": "lunar", "default": true}, {"name": "no id"}]}
+      ]
+    }
+  ]
+}

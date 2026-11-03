@@ -96,6 +96,8 @@ import net.kdt.pojavlaunch.utils.TouchControllerUtils;
 import net.kdt.pojavlaunch.value.MinecraftAccount;
 import net.kdt.pojavlaunch.value.launcherprofiles.LauncherProfiles;
 import net.kdt.pojavlaunch.value.launcherprofiles.MinecraftProfile;
+import net.kdt.pojavlaunch.clients.ClientLaunch;
+import net.kdt.pojavlaunch.clients.ClientPlan;
 
 import org.libsdl.app.SDL;
 import org.libsdl.app.SDLSurface;
@@ -111,6 +113,12 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     public static volatile ClipboardManager GLOBAL_CLIPBOARD;
     public static final String TAG = "MainActivity";
     public static final String INTENT_MINECRAFT_VERSION = "intent_version";
+    /**
+     * The home folder of an installed client. Present only for a client launch, which never
+     * resolves a vanilla version and never touches the shared game folder; see ClientLaunch.
+     */
+    public static final String INTENT_CLIENT_HOME = "intent_client_home";
+    private ClientLaunch mClientLaunch;
 
     volatile public static boolean isInputStackCall;
 
@@ -164,7 +172,13 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
         minecraftProfile = LauncherProfiles.getCurrentProfile();
 
-        String gameDirPath = Tools.getGameDirPath(minecraftProfile).getAbsolutePath();
+        String clientHome = getIntent().getStringExtra(INTENT_CLIENT_HOME);
+        if (clientHome != null) mClientLaunch = ClientLaunch.read(new File(clientHome));
+
+        // A client's options.txt is in its own game folder, and the GUI scale is read from it.
+        String gameDirPath = mClientLaunch != null
+                ? ClientPlan.gameDir(mClientLaunch.home).getAbsolutePath()
+                : Tools.getGameDirPath(minecraftProfile).getAbsolutePath();
         MCOptionUtils.load(gameDirPath);
 
         Intent gameServiceIntent = new Intent(this, GameService.class);
@@ -285,10 +299,14 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
             // Minecraft 1.13+
 
-            String version = getIntent().getStringExtra(INTENT_MINECRAFT_VERSION);
+            if (getIntent().getStringExtra(INTENT_CLIENT_HOME) != null && mClientLaunch == null)
+                throw new RuntimeException(getString(R.string.clients_install_incomplete));
+            String version = mClientLaunch != null ? mClientLaunch.version
+                    : getIntent().getStringExtra(INTENT_MINECRAFT_VERSION);
             version = version == null ? minecraftProfile.lastVersionId : version;
 
-            JMinecraftVersionList.Version mVersionInfo = Tools.getVersionInfo(version);
+            JMinecraftVersionList.Version mVersionInfo = mClientLaunch != null
+                    ? mClientLaunch.versionInfo() : Tools.getVersionInfo(version);
             isInputStackCall = mVersionInfo.arguments != null;
             CallbackBridge.nativeSetUseInputStackQueue(isInputStackCall);
 
@@ -641,7 +659,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         // I don't trust the bug tracker. 'server-resource-pack" was removed in 1.20.3-pre3
         // so we use 12 to detect that. We still generate till 1.20.5 else we don't cover
         // 1.20.3-pre2 and such. Better to over than to under.
-        File folder = new File(Tools.getGameDirPath(minecraftProfile), "server-resource-pack");
+        File folder = new File(mClientLaunch != null ? ClientPlan.gameDir(mClientLaunch.home)
+                : Tools.getGameDirPath(minecraftProfile), "server-resource-pack");
         try {
             if (Integer.parseInt(assetVersion) <= 12) folder.mkdir();
         } catch (NumberFormatException e) { folder.mkdir(); }
@@ -671,7 +690,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         LauncherProfiles.load();
         int requiredJavaVersion = 8;
         if(version.javaVersion != null) requiredJavaVersion = version.javaVersion.majorVersion;
-        Tools.launchMinecraft(this, minecraftAccount, minecraftProfile, versionId, requiredJavaVersion);
+        if (mClientLaunch != null) {
+            mClientLaunch.launch(this, minecraftAccount, minecraftProfile, windowWidth, windowHeight);
+        } else {
+            Tools.launchMinecraft(this, minecraftAccount, minecraftProfile, versionId, requiredJavaVersion);
+        }
         //Note that we actually stall in the above function, even if the game crashes. But let's be safe.
         Tools.runOnUiThread(()-> mServiceBinder.isActive = false);
     }

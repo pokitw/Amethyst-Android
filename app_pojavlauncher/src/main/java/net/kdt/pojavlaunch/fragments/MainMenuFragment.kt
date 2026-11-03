@@ -23,6 +23,7 @@ import net.kdt.pojavlaunch.LauncherActivity
 import net.kdt.pojavlaunch.LogActivity
 import net.kdt.pojavlaunch.R
 import net.kdt.pojavlaunch.SkinActivity
+import net.kdt.pojavlaunch.ClientsActivity
 import net.kdt.pojavlaunch.Tools
 import net.kdt.pojavlaunch.extra.ExtraConstants
 import net.kdt.pojavlaunch.extra.ExtraCore
@@ -205,6 +206,7 @@ class MainMenuFragment : Fragment(), ChromeOwner {
         onControls = { startActivity(Intent(requireContext(), CustomControlsActivity::class.java)) },
         onRecordings = { startActivity(Intent(requireContext(), RecordingsActivity::class.java)) },
         onSkins = { startActivity(Intent(requireContext(), SkinActivity::class.java)) },
+        onClients = { startActivity(Intent(requireContext(), ClientsActivity::class.java)) },
         onInstall = ::openLoaderInstaller,
         onInstallWithArguments = { runInstaller(true) },
         onFiles = ::openGameFiles,

@@ -1,0 +1,4 @@
+IMPLEMENTOR="Example"
+JAVA_VERSION="21.0.13"
+MODULES="java.base java.logging java.naming jdk.naming.dns jdk.unsupported"
+OS_ARCH="aarch64"

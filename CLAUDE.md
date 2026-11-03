@@ -427,6 +427,7 @@ cheaper than a screen recorder, which composites the whole display and re-encode
 | Skin editor | **Compose** | `ui/skin/`, `SkinActivity.kt` |
 | Mod browser (Modrinth) | **Compose** | `ui/mods/`, `ModBrowserActivity.kt` |
 | Log viewer | **Compose** | `ui/logs/`, `LogActivity.kt`; parsing is Java in `logs/` so it can be driven (§19) |
+| Clients (Lunar) | **Compose** | `ui/clients/`, `ClientsActivity.kt`; the decisions are Java in `clients/` so they can be driven, the launch is a branch in `MainActivity` (§14) |
 | Modpack search's version dialog | XML | The one remaining `VersionSelectorDialog` caller; see §17 |
 | Control buttons themselves | XML custom views | Deep custom view work; skinned rather than rewritten, see §14 |
 | Game surface | XML, stays | See §12.4 |
@@ -2153,6 +2154,67 @@ re-litigated. The reasoning lives in the commit that made the change.
   It gets **no comparison row**: upstream has the same bug, and a row saying so would be about
   upstream rather than about a capability.
 
+- **Running Lunar Client** (`clients/` + `jni/clients/webosr_binding.c` + `ClientsActivity.kt`)
+  — the real Lunar Client, downloaded from Lunar's own servers and run on the phone, from a
+  Clients tile on home. Asked for in those words, with Winlator as the reason to believe it was
+  possible, and built at the owner's explicit risk: Moonsworth has taken third-party Lunar
+  launchers down before, including one that only started a copy the player already had
+  (GitHub's DMCA archive, 2022 and 2023). That was put to the owner with the evidence and they
+  chose to go ahead. It is recorded here so the decision is not re-litigated, and so nobody
+  later mistakes it for an oversight.
+  **The Winlator comparison turned out to be the wrong way round, and finding that out was the
+  whole design.** Lunar's game is Java, and Java already runs natively here. What is x86 is a
+  handful of native libraries, and running the real client in this container (which is x86
+  Linux, the platform Lunar supports) with each of them taken away showed exactly which ones
+  matter. LWJGL, OpenAL and jinput are libraries Amethyst already has for ARM. Ultralight, the
+  closed web engine Lunar draws its own menus with, is the only one with no ARM build, and the
+  client dies at `WebOSR.createEngine` without it. So the emulator this was going to need is not
+  needed at all: the game runs at full native speed, and the one x86 piece is **replaced** rather
+  than emulated. Emulating a 98 MB WebKit to draw a settings menu would have cost more than the
+  game.
+  **The replacement is written from the interface alone.** `webosr_binding.c` implements all
+  fifty native methods of Lunar's thirteen `com.moonsworth.webosr` wrapper classes from their
+  signatures, and nothing of Lunar's is in this repository. Stage one, which is what ships,
+  creates every object the client asks for and draws nothing, so Lunar's own HTML menus are a
+  transparent texture. Real Lunar 1.21.8 reaches its title screen on it, and `webosrsim` is the
+  run that showed it. The client also refuses to start unless `resources/icudt67l.dat` exists in
+  the engine's folder, which it checks by name and the replacement never reads, so an empty file
+  is written there; that was found by reading the one class that throws, not guessed.
+  **GL goes through LWJGL's own `GL11`**, called back through JNI from the binding, never through
+  a system GL library. On Android the game's GL is whichever renderer Amethyst loaded, and a
+  texture created anywhere else would be a name that renderer has never heard of.
+  **The server is asked for x86 Linux, and that is not a disguise for the game.** It refuses ARM
+  outright. What it answers with is jars, which are the same bytes everywhere, and native
+  bundles, which are never downloaded. The request says honestly who is asking in its user agent,
+  and the API takes that.
+  **Lunar's loader keeps its own LWJGL and loads it child first**, so Amethyst's on the class path
+  is ignored: a run with it there showed every LWJGL frame still coming from the loader's own
+  class loader. It also does not re-check a jar it finds already in place, so the installer
+  overwrites the loader's LWJGL jars with Amethyst's before the first launch (`lwjglSeeds`),
+  module by module, GLFW and OpenGL from the merged jar. Lunar 1.21.8 transforms no LWJGL class
+  at all, which is what makes the swap safe; its class cache was read to check.
+  **Versions before 1.13 are not offered.** They run on LWJGL 2, and Lunar patches LWJGL 2's own
+  desktop window class, so swapping in Amethyst's LWJGL made the client refuse to start at the
+  patch, in a run that tried exactly that. 1.8.9 is Lunar's most played version, so this is the
+  limitation most worth lifting next, and the way in is a placeholder class with the members the
+  patch expects.
+  **A client lives in a home of its own** (`clients/lunar`), passed as `user.home`, because the
+  loader writes `.lunarclient` and `.minecraft` under whatever that is. Nothing a client does can
+  reach a vanilla profile's mods, options or libraries. Assets are the one thing duplicated:
+  Lunar ignores `--assetsDir` and reads `<gameDir>/assets`, and shared storage takes no symlinks,
+  so objects Amethyst already has are copied rather than downloaded again.
+  **The launch is a branch, not a fork.** `MainActivity` takes `INTENT_CLIENT_HOME`, skips vanilla
+  version resolution, and ends in `ClientLaunch` instead of `Tools.launchMinecraft`; everything
+  after that, the renderer, the surface, the controls, the recorder, is the same engine room,
+  through `JREUtils.launchJavaVM`. Server JVM flags are filtered first: a `-XX` option the runtime
+  lacks, or a module it does not have, stops the JVM before a line of Java runs, and the server's
+  list is one that can grow without notice.
+  **Badlion is not here and is a different problem.** Lunar's launcher lists Badlion versions,
+  but it does not serve their files: it downloads Badlion's whole separate app and runs that,
+  which needs its own investigation and an account of its own.
+  It gets **no comparison row and no onboarding page yet**: nothing about it has run on a phone,
+  and the table is only worth reading because every row in it is true.
+
 ## 15. Coding conventions
 
 **Match the file you are in.** This codebase is old, mixed-style, and largely upstream. Do not
@@ -2613,6 +2675,22 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
     here the launcher was standing on a different layer than the one it named.
 
 ---
+
+42. **When the container is the platform the program supports, run the program.** The Lunar work
+    started as a question nobody here could answer, which was whether a closed client could run
+    on Android, and was answered in an afternoon, because Lunar supports x86 Linux and that is
+    what this container is. Every load-bearing fact in that entry came from running the real
+    client and taking something away: which native it dies without, which call it dies at, which
+    file it checks for, which class loader its LWJGL comes from, whether it re-checks a jar. None
+    of them could have been read out of an obfuscated jar with confidence, and each would have
+    cost a build cycle and a phone to find the other way. It is the opposite of 16.23, where the
+    verifier lived in a program this side of the wall could not execute: here it could, and the
+    cheapest loop available was to use it. Worth asking at the start of any work against
+    software this project does not own: can the real thing run here, and what does it do when a
+    piece is missing.
+    The same loop caught two mistakes of mine before they shipped: the harness's crash pattern
+    matched "webosr" in its own work folder's path, which read a pass as a failure, and a stub
+    compile found a duplicate `read(File)` in `ClientLaunch` that CI would have spent a cycle on.
 
 ## 17. Known limitations
 
@@ -3277,6 +3355,30 @@ Each of these cost a build cycle or a user-visible bug. They are here so they ar
 - A recording button is **a toggle with no state on it**. The button looks the same whether or
   not a recording is running; what says so is the recording pill over the game, which is where
   it already was.
+- **Lunar's own menus do not draw.** The web engine that replaces Ultralight creates every object
+  the client asks for and renders nothing, so anything Lunar draws as a web page (its mod
+  settings, its overlays) is blank. The game itself, Lunar's HUD and its bundled mods are not web
+  pages and are unaffected. A real engine, most likely Android's WebView rendering into the
+  texture the binding already hands over, is the next stage.
+- **Clients have not been run on a phone.** Everything in the Lunar entry was verified by running
+  the real client on a desktop JVM in the build container; the Android half (Amethyst's LWJGL
+  under Lunar's loader, the renderers, the touch input) has not been seen working by anybody yet.
+- **Versions before 1.13 are not offered**, which includes 1.8.9, because Lunar patches LWJGL 2
+  in a way Amethyst's LWJGL cannot take (see the entry). The list names them rather than hiding
+  them.
+- **Badlion is not supported.** It is a separate app that Lunar's launcher downloads and runs,
+  not a module of Lunar's.
+- **Cosmetics, emotes and the friends list are not set up.** The installer does not fetch Lunar's
+  texture index or connect anything to Lunar's network beyond what the client does on its own,
+  and the launcher's IPC socket the client tries to reach does not exist here, which it logs
+  and carries on from.
+- **A client costs its own copy of the game's assets**, because Lunar reads them only from its
+  own game folder and shared storage takes no links. Objects Amethyst already has are copied
+  rather than downloaded, which saves the network and not the space.
+- **It can stop working without notice.** It depends on an API Lunar does not document and can
+  change at any time, and on Moonsworth tolerating it, which history says it may not.
+- **The client reports its own crashes to Lunar's error tracker**, as it does on a desktop. That
+  is the client's behaviour and nothing here adds to it or turns it off.
 - No automated tests beyond the scripted checks in `scripts/`. There is no device in CI.
 - Release builds do not run R8, so every dependency ships whole — which is why only
   `material-icons-core` is used, not the extended set.
@@ -3612,6 +3714,19 @@ Before pushing:
   a bare `set` that no longer sits under a `var`, and a non-repeatable annotation that reaches
   a declaration already carrying one. Both are compile errors whose damage is to a line the
   diff does not show (§16.38).
+- **Run `sh scripts/clientsim/run.sh`** if anything in `clients/LunarApi.java` or
+  `clients/ClientPlan.java` changed. It compiles both at source 8 and drives them with fixtures
+  that copy the server's shapes, never its data. The failures it exists for are all silent ones:
+  a refusal read as a launch, an x86 native bundle downloaded, a server-supplied name that climbs
+  out of its folder, a JVM flag that stops the runtime before it starts, an LWJGL jar left in
+  place that cannot work on Android. Nine mutations fail it and are listed in `run.sh`.
+- **Run `sh scripts/webosrsim/run.sh` by hand** if `jni/clients/webosr_binding.c` changed. It
+  builds the binding for the host and runs the real Lunar Client against it under Xvfb, and it is
+  the only check that runs the program the binding exists for. Not in CI: it needs network
+  access to Lunar's and Mojang's hosts and about 400 MB. Behind a proxy, Java needs
+  `WEBOSRSIM_JAVA_OPTS` because it does not read `HTTPS_PROXY`. Its crash pattern names the two
+  fatal failures exactly (the binding missing, a binding method missing) and was checked against
+  logs of both, because a looser one matched its own work folder's path.
 - Read the whole diff.
 
 CI builds Debug **before** Release, so a missing signing key never hides a compile error. Release

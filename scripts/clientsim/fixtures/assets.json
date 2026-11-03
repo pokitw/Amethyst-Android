@@ -1,0 +1,8 @@
+{"objects": {
+  "icons/a.png": {"hash": "0123456789abcdef0123456789abcdef01234567", "size": 5},
+  "icons/b.png": {"hash": "0123456789abcdef0123456789abcdef01234567", "size": 5},
+  "lang/x.json": {"hash": "fedcba9876543210fedcba9876543210fedcba98", "size": 7},
+  "bad/1": {"hash": "../../etc", "size": 1},
+  "bad/2": {"hash": "FEDCBA9876543210FEDCBA9876543210FEDCBA98", "size": 1},
+  "bad/3": "not an object"
+}}

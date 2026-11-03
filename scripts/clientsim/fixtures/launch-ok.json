@@ -1,0 +1,33 @@
+{
+  "success": true,
+  "updateAssets": true,
+  "launchTypeData": {
+    "mainClass": "example.Main",
+    "artifacts": [
+      {"name": "common.jar", "sha1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size": 10, "url": "https://example.invalid/common.jar", "type": "CLASS_PATH"},
+      {"name": "mappings.jar", "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "size": 20, "url": "https://example.invalid/mappings.jar", "type": "CLASS_PATH"},
+      {"name": "natives-x86.zip", "sha1": "cccccccccccccccccccccccccccccccccccccccc", "size": 30, "url": "https://example.invalid/n.zip", "type": "NATIVES"},
+      {"name": "loader.jar", "sha1": "dddddddddddddddddddddddddddddddddddddddd", "size": 40, "url": "https://example.invalid/loader.jar", "type": "CLASS_PATH"},
+      {"name": "data/patterns.json", "sha1": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "size": 50, "url": "https://example.invalid/p.json", "type": "EXTERNAL_FILE"},
+      {"name": "../escape.json", "sha1": "ffffffffffffffffffffffffffffffffffffffff", "size": 1, "url": "https://example.invalid/e.json", "type": "EXTERNAL_FILE"},
+      {"name": "/abs.json", "url": "https://example.invalid/a.json", "type": "EXTERNAL_FILE"},
+      {"name": "no-url.jar", "type": "CLASS_PATH"},
+      {"name": "future.bin", "url": "https://example.invalid/f.bin", "type": "SOMETHING_NEW"},
+      {"name": "client.jar", "sha1": "9999999999999999999999999999999999999999", "size": 99, "url": "https://example.invalid/client.jar", "type": "CLASS_PATH"}
+    ]
+  },
+  "textures": {"indexUrl": "https://example.invalid/idx", "baseUrl": "https://example.invalid/file/"},
+  "jre": {
+    "download": {"url": "https://example.invalid/zulu21.54.107-ca-jre21.0.13-linux_x64.tar.gz", "extension": "tar.gz"},
+    "extraArguments": [
+      "--add-modules", "jdk.naming.dns",
+      "--add-exports", "jdk.naming.dns/com.sun.jndi.dns=java.naming",
+      "-Dlog4j2.formatMsgNoLookups=true",
+      "--add-opens", "java.base/java.io=ALL-UNNAMED",
+      "-XX:+UseStringDeduplication",
+      "-XX:FlightRecorderOptions=repository=jfr",
+      "-Dexample.url=file:index.html"
+    ]
+  },
+  "canaryToken": "x"
+}
