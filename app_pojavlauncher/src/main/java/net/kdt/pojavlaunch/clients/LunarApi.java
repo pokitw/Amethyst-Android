@@ -90,12 +90,15 @@ public final class LunarApi {
     public static final class Module {
         public final String id, name, description;
         public final boolean isDefault;
+        /** The loaders the module runs on, as the server names them ("ichor", "fabric"). */
+        public final List<String> loaders;
 
-        Module(String id, String name, String description, boolean isDefault) {
+        Module(String id, String name, String description, boolean isDefault, List<String> loaders) {
             this.id = id;
             this.name = name;
             this.description = description;
             this.isDefault = isDefault;
+            this.loaders = loaders;
         }
     }
 
@@ -163,8 +166,13 @@ public final class LunarApi {
                     JsonObject m = me.getAsJsonObject();
                     String mid = string(m, "id");
                     if (mid == null) continue;
+                    List<String> loaders = new ArrayList<>();
+                    JsonArray la = array(m, "loaders");
+                    if (la != null) for (JsonElement le : la)
+                        if (le.isJsonPrimitive()) loaders.add(le.getAsString());
                     modules.add(new Module(mid, orElse(string(m, "name"), mid),
-                            orElse(string(m, "description"), ""), bool(m, "default")));
+                            orElse(string(m, "description"), ""), bool(m, "default"),
+                            Collections.unmodifiableList(loaders)));
                 }
                 subs.add(new Subversion(sid,
                         assets == null ? null : string(assets, "id"),

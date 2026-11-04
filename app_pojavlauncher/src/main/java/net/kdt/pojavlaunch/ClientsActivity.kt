@@ -13,6 +13,9 @@ import kotlinx.coroutines.withContext
 import net.kdt.pojavlaunch.clients.ClientInstaller
 import net.kdt.pojavlaunch.clients.ClientPlan
 import net.kdt.pojavlaunch.clients.LunarApi
+import net.kdt.pojavlaunch.sodium.GpuProfile
+import net.kdt.pojavlaunch.sodium.SodiumSupport
+import net.kdt.pojavlaunch.ui.settings.SettingsStore
 import net.kdt.pojavlaunch.ui.clients.ClientModule
 import net.kdt.pojavlaunch.ui.clients.ClientProgress
 import net.kdt.pojavlaunch.ui.clients.ClientVersion
@@ -61,7 +64,15 @@ class ClientsActivity : BaseActivity() {
 
     private fun load() {
         state = state.copy(loading = true, loadError = null)
+        // The renderer is read here, on the main thread, because it goes through LauncherProfiles
+        // (handbook 12.7); the device is read beside the network call, off it.
+        val renderer = runCatching { SettingsStore(this).currentRenderer() }.getOrNull()
         lifecycleScope.launch {
+            val verified = withContext(Dispatchers.IO) {
+                val gpu = runCatching { GpuProfile.read(this@ClientsActivity) }
+                    .getOrElse { SodiumSupport.Gpu.unknown() }
+                SodiumSupport.verdict(renderer, true, gpu) == SodiumSupport.Verdict.VERIFIED
+            }
             val result = withContext(Dispatchers.IO) { runCatching { ClientInstaller.fetchVersions() } }
             result.onSuccess { versions ->
                 val usable = mutableListOf<ClientVersion>()
@@ -76,14 +87,17 @@ class ClientsActivity : BaseActivity() {
                     subs[s.id] = s
                     usable += ClientVersion(
                         id = s.id,
-                        modules = s.modules.map { ClientModule(it.id, it.name, it.description) },
-                        defaultModule = s.defaultModule()?.id ?: s.modules[0].id
+                        modules = s.modules.map {
+                            ClientModule(it.id, it.name, it.description, ClientPlan.bundlesSodium(it))
+                        },
+                        defaultModule = ClientPlan.preferredModule(s.modules, verified) ?: s.modules[0].id
                     )
                 }
                 subversions = subs
                 val first = usable.firstOrNull()
                 state = state.copy(
                     loading = false,
+                    sodiumVerified = verified,
                     versions = usable,
                     unavailable = unavailable,
                     selectedVersion = first?.id,

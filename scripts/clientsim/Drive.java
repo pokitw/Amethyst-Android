@@ -36,6 +36,8 @@ public class Drive {
         lwjgl();
         assets();
         requests();
+        desktopNatives();
+        moduleChoice();
         System.out.println(checks + " checks, " + failures + " failed");
         if (failures > 0) System.exit(1);
     }
@@ -269,5 +271,52 @@ public class Drive {
         check(b.get("args").isJsonArray(), "args is an array");
         check(LunarApi.versionsQuery("inst").get("installation_id").equals("inst"), "versions query carries the id");
         check(LunarApi.userAgent("1.0").startsWith("AmethystX/"), "the user agent says who is asking");
+    }
+
+    static void desktopNatives() {
+        for (String n : new String[]{"lwjgl-3.3.3-natives-linux.jar", "lwjgl-glfw-3.3.3-natives-linux-arm64.jar",
+                "lwjgl-zstd-3.3.3-natives-macos-arm64.jar", "lwjgl-tinyfd-3.3.4-natives-windows-x86.jar",
+                "lwjgl-freetype-3.3.3-natives-macos-patch.jar"})
+            check(ClientPlan.isDesktopNativesJar(n), n + " is a desktop natives jar");
+        for (String n : new String[]{"lwjgl-3.3.3.jar", "lwjgl-glfw-3.3.3.jar", "lwjgl.jar",
+                "lwjgl-3.3.3-merged-modules.jar", "jinput-platform-2.0.5-natives-linux.jar", "lwjgl-natives.jar",
+                "", null})
+            check(!ClientPlan.isDesktopNativesJar(n), n + " is not");
+        List<String> libs = Arrays.asList("org.lwjgl:lwjgl:3.3.3", "org.lwjgl:lwjgl:3.3.3:natives-linux",
+                "org.lwjgl:lwjgl-glfw:3.3.3:natives-linux-arm64", "com.mojang:x:1:natives-linux",
+                "com.example:lwjgl-fork:3.3.3:natives-linux",
+                "org.lwjgl:lwjgl-glfw:3.3.3");
+        check(ClientPlan.lwjglNativesJars(libs).equals(Arrays.asList(
+                "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-linux.jar",
+                "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-linux-arm64.jar")),
+                "only LWJGL native classifiers are emptied: " + ClientPlan.lwjglNativesJars(libs));
+        byte[] z = ClientPlan.emptyJar();
+        check(z.length == 22 && z[0] == 'P' && z[1] == 'K' && z[2] == 5 && z[3] == 6, "the empty jar is an EOCD record");
+        try {
+            java.util.zip.ZipInputStream in = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(z));
+            check(in.getNextEntry() == null, "the empty jar opens and holds nothing");
+            File f = File.createTempFile("empty", ".jar");
+            Files.write(f.toPath(), z);
+            check(new java.util.zip.ZipFile(f).size() == 0, "java.util.zip reads it as a zip with no entries");
+            f.delete();
+        } catch (Exception e) {
+            check(false, "the empty jar is a readable zip: " + e);
+        }
+    }
+
+    static void moduleChoice() throws Exception {
+        List<LunarApi.Version> v = LunarApi.parseVersions(json("versions.json"));
+        LunarApi.Subversion s = v.get(0).subversions.get(0);
+        LunarApi.Module plain = s.modules.get(0), fabric = s.modules.get(1);
+        check(plain.loaders.equals(Collections.singletonList("ichor")), "loaders are read: " + plain.loaders);
+        check(ClientPlan.bundlesSodium(fabric) && !ClientPlan.bundlesSodium(plain), "a Fabric module bundles Sodium");
+        check("lunar-noOF".equals(ClientPlan.preferredModule(s.modules, false)),
+                "an unverified renderer gets the plain module even though Lunar defaults to Fabric");
+        check("fabric".equals(ClientPlan.preferredModule(s.modules, true)), "a verified renderer keeps Lunar's pick");
+        check("lunar".equals(ClientPlan.preferredModule(v.get(0).subversions.get(1).modules, false)),
+                "a version with only a plain module keeps it");
+        check("fabric".equals(ClientPlan.preferredModule(Collections.singletonList(fabric), false)),
+                "with nothing safer, Lunar's pick stands rather than nothing");
+        check(ClientPlan.preferredModule(Collections.<LunarApi.Module>emptyList(), false) == null, "no modules, no pick");
     }
 }

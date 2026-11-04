@@ -204,6 +204,9 @@ public final class ClientInstaller {
         for (ClientPlan.Seed s : ClientPlan.lwjglSeeds(coords, folder, shipped)) {
             copy(new File(source, s.amethystJar), new File(libraries, s.libraryPath));
         }
+        for (String path : ClientPlan.lwjglNativesJars(coords)) {
+            write(new File(libraries, path), ClientPlan.emptyJar());
+        }
     }
 
     private static void installAssets(LunarApi.Subversion version, File home, Progress progress)

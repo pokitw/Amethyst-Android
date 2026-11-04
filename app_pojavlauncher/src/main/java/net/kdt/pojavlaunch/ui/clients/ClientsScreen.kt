@@ -36,7 +36,13 @@ data class ClientVersion(
 )
 
 @Immutable
-data class ClientModule(val id: String, val name: String, val description: String)
+data class ClientModule(
+    val id: String,
+    val name: String,
+    val description: String,
+    /** Runs on Fabric, which for Lunar means Sodium and Iris, and so needs real OpenGL 3.3. */
+    val bundlesSodium: Boolean = false
+)
 
 /** Where the install is, as one line and one fraction; null fraction means no measurable length. */
 @Immutable
@@ -51,6 +57,8 @@ data class ClientsState(
     val unavailable: List<String> = emptyList(),
     val selectedVersion: String? = null,
     val selectedModule: String? = null,
+    /** Whether the renderer has positive evidence for Sodium, as the home screen's check says. */
+    val sodiumVerified: Boolean = false,
     val installed: Boolean = false,
     val progress: ClientProgress? = null,
     val installError: String? = null
@@ -140,6 +148,12 @@ private fun Picker(
                 selected = state.selectedModule ?: "",
                 onSelect = { if (!busy) onSelectModule(it) }
             )
+            if (module != null && module.bundlesSodium && !state.sodiumVerified) {
+                InfoRow(
+                    title = stringResource(R.string.clients_sodium_title),
+                    description = stringResource(R.string.clients_sodium_body)
+                )
+            }
         }
         if (state.unavailable.isNotEmpty()) {
             InfoRow(

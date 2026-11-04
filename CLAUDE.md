@@ -2209,6 +2209,22 @@ re-litigated. The reasoning lives in the commit that made the change.
   through `JREUtils.launchJavaVM`. Server JVM flags are filtered first: a `-XX` option the runtime
   lacks, or a module it does not have, stops the JVM before a line of Java runs, and the server's
   list is one that can grow without notice.
+  **Lunar's desktop LWJGL native jars are emptied, never left in place.** The first device run
+  reported "Incompatible Java and native library versions" twice in the Errors filter, which reads
+  as the crash and was not: LWJGL compares the library it loads against a `.sha1` it finds beside
+  it on the class path, and Mojang's desktop natives jars carry those, so Amethyst's own ARM build
+  was being compared against Mojang's and the check printed as an error and carried on. The
+  container settled both halves before anything changed: a run with Amethyst's GLFW jar swapped in
+  kept it and loaded it, so the swap is sound, and a run with every native jar of three modules
+  emptied started exactly as before. So they are emptied (`ClientPlan.isDesktopNativesJar`), at
+  install for the ones Mojang names and before every launch for the lz4, zstd, opus and newer
+  tinyfd modules the client fetches for itself on its first run. Emptied rather than deleted,
+  because the loader downloads a jar that is missing and keeps one that is present.
+  **The plain module is pre-selected unless the renderer is verified for Sodium.** Lunar's own
+  default is its Fabric bundle, which carries Sodium and Iris, and Sodium needs real OpenGL 3.3;
+  `SodiumSupport` already knows that this is proven only for Zink on an Adreno with Turnip loading.
+  The same verdict the home screen's Sodium dialog uses picks the module here, so the two never
+  disagree, and the Fabric bundle stays a tap away with a line saying what it needs.
   **Badlion is not here and is a different problem.** Lunar's launcher lists Badlion versions,
   but it does not serve their files: it downloads Badlion's whole separate app and runs that,
   which needs its own investigation and an account of its own.

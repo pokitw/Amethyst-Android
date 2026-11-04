@@ -124,11 +124,41 @@ public final class ClientLaunch {
         args.addAll(ClientPlan.programArguments(launch, version, assetIndex, home, who, width, height,
                 ClientInstaller.installationId(), UUID.randomUUID().toString()));
 
+        int emptied = emptyDesktopNatives(new File(ClientPlan.minecraftDir(home), "libraries/org/lwjgl"));
         Logger.appendToLog("Client: Lunar " + version + " (" + module + "), Java " + runtime.javaVersion
                 + ", LWJGL " + lwjgl + " served by Amethyst's " + folder
-                + ", skipped x86 natives " + ClientPlan.skippedNatives(launch));
+                + ", skipped x86 natives " + ClientPlan.skippedNatives(launch)
+                + ", emptied " + emptied + " desktop LWJGL native jars");
         JREUtils.launchJavaVM(activity, runtime, ClientPlan.multiverDir(home), args,
                 LauncherPreferences.PREF_CUSTOM_JAVA_ARGS);
+    }
+
+    /**
+     * Empties every desktop LWJGL native jar under {@code dir}, on every launch. The installer
+     * empties the ones Mojang's file names, but the client fetches further LWJGL modules of its
+     * own the first time it runs (lz4, zstd, opus, a newer tinyfd), and those only exist to be
+     * found from the second launch on. Unable to throw, because this is the launch path (16.15).
+     */
+    private static int emptyDesktopNatives(File dir) {
+        int count = 0;
+        try {
+            File[] children = dir.listFiles();
+            if (children == null) return 0;
+            for (File f : children) {
+                if (f.isDirectory()) {
+                    count += emptyDesktopNatives(f);
+                } else if (ClientPlan.isDesktopNativesJar(f.getName())
+                        && f.length() != ClientPlan.emptyJar().length) {
+                    try (java.io.OutputStream out = new java.io.FileOutputStream(f)) {
+                        out.write(ClientPlan.emptyJar());
+                        count++;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Could not empty desktop natives in " + dir + ": " + e);
+        }
+        return count;
     }
 
     private static String join(List<String> parts) {

@@ -411,6 +411,80 @@ public final class ClientPlan {
         return out;
     }
 
+    // ---- desktop natives ---------------------------------------------------------------------
+
+    /**
+     * A valid zip with no entries: the end-of-central-directory record and nothing else. Written
+     * by hand because {@code ZipOutputStream} refuses to finish a zip with no entries.
+     */
+    public static byte[] emptyJar() {
+        byte[] b = new byte[22];
+        b[0] = 0x50;
+        b[1] = 0x4b;
+        b[2] = 0x05;
+        b[3] = 0x06;
+        return b;
+    }
+
+    private static final Pattern NATIVES_JAR =
+            Pattern.compile("^lwjgl(-[a-z0-9]+)?-[0-9][0-9A-Za-z.+_-]*-natives-[a-z0-9-]+\\.jar$");
+
+    /**
+     * Whether a file in Lunar's library folder is one of LWJGL's desktop native jars.
+     *
+     * <p>Every one of them is a desktop Linux, macOS or Windows build and none can load on
+     * Android, so they are emptied in place rather than left on the class path. Two things made
+     * that worth doing. LWJGL compares the library it loads against a {@code .sha1} it finds
+     * beside it on the class path, so Amethyst's own ARM build of the core library was being
+     * compared against Mojang's desktop one and printed "Incompatible Java and native library
+     * versions" as an ERROR on every launch, which a player reads as the crash. And a module
+     * Amethyst has no ARM native for would otherwise be extracted from these jars and handed to
+     * the Android linker as a glibc library. Emptied rather than deleted, because the loader
+     * downloads a jar that is missing and keeps one that is present: a run with every native jar
+     * of three modules emptied started exactly as before.
+     */
+    public static boolean isDesktopNativesJar(String fileName) {
+        return fileName != null && NATIVES_JAR.matcher(fileName).matches();
+    }
+
+    /** Relative library paths of every LWJGL native classifier jar in a Mojang library list. */
+    public static List<String> lwjglNativesJars(List<String> libraryCoordinates) {
+        List<String> out = new ArrayList<>();
+        for (String c : libraryCoordinates) {
+            String[] p = c.split(":");
+            if (p.length != 4 || !p[0].equals("org.lwjgl") || !p[3].startsWith("natives-")) continue;
+            String name = p[1] + "-" + p[2] + "-" + p[3] + ".jar";
+            if (!isDesktopNativesJar(name)) continue;
+            out.add("org/lwjgl/" + p[1] + "/" + p[2] + "/" + name);
+        }
+        return out;
+    }
+
+    // ---- which module ------------------------------------------------------------------------
+
+    /** Whether a module runs on Fabric, which for Lunar means its bundle of Sodium and Iris. */
+    public static boolean bundlesSodium(LunarApi.Module module) {
+        for (String l : module.loaders) if ("fabric".equalsIgnoreCase(l)) return true;
+        return false;
+    }
+
+    /**
+     * The module to pre-select. Lunar's own default is its Fabric bundle, which carries Sodium and
+     * Iris, and Sodium needs real OpenGL 3.3: on any renderer {@code SodiumSupport} has not
+     * verified, that default is the likeliest way for the first launch to fail. So the plain
+     * module is chosen unless the renderer is verified, and the Fabric one stays a tap away.
+     * Lunar's own pick is kept wherever it is safe, and wherever nothing better exists.
+     */
+    public static String preferredModule(List<LunarApi.Module> modules, boolean sodiumVerified) {
+        if (modules.isEmpty()) return null;
+        LunarApi.Module serverDefault = null;
+        for (LunarApi.Module m : modules) if (m.isDefault) { serverDefault = m; break; }
+        if (serverDefault == null) serverDefault = modules.get(0);
+        if (sodiumVerified || !bundlesSodium(serverDefault)) return serverDefault.id;
+        for (LunarApi.Module m : modules) if (!bundlesSodium(m)) return m.id;
+        return serverDefault.id;
+    }
+
     // ---- what is offered ---------------------------------------------------------------------
 
     private static final Pattern RELEASE_1X = Pattern.compile("^1\\.(\\d+)(?:\\.|$)");

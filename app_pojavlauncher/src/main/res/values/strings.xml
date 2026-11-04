@@ -1697,5 +1697,7 @@
     <string name="clients_install_play">Install and play</string>
     <string name="clients_play">Play</string>
     <string name="clients_starting">Getting ready</string>
+    <string name="clients_sodium_title">This mode bundles Sodium and Iris</string>
+    <string name="clients_sodium_body">They need real OpenGL 3.3, and your renderer has not been shown to give it. If the game closes while starting, pick the plain Lunar mode instead.</string>
     <string name="clients_install_incomplete">This client is not fully installed. Open Clients and press Install and play again.</string>
 </resources>
